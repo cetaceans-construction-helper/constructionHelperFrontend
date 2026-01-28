@@ -1,17 +1,12 @@
-import { ref, onUnmounted, type Ref } from 'vue'
+import { ref, shallowRef, onUnmounted, type Ref } from 'vue'
 import { Engine, type EngineOptions } from '@/utils/three/Engine'
-// import type { ClippingAxis } from '@/utils/three/control/ClippingController'
+import type { Model3dm } from '@/types/model3dm'
 
 export function useEngine(containerRef: Ref<HTMLElement | null>, options?: EngineOptions) {
-  const engine = ref<Engine | null>(null)
+  const engine = shallowRef<Engine | null>(null)
   const isLoading = ref(false)
   const loadProgress = ref(0)
   const loadError = ref<string | null>(null)
-
-  // 클리핑 상태 (비활성화)
-  // const clippingEnabled = ref(false)
-  // const clippingAxis = ref<ClippingAxis | null>(null)
-  // const clippingPosition = ref(0)
 
   /**
    * 엔진 초기화
@@ -26,9 +21,9 @@ export function useEngine(containerRef: Ref<HTMLElement | null>, options?: Engin
   }
 
   /**
-   * JSON 모델 로드 (DB에서 추출한 데이터)
+   * API 모델 데이터 로드 (백엔드 응답)
    */
-  const loadJsonModel = async (url: string) => {
+  const loadApiModel = (models: Model3dm[]) => {
     if (!engine.value) {
       console.error('Engine not initialized')
       return
@@ -39,14 +34,14 @@ export function useEngine(containerRef: Ref<HTMLElement | null>, options?: Engin
     loadProgress.value = 0
 
     try {
-      await engine.value.loadJsonModel(url)
+      engine.value.loadApiModel(models)
 
-      // 엔진의 로딩 상태 동기화
       isLoading.value = engine.value.isLoading
       loadProgress.value = engine.value.loadProgress
       loadError.value = engine.value.loadError
-    } catch (error) {
-      loadError.value = error instanceof Error ? error.message : '알 수 없는 오류'
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      loadError.value = err.response?.data?.message || err.message || '알 수 없는 오류'
       isLoading.value = false
     }
   }
@@ -66,49 +61,6 @@ export function useEngine(containerRef: Ref<HTMLElement | null>, options?: Engin
     if (!engine.value) return
     engine.value.rotateZ(-30)
   }
-
-  // /**
-  //  * 클리핑 평면 생성
-  //  */
-  // const createClippingPlane = (axis: ClippingAxis) => {
-  //   if (!engine.value) return
-  //   engine.value.createClippingPlane(axis)
-
-  //   // 상태 동기화
-  //   const state = engine.value.getClippingState()
-  //   clippingEnabled.value = state.isEnabled
-  //   clippingAxis.value = state.axis
-  //   clippingPosition.value = state.position
-
-  //   // 변경 콜백 등록
-  //   engine.value.onClippingChange((position, newAxis) => {
-  //     clippingPosition.value = position
-  //     clippingAxis.value = newAxis
-  //   })
-  // }
-
-  // /**
-  //  * 클리핑 평면 제거
-  //  */
-  // const removeClippingPlane = () => {
-  //   if (!engine.value) return
-  //   engine.value.removeClippingPlane()
-
-  //   clippingEnabled.value = false
-  //   clippingAxis.value = null
-  //   clippingPosition.value = 0
-  // }
-
-  // /**
-  //  * 클리핑 토글 (같은 축이면 제거, 다른 축이면 변경)
-  //  */
-  // const toggleClipping = (axis: ClippingAxis) => {
-  //   if (clippingAxis.value === axis) {
-  //     removeClippingPlane()
-  //   } else {
-  //     createClippingPlane(axis)
-  //   }
-  // }
 
   /**
    * 엔진 인스턴스 가져오기
@@ -135,19 +87,11 @@ export function useEngine(containerRef: Ref<HTMLElement | null>, options?: Engin
     isLoading,
     loadProgress,
     loadError,
-    // 클리핑 상태 (비활성화)
-    // clippingEnabled,
-    // clippingAxis,
-    // clippingPosition,
-    // 메서드
     init,
-    loadJsonModel,
+    loadApiModel,
     rotateLeft,
     rotateRight,
-    // createClippingPlane,
-    // removeClippingPlane,
-    // toggleClipping,
     getEngine,
-    cleanup
+    cleanup,
   }
 }

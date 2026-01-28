@@ -302,6 +302,13 @@ export class SelectionController {
   }
 
   /**
+   * 원본 material 조회 (opacity 동기화용)
+   */
+  getOriginalMaterial(uuid: string): THREE.Material | THREE.Material[] | undefined {
+    return this.originalMaterials.get(uuid)
+  }
+
+  /**
    * 정리
    */
   dispose(): void {

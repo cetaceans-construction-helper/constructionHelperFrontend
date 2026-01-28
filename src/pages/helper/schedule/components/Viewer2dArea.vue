@@ -34,6 +34,10 @@ import { useDateHeader, DAY_WIDTH, ROW_HEIGHT, HEADER_HEIGHT } from '../composab
 import { usePathEditor } from '../composables/schedule2D/usePathEditor'
 import { useWorkEditor } from '../composables/schedule2D/useWorkEditor'
 
+const emit = defineEmits<{
+  'works-loaded': [works: WorkResponse[]]
+}>()
+
 // VueFlow
 const nodes = ref<Node[]>([])
 const edges = ref<Edge[]>([])
@@ -130,6 +134,8 @@ const loadWorkData = async () => {
         }
       })
     )
+
+    emit('works-loaded', works)
   } catch (error) {
     console.error('데이터 로드 실패:', error)
   } finally {

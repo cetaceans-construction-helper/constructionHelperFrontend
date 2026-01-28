@@ -75,4 +75,10 @@ export const workApi = {
   async deleteWork(workId: number): Promise<void> {
     await apiClient.delete(`/work/deleteWork/${workId}`)
   },
+
+  // 특정 날짜의 작업 ID 목록 조회
+  async getWorkListByDate(date: string): Promise<number[]> {
+    const { data } = await apiClient.get<number[]>('/work/getWorkListByDate', { params: { date } })
+    return data
+  },
 }

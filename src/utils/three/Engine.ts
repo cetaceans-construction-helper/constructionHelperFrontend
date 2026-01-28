@@ -1,5 +1,6 @@
 import * as THREE from 'three'
-import { loadModelFromJson } from './loader/jsonModelLoader'
+import { createModelFromApiData } from './loader/apiModelLoader'
+import type { Model3dm } from '@/types/model3dm'
 import { CameraController } from './control/CameraController'
 import { RotationController } from './control/RotationController'
 import { SelectionController, type SelectionOptions } from './control/SelectionController'
@@ -19,6 +20,7 @@ export class Engine {
   private resizeHandler: (() => void) | null = null
 
   private rhinoModel: THREE.Object3D | null = null
+  private originalColors: Map<string, THREE.Color> = new Map()
   private cameraController: CameraController
   private rotationController: RotationController
   private selectionController: SelectionController
@@ -95,15 +97,15 @@ export class Engine {
   }
 
   /**
-   * JSON 모델 로드 (DB에서 가져온 데이터)
+   * API 모델 데이터 로드 (백엔드 응답 데이터)
    */
-  async loadJsonModel(url: string): Promise<THREE.Object3D> {
+  loadApiModel(models: Model3dm[]): THREE.Object3D {
     this.isLoading = true
     this.loadError = null
     this.loadProgress = 0
 
     try {
-      this.rhinoModel = await loadModelFromJson(url)
+      this.rhinoModel = createModelFromApiData(models)
 
       // z-up → y-up 좌표계 변환 (Rhino → Three.js)
       this.rhinoModel.rotation.x = -Math.PI / 2
@@ -120,13 +122,10 @@ export class Engine {
       // SelectionController에 선택 가능한 객체 설정
       this.selectionController.setSelectableFromModel(this.rhinoModel)
 
-      // ClippingController에 타겟 모델 설정 (비활성화)
-      // this.clippingController.setTargetModel(this.rhinoModel)
-
       this.loadProgress = 100
       return this.rhinoModel
     } catch (error) {
-      console.error('JSON 모델 로드 실패:', error)
+      console.error('API 모델 로드 실패:', error)
       this.loadError = error instanceof Error ? error.message : '알 수 없는 오류'
       throw error
     } finally {
@@ -344,6 +343,64 @@ export class Engine {
   }
 
   // =====================
+  // 모델 가시성/강조 제어
+  // =====================
+
+  /**
+   * 오브젝트 가시성 설정
+   * visibleIds가 null이면 모든 오브젝트 표시
+   */
+  setObjectVisibility(visibleIds: Set<number> | null): void {
+    if (!this.rhinoModel) return
+    this.rhinoModel.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.userData.dbId != null) {
+        child.visible = visibleIds === null || visibleIds.has(child.userData.dbId)
+      }
+    })
+  }
+
+  /**
+   * 오브젝트 강조 설정 (비강조 오브젝트는 회색 처리)
+   * emphasizedIds가 null이면 모든 오브젝트 원래 색상
+   * emphasizedIds가 Set이면 해당 ID만 원래 색상, 나머지 회색
+   */
+  setObjectEmphasis(emphasizedIds: Set<number> | null): void {
+    if (!this.rhinoModel) return
+    const GRAY = new THREE.Color(0x888888)
+
+    this.rhinoModel.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.userData.dbId != null) {
+        const isEmphasized = emphasizedIds === null || emphasizedIds.has(child.userData.dbId)
+
+        // 원래 색상 저장 (최초 1회)
+        if (!this.originalColors.has(child.uuid)) {
+          const storedOrig = this.selectionController.getOriginalMaterial(child.uuid)
+          const trueMat = (storedOrig && !Array.isArray(storedOrig))
+            ? storedOrig as THREE.MeshStandardMaterial
+            : child.material as THREE.MeshStandardMaterial
+          this.originalColors.set(child.uuid, trueMat.color.clone())
+        }
+
+        const targetColor = isEmphasized
+          ? this.originalColors.get(child.uuid)!
+          : GRAY
+
+        // 3D 선택 중이면 원본 material만 변경 (하이라이트 clone은 유지)
+        const storedOrig = this.selectionController.getOriginalMaterial(child.uuid)
+        if (storedOrig && !Array.isArray(storedOrig)) {
+          const orig = storedOrig as THREE.MeshStandardMaterial
+          orig.color.copy(targetColor)
+          orig.needsUpdate = true
+        } else {
+          const currentMat = child.material as THREE.MeshStandardMaterial
+          currentMat.color.copy(targetColor)
+          currentMat.needsUpdate = true
+        }
+      }
+    })
+  }
+
+  // =====================
   // 내부 메서드
   // =====================
 
@@ -401,6 +458,9 @@ export class Engine {
 
     // SelectionController 정리
     this.selectionController.dispose()
+
+    // 원본 색상 맵 정리
+    this.originalColors.clear()
 
     // ClippingController 정리 (비활성화)
     // this.clippingController.dispose()
