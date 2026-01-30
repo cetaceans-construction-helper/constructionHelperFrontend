@@ -9,7 +9,9 @@ export function workToNode(work: WorkResponse): Node {
   // 휴일 휴무인 작업은 옅은 회색 배경
   const baseStyle: Record<string, string> = {
     width: `${work.width}px`,
-    height: `${work.height}px`
+    height: `${work.height}px`,
+    overflow: 'visible',
+    whiteSpace: 'nowrap'
   }
 
   if (!work.isWorkingOnHoliday) {

@@ -1,15 +1,15 @@
 import { ref, watch } from 'vue'
 import {
-  subWorkTypeApi,
-  type Division,
-  type WorkType,
-  type SubWorkType,
-} from '@/api/subWorkType'
+  referenceApi,
+  type IdNameResponse,
+  type WorkTypeResponse,
+  type SubWorkTypeResponse,
+} from '@/api/reference'
 
 export function useWorkClassification() {
-  const divisions = ref<Division[]>([])
-  const workTypes = ref<WorkType[]>([])
-  const subWorkTypes = ref<SubWorkType[]>([])
+  const divisions = ref<IdNameResponse[]>([])
+  const workTypes = ref<WorkTypeResponse[]>([])
+  const subWorkTypes = ref<SubWorkTypeResponse[]>([])
 
   const selectedDivisionId = ref<number | null>(null)
   const selectedWorkTypeId = ref<number | null>(null)
@@ -23,7 +23,7 @@ export function useWorkClassification() {
   // 목록 로드
   const loadDivisions = async () => {
     try {
-      divisions.value = await subWorkTypeApi.getDivisionList()
+      divisions.value = await referenceApi.getDivisionList()
     } catch (error) {
       console.error('Division 목록 로드 실패:', error)
     }
@@ -31,7 +31,7 @@ export function useWorkClassification() {
 
   const loadWorkTypes = async (divisionId: number) => {
     try {
-      workTypes.value = await subWorkTypeApi.getWorkTypeList(divisionId)
+      workTypes.value = await referenceApi.getWorkTypeList(divisionId)
     } catch (error) {
       console.error('WorkType 목록 로드 실패:', error)
     }
@@ -39,7 +39,7 @@ export function useWorkClassification() {
 
   const loadSubWorkTypes = async (workTypeId: number) => {
     try {
-      subWorkTypes.value = await subWorkTypeApi.getSubWorkTypeList(workTypeId)
+      subWorkTypes.value = await referenceApi.getSubWorkTypeList(workTypeId)
     } catch (error) {
       console.error('SubWorkType 목록 로드 실패:', error)
     }
@@ -58,12 +58,13 @@ export function useWorkClassification() {
 
   // 추가
   const addDivision = async () => {
+    if (isCreating.value) return
     const name = newDivisionName.value.trim()
     if (!name) return
 
     isCreating.value = true
     try {
-      await subWorkTypeApi.createDivision(name)
+      await referenceApi.createDivision(name)
       newDivisionName.value = ''
       await loadDivisions()
     } catch (error: unknown) {
@@ -76,12 +77,13 @@ export function useWorkClassification() {
   }
 
   const addWorkType = async () => {
+    if (isCreating.value) return
     const name = newWorkTypeName.value.trim()
     if (!name || !selectedDivisionId.value) return
 
     isCreating.value = true
     try {
-      await subWorkTypeApi.createWorkType(name, selectedDivisionId.value)
+      await referenceApi.createWorkType(selectedDivisionId.value, name)
       newWorkTypeName.value = ''
       await loadWorkTypes(selectedDivisionId.value)
     } catch (error: unknown) {
@@ -94,12 +96,13 @@ export function useWorkClassification() {
   }
 
   const addSubWorkType = async () => {
+    if (isCreating.value) return
     const name = newSubWorkTypeName.value.trim()
     if (!name || !selectedWorkTypeId.value) return
 
     isCreating.value = true
     try {
-      await subWorkTypeApi.createSubWorkType(name, selectedWorkTypeId.value)
+      await referenceApi.createSubWorkType(selectedWorkTypeId.value, name)
       newSubWorkTypeName.value = ''
       await loadSubWorkTypes(selectedWorkTypeId.value)
     } catch (error: unknown) {

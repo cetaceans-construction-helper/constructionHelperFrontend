@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { createModelFromApiData } from './loader/apiModelLoader'
-import type { Model3dm } from '@/types/model3dm'
+import type { Object3d } from '@/types/object3d'
 import { CameraController } from './control/CameraController'
 import { RotationController } from './control/RotationController'
 import { SelectionController, type SelectionOptions } from './control/SelectionController'
@@ -99,7 +99,7 @@ export class Engine {
   /**
    * API 모델 데이터 로드 (백엔드 응답 데이터)
    */
-  loadApiModel(models: Model3dm[]): THREE.Object3D {
+  loadApiModel(models: Object3d[]): THREE.Object3D {
     this.isLoading = true
     this.loadError = null
     this.loadProgress = 0

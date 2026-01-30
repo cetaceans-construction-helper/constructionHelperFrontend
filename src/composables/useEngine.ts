@@ -1,6 +1,6 @@
 import { ref, shallowRef, onUnmounted, type Ref } from 'vue'
 import { Engine, type EngineOptions } from '@/utils/three/Engine'
-import type { Model3dm } from '@/types/model3dm'
+import type { Object3d } from '@/types/object3d'
 
 export function useEngine(containerRef: Ref<HTMLElement | null>, options?: EngineOptions) {
   const engine = shallowRef<Engine | null>(null)
@@ -23,7 +23,7 @@ export function useEngine(containerRef: Ref<HTMLElement | null>, options?: Engin
   /**
    * API 모델 데이터 로드 (백엔드 응답)
    */
-  const loadApiModel = (models: Model3dm[]) => {
+  const loadApiModel = (models: Object3d[]) => {
     if (!engine.value) {
       console.error('Engine not initialized')
       return

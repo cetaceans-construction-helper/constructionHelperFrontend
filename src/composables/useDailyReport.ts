@@ -1,6 +1,6 @@
 import { ref, watch } from 'vue'
 import { workApi } from '@/api/work'
-import { componentApi } from '@/api/model3dm'
+import { object3dApi } from '@/api/object3d'
 import type { Engine } from '@/utils/three/Engine'
 
 function formatDate(date: Date): string {
@@ -14,27 +14,27 @@ export function useDailyReport() {
   const selectedDate = ref(formatDate(new Date()))
   const showTodayOnly = ref(false)
   const dailyWorkIds = ref<number[]>([])
-  const dailyComponentIds = ref<number[]>([])
+  const dailyObject3dIds = ref<number[]>([])
   const selectedWorkId = ref<number | null>(null)
-  const workComponentIds = ref<number[]>([])
+  const workObject3dIds = ref<number[]>([])
   const isLoadingDaily = ref(false)
 
   /**
-   * 날짜 기반 데일리 데이터 로드 (workIds + componentIds)
+   * 날짜 기반 데일리 데이터 로드 (workIds + object3dIds)
    */
   async function loadDailyData() {
     isLoadingDaily.value = true
     try {
-      const [workIds, compIds] = await Promise.all([
+      const [workIds, obj3dIds] = await Promise.all([
         workApi.getWorkListByDate(selectedDate.value),
-        componentApi.getComponentListByDate(selectedDate.value),
+        object3dApi.getObject3dListByDate(selectedDate.value),
       ])
       dailyWorkIds.value = workIds
-      dailyComponentIds.value = compIds
+      dailyObject3dIds.value = obj3dIds
     } catch (error) {
       console.error('작업 일보 데이터 로드 실패:', error)
       dailyWorkIds.value = []
-      dailyComponentIds.value = []
+      dailyObject3dIds.value = []
     } finally {
       isLoadingDaily.value = false
     }
@@ -47,16 +47,16 @@ export function useDailyReport() {
     if (selectedWorkId.value === workId) {
       // 선택 해제
       selectedWorkId.value = null
-      workComponentIds.value = []
+      workObject3dIds.value = []
       return
     }
 
     selectedWorkId.value = workId
     try {
-      workComponentIds.value = await componentApi.getComponentListByWork(workId)
+      workObject3dIds.value = await object3dApi.getObject3dListByWork(workId)
     } catch (error) {
       console.error('작업 부재 목록 조회 실패:', error)
-      workComponentIds.value = []
+      workObject3dIds.value = []
     }
   }
 
@@ -89,16 +89,16 @@ export function useDailyReport() {
   function updateModelAppearance(engine: Engine | null) {
     if (!engine) return
 
-    // 1) 가시성: showTodayOnly면 dailyComponentIds만 표시
+    // 1) 가시성: showTodayOnly면 dailyObject3dIds만 표시
     const visibleIds = showTodayOnly.value
-      ? new Set(dailyComponentIds.value)
+      ? new Set(dailyObject3dIds.value)
       : null
 
     engine.setObjectVisibility(visibleIds)
 
-    // 2) 강조: selectedWorkId가 있으면 workComponentIds만 원래 색상, 나머지 회색
+    // 2) 강조: selectedWorkId가 있으면 workObject3dIds만 원래 색상, 나머지 회색
     const emphasizedIds = selectedWorkId.value != null
-      ? new Set(workComponentIds.value)
+      ? new Set(workObject3dIds.value)
       : null
 
     engine.setObjectEmphasis(emphasizedIds)
@@ -110,14 +110,14 @@ export function useDailyReport() {
   async function refreshDaily() {
     // 작업 선택 초기화
     selectedWorkId.value = null
-    workComponentIds.value = []
+    workObject3dIds.value = []
     await loadDailyData()
   }
 
   // 날짜 변경 시 자동 로드
   watch(selectedDate, () => {
     selectedWorkId.value = null
-    workComponentIds.value = []
+    workObject3dIds.value = []
     loadDailyData()
   })
 
@@ -125,9 +125,9 @@ export function useDailyReport() {
     selectedDate,
     showTodayOnly,
     dailyWorkIds,
-    dailyComponentIds,
+    dailyObject3dIds,
     selectedWorkId,
-    workComponentIds,
+    workObject3dIds,
     isLoadingDaily,
     loadDailyData,
     selectWork,

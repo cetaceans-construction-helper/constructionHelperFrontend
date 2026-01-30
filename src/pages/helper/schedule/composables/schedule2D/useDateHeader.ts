@@ -111,8 +111,9 @@ export function useDateHeader(
   const containerWidth = ref(0)
   let resizeObserver: ResizeObserver | null = null
 
-  // 오늘 날짜 문자열 (YYYY-MM-DD)
-  const todayString = new Date().toISOString().split('T')[0]!
+  // 오늘 날짜 문자열 (YYYY-MM-DD, 로컬 시간 기준)
+  const today = new Date()
+  const todayString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
 
   // 오늘 날짜 기준 오프셋 (오늘이 0, 과거는 음수, 미래는 양수)
   const todayOffset = computed(() => {

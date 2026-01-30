@@ -206,6 +206,7 @@ const {
   divisions,
   workTypes,
   subWorkTypes,
+  componentTypes,
   locationOptions,
   projects,
   isCreatingWork,
@@ -269,7 +270,9 @@ watch(
       // 기본 스타일 (휴일 휴무 여부 반영)
       const baseStyle: Record<string, string> = {
         width: `${work.width}px`,
-        height: `${work.height}px`
+        height: `${work.height}px`,
+        overflow: 'visible',
+        whiteSpace: 'nowrap'
       }
 
       // 휴일 휴무인 작업은 옅은 회색 배경
@@ -365,12 +368,17 @@ const onNodeClick = (event: { node: Node; event: MouseEvent | TouchEvent }) => {
   }
 }
 
+// 로컬 날짜를 YYYY-MM-DD 문자열로 변환
+const formatLocalDate = (date: Date): string => {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
 // 날짜 조절 함수 (작업 생성 폼용)
 const adjustStartDate = (form: { start_date: string }, days: number) => {
   if (!form.start_date) return
   const date = new Date(form.start_date)
   date.setDate(date.getDate() + days)
-  form.start_date = date.toISOString().split('T')[0]!
+  form.start_date = formatLocalDate(date)
 }
 
 // 날짜 조절 함수 (작업 수정 폼용)
@@ -378,7 +386,7 @@ const adjustEditStartDate = (days: number) => {
   if (!workEditForm.value.startDate) return
   const date = new Date(workEditForm.value.startDate)
   date.setDate(date.getDate() + days)
-  workEditForm.value.startDate = date.toISOString().split('T')[0]!
+  workEditForm.value.startDate = formatLocalDate(date)
 }
 
 // 작업 생성 래퍼 (성공 시 폼 접기)
@@ -504,7 +512,7 @@ onUnmounted(() => {
           <div
             v-for="cell in yearCells"
             :key="`year-${cell.startIndex}`"
-            class="absolute flex items-center justify-center text-xs font-medium border-r border-b border-border/50 bg-muted/60"
+            class="absolute flex items-center justify-center text-xs font-medium border border-border bg-muted/60"
             :style="{
               left: `${cell.startIndex * DAY_WIDTH * viewport.zoom}px`,
               width: `${cell.span * DAY_WIDTH * viewport.zoom}px`,
@@ -519,7 +527,7 @@ onUnmounted(() => {
           <div
             v-for="cell in monthCells"
             :key="`month-${cell.startIndex}`"
-            class="absolute flex items-center justify-center text-xs font-medium border-r border-b border-border/50"
+            class="absolute flex items-center justify-center text-xs font-medium border border-border"
             :style="{
               left: `${cell.startIndex * DAY_WIDTH * viewport.zoom}px`,
               width: `${cell.span * DAY_WIDTH * viewport.zoom}px`,
@@ -534,7 +542,7 @@ onUnmounted(() => {
           <div
             v-for="cell in weekCells"
             :key="`week-${cell.startIndex}`"
-            class="absolute flex items-center justify-center text-xs border-r border-b border-border/50"
+            class="absolute flex items-center justify-center text-xs border border-border"
             :style="{
               left: `${cell.startIndex * DAY_WIDTH * viewport.zoom}px`,
               width: `${cell.span * DAY_WIDTH * viewport.zoom}px`,
@@ -815,11 +823,31 @@ onUnmounted(() => {
                 </Select>
               </div>
 
+              <!-- 부재 타입 -->
+              <div class="space-y-2">
+                <p class="text-xs font-medium text-muted-foreground">부재 타입</p>
+
+                <Select v-model="workFormState.component_type_id">
+                  <SelectTrigger class="w-full h-8 text-sm">
+                    <SelectValue placeholder="부재타입" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem
+                      v-for="ct in componentTypes"
+                      :key="ct.id"
+                      :value="String(ct.id)"
+                    >
+                      {{ ct.name }}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
               <!-- 위치 분류 -->
               <div class="space-y-2">
                 <p class="text-xs font-medium text-muted-foreground">위치 분류</p>
 
-                <Select v-model="workFormState.zone">
+                <Select v-model="workFormState.zone_id">
                   <SelectTrigger class="w-full h-8 text-sm">
                     <SelectValue placeholder="Zone" />
                   </SelectTrigger>
@@ -827,15 +855,15 @@ onUnmounted(() => {
                     <SelectItem value="none">선택안함</SelectItem>
                     <SelectItem
                       v-for="opt in locationOptions.zone"
-                      :key="opt.value"
-                      :value="opt.value"
+                      :key="opt.id"
+                      :value="String(opt.id)"
                     >
-                      {{ opt.label }}
+                      {{ opt.name }}
                     </SelectItem>
                   </SelectContent>
                 </Select>
 
-                <Select v-model="workFormState.floor">
+                <Select v-model="workFormState.floor_id">
                   <SelectTrigger class="w-full h-8 text-sm">
                     <SelectValue placeholder="Floor" />
                   </SelectTrigger>
@@ -843,15 +871,15 @@ onUnmounted(() => {
                     <SelectItem value="none">선택안함</SelectItem>
                     <SelectItem
                       v-for="opt in locationOptions.floor"
-                      :key="opt.value"
-                      :value="opt.value"
+                      :key="opt.id"
+                      :value="String(opt.id)"
                     >
-                      {{ opt.label }}
+                      {{ opt.name }}
                     </SelectItem>
                   </SelectContent>
                 </Select>
 
-                <Select v-model="workFormState.section">
+                <Select v-model="workFormState.section_id">
                   <SelectTrigger class="w-full h-8 text-sm">
                     <SelectValue placeholder="Section" />
                   </SelectTrigger>
@@ -859,15 +887,15 @@ onUnmounted(() => {
                     <SelectItem value="none">선택안함</SelectItem>
                     <SelectItem
                       v-for="opt in locationOptions.section"
-                      :key="opt.value"
-                      :value="opt.value"
+                      :key="opt.id"
+                      :value="String(opt.id)"
                     >
-                      {{ opt.label }}
+                      {{ opt.name }}
                     </SelectItem>
                   </SelectContent>
                 </Select>
 
-                <Select v-model="workFormState.usage">
+                <Select v-model="workFormState.usage_id">
                   <SelectTrigger class="w-full h-8 text-sm">
                     <SelectValue placeholder="Usage" />
                   </SelectTrigger>
@@ -875,10 +903,10 @@ onUnmounted(() => {
                     <SelectItem value="none">선택안함</SelectItem>
                     <SelectItem
                       v-for="opt in locationOptions.usage"
-                      :key="opt.value"
-                      :value="opt.value"
+                      :key="opt.id"
+                      :value="String(opt.id)"
                     >
-                      {{ opt.label }}
+                      {{ opt.name }}
                     </SelectItem>
                   </SelectContent>
                 </Select>

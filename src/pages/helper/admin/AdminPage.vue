@@ -4,7 +4,7 @@ import AreaCard from '@/components/helper/AreaCard.vue'
 import { Separator } from '@/components/ui/separator'
 import WorkClassificationArea from './components/WorkClassificationArea.vue'
 import LocationMasterArea from './components/LocationMasterArea.vue'
-import TaskGroupArea from './components/TaskGroupArea.vue'
+import ComponentCodeArea from './components/ComponentCodeArea.vue'
 </script>
 
 <template>
@@ -15,7 +15,7 @@ import TaskGroupArea from './components/TaskGroupArea.vue'
         <Separator />
         <LocationMasterArea />
         <Separator />
-        <TaskGroupArea />
+        <ComponentCodeArea />
       </div>
     </AreaCard>
   </PageContainer>

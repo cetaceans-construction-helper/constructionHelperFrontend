@@ -31,8 +31,19 @@ const router = createRouter({
         },
         {
           path: 'schedule',
-          name: 'schedule',
-          component: () => import('@/pages/helper/schedule/Schedule3dPage.vue'),
+          redirect: '/helper/schedule/3d',
+          children: [
+            {
+              path: '3d',
+              name: 'schedule-3d',
+              component: () => import('@/pages/helper/schedule/Schedule3dPage.vue'),
+            },
+            {
+              path: '2d',
+              name: 'schedule-2d',
+              component: () => import('@/pages/helper/schedule/Schedule2dPage.vue'),
+            },
+          ],
         },
         {
           path: 'material/invoice',

@@ -38,7 +38,7 @@ const projectStore = useProjectStore()
 // Section 정의 (1단계 구조)
 const sections = [
   { id: 'dashboard', label: '대시보드', path: '/helper/dashboard' },
-  { id: 'process', label: '공정관리', path: '/helper/schedule' },
+  { id: 'process', label: '공정관리', path: '/helper/schedule/3d' },
   { id: 'material', label: '자재관리', path: '/helper/material/invoice' },
   { id: 'safety', label: '안전관리', path: '/helper/safety' },
   { id: 'document', label: '문서관리', path: '/helper/document/manager' },
@@ -48,7 +48,10 @@ const sections = [
 
 // 각 Section별 Menu 정의 (2단계 구조)
 const menusBySection: Record<string, { id: string; label: string; path: string }[]> = {
-  process: [{ id: 'schedule', label: '공정표', path: '/helper/schedule' }],
+  process: [
+    { id: '3d-schedule', label: '3D공정표', path: '/helper/schedule/3d' },
+    { id: '2d-schedule', label: '2D공정표', path: '/helper/schedule/2d' },
+  ],
   material: [
     { id: 'invoice', label: '송장입력', path: '/helper/material/invoice' },
     { id: 'list', label: '자재목록', path: '/helper/material/list' },
@@ -198,8 +201,8 @@ const handleLogout = async () => {
 
       <!-- Main Content Area -->
       <div class="flex flex-1 relative">
-        <!-- Floating Sidebar (2단계: Menu) -->
-        <Sidebar collapsible="offcanvas" class="border-r shadow-lg">
+        <!-- Floating Sidebar (2단계: Menu) - 대시보드에서는 숨김 -->
+        <Sidebar v-if="currentSection !== 'dashboard'" collapsible="offcanvas" class="border-r shadow-lg">
           <SidebarContent>
             <SidebarGroup>
               <SidebarGroupLabel>{{
@@ -227,8 +230,9 @@ const handleLogout = async () => {
           </SidebarFooter>
         </Sidebar>
 
-        <!-- Toggle Button - 사이드바 외부에 고정 -->
+        <!-- Toggle Button - 사이드바 외부에 고정 (대시보드에서는 숨김) -->
         <SidebarTrigger
+          v-if="currentSection !== 'dashboard'"
           class="fixed top-[60px] z-20 bg-background border border-border rounded-md transition-[left] duration-200 ease-linear left-[calc(var(--sidebar-width)+4px)] peer-data-[state=collapsed]:left-[4px] h-11 w-11 [&_svg]:size-6"
         />
 

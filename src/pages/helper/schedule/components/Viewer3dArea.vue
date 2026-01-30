@@ -5,14 +5,14 @@ import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import SideTabBox from '@/components/helper/SideTabBox.vue'
-import type { ComponentInfo, Task } from '@/types/model3dm'
+import type { Object3d, Task } from '@/types/object3d'
 import type { WorkResponse } from '@/api/work'
 
 const props = defineProps<{
   isLoading: boolean
   loadProgress: number
   loadError: string | null
-  selectedComponent: ComponentInfo | null
+  selectedObject3d: Object3d | null
   selectedTasks: Task[]
   isLoadingTasks: boolean
   works: WorkResponse[]
@@ -50,8 +50,8 @@ const groupedDailyWorks = computed<GroupedWorks>(() => {
 
   const result: GroupedWorks = new Map()
   for (const work of filtered) {
-    const div = work.divisionName || '미분류'
-    const wt = work.workTypeName || '미분류'
+    const div = work.division || '미분류'
+    const wt = work.workType || '미분류'
 
     if (!result.has(div)) {
       result.set(div, new Map())
@@ -128,7 +128,7 @@ const groupedDailyWorks = computed<GroupedWorks>(() => {
     <SideTabBox
       :tabs="[
         { value: 'daily', label: '작업 일보' },
-        { value: 'component', label: '부재 정보' },
+        { value: 'object3d', label: '부재 정보' },
         { value: 'schedule', label: '일정' },
         { value: 'material', label: '자재' }
       ]"
@@ -246,8 +246,8 @@ const groupedDailyWorks = computed<GroupedWorks>(() => {
         </div>
 
         <!-- 부재 정보 탭 -->
-        <div v-else-if="activeTab === 'component'">
-          <div v-if="!selectedComponent" class="text-sm text-muted-foreground">
+        <div v-else-if="activeTab === 'object3d'">
+          <div v-if="!selectedObject3d" class="text-sm text-muted-foreground">
             객체를 선택하면 부재 정보가 표시됩니다.
           </div>
           <div v-else class="space-y-4">
@@ -255,16 +255,18 @@ const groupedDailyWorks = computed<GroupedWorks>(() => {
             <div class="border border-border rounded-lg p-4 space-y-2">
               <h4 class="text-sm font-semibold text-foreground">부재 정보</h4>
               <div class="grid grid-cols-2 gap-y-1.5 text-sm">
-                <span class="text-muted-foreground">부재명</span>
-                <span class="text-foreground">{{ selectedComponent.taskGroup ?? '-' }}</span>
+                <span class="text-muted-foreground">ID</span>
+                <span class="text-foreground">{{ selectedObject3d.id }}</span>
                 <span class="text-muted-foreground">구역</span>
-                <span class="text-foreground">{{ selectedComponent.zone ?? '-' }}</span>
+                <span class="text-foreground">{{ selectedObject3d.zoneName ?? '-' }}</span>
                 <span class="text-muted-foreground">층</span>
-                <span class="text-foreground">{{ selectedComponent.floor ?? '-' }}</span>
+                <span class="text-foreground">{{ selectedObject3d.floorName ?? '-' }}</span>
                 <span class="text-muted-foreground">구간</span>
-                <span class="text-foreground">{{ selectedComponent.section ?? '-' }}</span>
+                <span class="text-foreground">{{ selectedObject3d.sectionName ?? '-' }}</span>
                 <span class="text-muted-foreground">용도</span>
-                <span class="text-foreground">{{ selectedComponent.usage ?? '-' }}</span>
+                <span class="text-foreground">{{ selectedObject3d.usageName ?? '-' }}</span>
+                <span class="text-muted-foreground">부재코드</span>
+                <span class="text-foreground">{{ selectedObject3d.componentCode ?? '-' }}</span>
               </div>
             </div>
 

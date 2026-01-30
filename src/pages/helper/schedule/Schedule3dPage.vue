@@ -6,10 +6,10 @@ import AreaCard from '@/components/helper/AreaCard.vue'
 import { useEngine } from '@/composables/useEngine'
 import { useDailyReport } from '@/composables/useDailyReport'
 import Viewer3dArea from './components/Viewer3dArea.vue'
-import Viewer2dArea from './components/Viewer2dArea.vue'
-import { model3dmApi, componentApi, taskApi } from '@/api/model3dm'
-import type { ComponentInfo, Task } from '@/types/model3dm'
-import type { WorkResponse } from '@/api/work'
+import { object3dApi } from '@/api/object3d'
+import { taskApi } from '@/api/task'
+import { workApi, type WorkResponse } from '@/api/work'
+import type { Object3d, Task } from '@/types/object3d'
 
 // 3D Engine
 const canvasContainer = ref<HTMLDivElement | null>(null)
@@ -25,11 +25,11 @@ const {
   getEngine,
 } = useEngine(canvasContainer)
 
-// 부재 데이터
-const componentMap = ref<Map<number, ComponentInfo>>(new Map())
+// Object3d 데이터
+const object3dMap = ref<Map<number, Object3d>>(new Map())
 
 // 선택 상태
-const selectedComponent = ref<ComponentInfo | null>(null)
+const selectedObject3d = ref<Object3d | null>(null)
 const selectedTasks = ref<Task[]>([])
 const isLoadingTasks = ref(false)
 
@@ -41,17 +41,14 @@ onMounted(async () => {
   init()
 
   try {
-    // 모델과 부재 목록 병렬 로드
-    const [model3dmList, componentList] = await Promise.all([
-      model3dmApi.getModel3dmList(),
-      componentApi.getComponentList(),
-    ])
+    // Object3d 목록 로드 (geometry + 메타데이터 통합)
+    const object3dList = await object3dApi.getObject3dList()
 
-    // 부재 목록을 Map으로 변환 (id로 빠르게 조회)
-    componentMap.value = new Map(componentList.map((c) => [c.id, c]))
+    // Object3d 목록을 Map으로 변환 (id로 빠르게 조회)
+    object3dMap.value = new Map(object3dList.map((obj) => [obj.id, obj]))
 
-    // 3D 모델 렌더링
-    loadApiModel(model3dmList)
+    // 3D 모델 렌더링 (Object3d는 기존 Model3dm과 동일한 형태의 geometry 포함)
+    loadApiModel(object3dList)
 
     // 선택 콜백 설정
     const engineInstance = getEngine()
@@ -60,7 +57,8 @@ onMounted(async () => {
       engineInstance.onObjectDeselect(handleDeselect)
     }
 
-    // 초기 작업 일보 데이터 로드
+    // 작업 목록 및 작업 일보 데이터 로드
+    works.value = await workApi.getWorkList()
     await dailyReport.loadDailyData()
   } catch (error: unknown) {
     console.error('초기 데이터 로드 실패:', error)
@@ -71,9 +69,9 @@ onMounted(async () => {
 watch(
   [
     () => dailyReport.showTodayOnly.value,
-    () => dailyReport.dailyComponentIds.value,
+    () => dailyReport.dailyObject3dIds.value,
     () => dailyReport.selectedWorkId.value,
-    () => dailyReport.workComponentIds.value,
+    () => dailyReport.workObject3dIds.value,
   ],
   () => {
     dailyReport.updateModelAppearance(engine.value)
@@ -88,16 +86,16 @@ async function handleSelect(selected: THREE.Object3D[]) {
   const dbId = lastSelected.userData?.dbId as number | undefined
   if (dbId == null) return
 
-  const component = componentMap.value.get(dbId)
-  if (!component) {
-    selectedComponent.value = null
+  const object3d = object3dMap.value.get(dbId)
+  if (!object3d) {
+    selectedObject3d.value = null
     selectedTasks.value = []
     return
   }
 
-  selectedComponent.value = component
+  selectedObject3d.value = object3d
 
-  // 태스크 목록 조회
+  // 태스크 목록 조회 (object3dId 파라미터 사용)
   isLoadingTasks.value = true
   try {
     selectedTasks.value = await taskApi.getTaskList(dbId)
@@ -110,15 +108,9 @@ async function handleSelect(selected: THREE.Object3D[]) {
 }
 
 function handleDeselect() {
-  selectedComponent.value = null
+  selectedObject3d.value = null
   selectedTasks.value = []
   isLoadingTasks.value = false
-}
-
-// Viewer2dArea에서 works 로드 완료 시
-function onWorksLoaded(loadedWorks: WorkResponse[]) {
-  works.value = loadedWorks
-  dailyReport.refreshDaily()
 }
 
 // 작업 일보 이벤트 핸들러
@@ -138,14 +130,13 @@ async function handleWorkClick(workId: number) {
 </script>
 
 <template>
-  <PageContainer title="공정표">
-    <!-- 3D 공정표 -->
-    <AreaCard title="3D 공정표" height="flex-1" min-height="1100px">
+  <PageContainer title="3D공정표">
+    <AreaCard height="flex-1" min-height="1100px">
       <Viewer3dArea
         :is-loading="isLoading"
         :load-progress="loadProgress"
         :load-error="loadError"
-        :selected-component="selectedComponent"
+        :selected-object3d="selectedObject3d"
         :selected-tasks="selectedTasks"
         :is-loading-tasks="isLoadingTasks"
         :works="works"
@@ -164,11 +155,6 @@ async function handleWorkClick(workId: number) {
           <div ref="canvasContainer" class="w-full h-full" />
         </template>
       </Viewer3dArea>
-    </AreaCard>
-
-    <!-- 2D 공정표 -->
-    <AreaCard title="2D 공정표" height="flex-1" min-height="1100px">
-      <Viewer2dArea @works-loaded="onWorksLoaded" />
     </AreaCard>
   </PageContainer>
 </template>

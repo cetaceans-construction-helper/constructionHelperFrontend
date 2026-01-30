@@ -1,6 +1,5 @@
 import { ref } from 'vue'
-import { workLocationApi } from '@/api/workLocation'
-import type { IdNameResponse } from '@/api/subWorkType'
+import { referenceApi, type IdNameResponse } from '@/api/reference'
 
 export function useLocationMaster() {
   const zones = ref<IdNameResponse[]>([])
@@ -23,7 +22,7 @@ export function useLocationMaster() {
   // 개별 목록 로드
   const loadZones = async () => {
     try {
-      zones.value = await workLocationApi.getZoneList()
+      zones.value = await referenceApi.getZoneList()
     } catch (error) {
       console.error('Zone 목록 로드 실패:', error)
     }
@@ -31,7 +30,7 @@ export function useLocationMaster() {
 
   const loadFloors = async () => {
     try {
-      floors.value = await workLocationApi.getFloorList()
+      floors.value = await referenceApi.getFloorList()
     } catch (error) {
       console.error('Floor 목록 로드 실패:', error)
     }
@@ -39,7 +38,7 @@ export function useLocationMaster() {
 
   const loadSections = async () => {
     try {
-      sections.value = await workLocationApi.getSectionList()
+      sections.value = await referenceApi.getSectionList()
     } catch (error) {
       console.error('Section 목록 로드 실패:', error)
     }
@@ -47,7 +46,7 @@ export function useLocationMaster() {
 
   const loadUsages = async () => {
     try {
-      usages.value = await workLocationApi.getUsageList()
+      usages.value = await referenceApi.getUsageList()
     } catch (error) {
       console.error('Usage 목록 로드 실패:', error)
     }
@@ -59,12 +58,13 @@ export function useLocationMaster() {
 
   // 추가
   const addZone = async () => {
+    if (isCreating.value.zone) return
     const name = newZone.value.trim()
     if (!name) return
 
     isCreating.value.zone = true
     try {
-      await workLocationApi.createZone(name)
+      await referenceApi.createZone(name)
       newZone.value = ''
       await loadZones()
     } catch (error: unknown) {
@@ -77,12 +77,13 @@ export function useLocationMaster() {
   }
 
   const addFloor = async () => {
+    if (isCreating.value.floor) return
     const name = newFloor.value.trim()
     if (!name) return
 
     isCreating.value.floor = true
     try {
-      await workLocationApi.createFloor(name)
+      await referenceApi.createFloor(name)
       newFloor.value = ''
       await loadFloors()
     } catch (error: unknown) {
@@ -95,12 +96,13 @@ export function useLocationMaster() {
   }
 
   const addSection = async () => {
+    if (isCreating.value.section) return
     const name = newSection.value.trim()
     if (!name) return
 
     isCreating.value.section = true
     try {
-      await workLocationApi.createSection(name)
+      await referenceApi.createSection(name)
       newSection.value = ''
       await loadSections()
     } catch (error: unknown) {
@@ -113,12 +115,13 @@ export function useLocationMaster() {
   }
 
   const addUsage = async () => {
+    if (isCreating.value.usage) return
     const name = newUsage.value.trim()
     if (!name) return
 
     isCreating.value.usage = true
     try {
-      await workLocationApi.createUsage(name)
+      await referenceApi.createUsage(name)
       newUsage.value = ''
       await loadUsages()
     } catch (error: unknown) {

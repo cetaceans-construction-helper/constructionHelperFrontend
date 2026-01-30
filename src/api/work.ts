@@ -3,10 +3,11 @@ import apiClient from './apiClient'
 // 작업 생성 페이로드
 export interface CreateWorkPayload {
   subWorkTypeId: number
-  zone?: string
-  floor?: string
-  section?: string
-  usage?: string
+  componentTypeId?: number
+  zoneId?: number
+  floorId?: number
+  sectionId?: number
+  usageId?: number
   startDate: string
   workLeadTime: number
   isWorkingOnHoliday?: boolean
@@ -21,14 +22,13 @@ export interface WorkResponse {
   workLeadTime: number
   completionDate: string
   isWorkingOnHoliday: boolean
-  divisionName: string
-  workTypeName: string
-  subWorkTypeName: string
+  division: string
+  workType: string
+  subWorkType: string
   zone?: string
   floor?: string
   section?: string
   usage?: string
-  componentIds: number[]
   positionX: number
   positionY: number
   width: number
