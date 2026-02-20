@@ -38,7 +38,7 @@ const menusBySection: Record<string, { id: string; label: string }[]> = {
     { id: 'schedule-3d', label: '3D공정표' },
   ],
   material: [
-    { id: 'invoice', label: '송장입력' },
+    { id: 'invoice', label: '발주 자재' },
     { id: 'material-list', label: '자재목록' },
   ],
   safety: [{ id: 'safety-placeholder', label: '(구현예정)' }],

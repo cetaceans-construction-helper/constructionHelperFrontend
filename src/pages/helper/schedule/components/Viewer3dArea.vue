@@ -1,18 +1,40 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
-import { ChevronLeft, ChevronRight } from 'lucide-vue-next'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { ChevronLeft, ChevronRight, Truck } from 'lucide-vue-next'
+import { useRouter } from 'vue-router'
 import SideTabBox from '@/components/helper/SideTabBox.vue'
+import { referenceApi, type MaterialTypeResponse } from '@/api/reference'
+import { materialOrderApi } from '@/api/materialOrder'
+import { taskApi } from '@/api/task'
 import type { Object3d, Task } from '@/types/object3d'
 import type { WorkResponse } from '@/api/work'
+
+const router = useRouter()
 
 const props = defineProps<{
   isLoading: boolean
   loadProgress: number
   loadError: string | null
   selectedObject3d: Object3d | null
+  selectedObject3dIds: number[]
   selectedTasks: Task[]
   isLoadingTasks: boolean
   works: WorkResponse[]
@@ -29,7 +51,101 @@ const emit = defineEmits<{
   'date-change': [date: string]
   'toggle-today-only': [checked: boolean]
   'work-click': [workId: number]
+  'tasks-updated': [updates: { taskId: number; quantity: number }[]]
 }>()
+
+// 물량설정 다이얼로그 상태
+const showQuantityDialog = ref(false)
+const editQuantities = ref<Map<number, string>>(new Map())
+const isUpdatingQuantity = ref(false)
+
+function openQuantityDialog() {
+  editQuantities.value = new Map(
+    props.selectedTasks.map((t) => [t.id, String(t.planedQuantity ?? '')]),
+  )
+  showQuantityDialog.value = true
+}
+
+async function handleUpdateQuantity() {
+  const updates: { taskId: number; quantity: number }[] = []
+  for (const task of props.selectedTasks) {
+    const raw = editQuantities.value.get(task.id) ?? ''
+    const quantity = Number(raw)
+    if (isNaN(quantity)) {
+      alert(`세부작업 ID ${task.id}: 유효한 숫자를 입력해주세요`)
+      return
+    }
+    if (quantity !== task.planedQuantity) {
+      updates.push({ taskId: task.id, quantity })
+    }
+  }
+
+  if (updates.length === 0) {
+    showQuantityDialog.value = false
+    return
+  }
+
+  isUpdatingQuantity.value = true
+  try {
+    await Promise.all(
+      updates.map((u) => taskApi.updateTaskQuantity(u.taskId, u.quantity)),
+    )
+    emit('tasks-updated', updates)
+    showQuantityDialog.value = false
+  } catch (error: unknown) {
+    console.error('물량 업데이트 실패:', error)
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    alert(err.response?.data?.message || err.message)
+  } finally {
+    isUpdatingQuantity.value = false
+  }
+}
+
+// 발주서 생성 다이얼로그 상태
+const showOrderDialog = ref(false)
+const materialTypes = ref<MaterialTypeResponse[]>([])
+const selectedMaterialTypeId = ref<string>('')
+const isCreatingOrder = ref(false)
+
+async function handleTruckClick() {
+  if (props.selectedObject3dIds.length === 0) {
+    alert('부재를 선택해주세요')
+    return
+  }
+
+  try {
+    materialTypes.value = await referenceApi.getMaterialTypeList()
+    selectedMaterialTypeId.value = ''
+    showOrderDialog.value = true
+  } catch (error: unknown) {
+    console.error('자재유형 목록 로드 실패:', error)
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    alert(err.response?.data?.message || err.message)
+  }
+}
+
+async function handleCreateOrder() {
+  if (!selectedMaterialTypeId.value) {
+    alert('자재유형을 선택해주세요')
+    return
+  }
+
+  isCreatingOrder.value = true
+  try {
+    await materialOrderApi.createMaterialOrder(
+      props.selectedObject3dIds,
+      Number(selectedMaterialTypeId.value),
+    )
+    showOrderDialog.value = false
+    router.push('/helper/material/invoice')
+  } catch (error: unknown) {
+    console.error('발주서 생성 실패:', error)
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    alert(err.response?.data?.message || err.message)
+  } finally {
+    isCreatingOrder.value = false
+  }
+}
 
 // 날짜 조절
 function adjustDate(days: number) {
@@ -118,11 +234,102 @@ const groupedDailyWorks = computed<GroupedWorks>(() => {
         <ChevronRight class="h-10 w-10" />
       </Button>
 
+      <!-- 발주서 생성 버튼 -->
+      <Button
+        variant="outline"
+        size="icon"
+        class="absolute top-4 right-4 bg-white/80 dark:bg-gray-800/80 hover:bg-white dark:hover:bg-gray-800 h-12 w-12"
+        @click="handleTruckClick"
+      >
+        <Truck class="size-7" />
+      </Button>
+
       <!-- 사용법 안내 -->
       <div class="absolute bottom-3 right-3 text-xs text-muted-foreground/60 bg-background/50 px-2 py-1 rounded">
         Ctrl + 휠: 줌
       </div>
     </div>
+
+    <!-- 발주서 생성 다이얼로그 -->
+    <Dialog v-model:open="showOrderDialog">
+      <DialogContent class="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>발주서 생성</DialogTitle>
+          <DialogDescription>
+            선택된 부재: {{ selectedObject3dIds.length }}개
+          </DialogDescription>
+        </DialogHeader>
+
+        <div class="space-y-4 py-4">
+          <div class="space-y-2">
+            <label class="text-sm font-medium">자재유형</label>
+            <Select v-model="selectedMaterialTypeId">
+              <SelectTrigger>
+                <SelectValue placeholder="자재유형을 선택하세요" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  v-for="mt in materialTypes"
+                  :key="mt.id"
+                  :value="String(mt.id)"
+                >
+                  {{ mt.name }} ({{ mt.unit }})
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" @click="showOrderDialog = false">취소</Button>
+          <Button :disabled="!selectedMaterialTypeId || isCreatingOrder" @click="handleCreateOrder">
+            {{ isCreatingOrder ? '생성 중...' : '발주서 생성' }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <!-- 물량설정 다이얼로그 -->
+    <Dialog v-model:open="showQuantityDialog">
+      <DialogContent class="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>물량설정</DialogTitle>
+          <DialogDescription>
+            세부작업 {{ selectedTasks.length }}건의 계획 수량을 설정합니다.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div class="space-y-3 py-4 max-h-80 overflow-y-auto">
+          <div
+            v-for="task in selectedTasks"
+            :key="task.id"
+            class="flex items-center gap-3 border border-border rounded-lg p-3"
+          >
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-medium text-foreground truncate">
+                {{ task.divisionName }} &gt; {{ task.workTypeName }} &gt; {{ task.subWorkTypeName }}
+              </p>
+              <span class="text-xs text-muted-foreground">ID: {{ task.id }}</span>
+            </div>
+            <Input
+              :model-value="editQuantities.get(task.id) ?? ''"
+              type="number"
+              step="any"
+              class="w-28 h-8 text-sm"
+              placeholder="수량"
+              @update:model-value="(val: string | number) => editQuantities.set(task.id, String(val))"
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" @click="showQuantityDialog = false">취소</Button>
+          <Button :disabled="isUpdatingQuantity" @click="handleUpdateQuantity">
+            {{ isUpdatingQuantity ? '저장 중...' : '저장' }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     <!-- 우측 탭 박스 -->
     <SideTabBox
@@ -272,12 +479,23 @@ const groupedDailyWorks = computed<GroupedWorks>(() => {
 
             <!-- 태스크 목록 -->
             <div>
-              <h4 class="text-sm font-semibold text-foreground mb-2">연관 작업</h4>
+              <div class="flex items-center justify-between mb-2">
+                <h4 class="text-sm font-semibold text-foreground">세부작업</h4>
+                <Button
+                  v-if="selectedTasks.length > 0"
+                  variant="outline"
+                  size="sm"
+                  class="h-6 px-2 text-xs"
+                  @click="openQuantityDialog()"
+                >
+                  물량설정
+                </Button>
+              </div>
               <div v-if="isLoadingTasks" class="text-sm text-muted-foreground">
                 작업 목록 로딩 중...
               </div>
               <div v-else-if="selectedTasks.length === 0" class="text-sm text-muted-foreground">
-                연관된 작업이 없습니다.
+                세부작업이 없습니다.
               </div>
               <div v-else class="space-y-2">
                 <div

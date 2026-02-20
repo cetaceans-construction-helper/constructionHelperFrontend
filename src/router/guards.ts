@@ -4,6 +4,9 @@ import { useAuthStore } from '@/stores/auth'
 // Routes that don't require authentication
 const publicRoutes = ['/', '/login', '/signup', 'main', 'login', 'signup']
 
+// Routes that require SUPER role
+const superRoutes = ['/system-admin']
+
 export const authGuard = async (
   to: RouteLocationNormalized,
   _from: RouteLocationNormalized,
@@ -19,12 +22,21 @@ export const authGuard = async (
   const isPublicRoute =
     publicRoutes.includes(to.path) || publicRoutes.includes(to.name as string)
 
+  // 1. 비로그인 상태에서 보호된 라우트 접근 → 로그인 페이지
   if (!isPublicRoute && !authStore.isAuthenticated) {
-    // Redirect to login, preserve intended destination
-    // next() // 로그인 잠시 해제
-    next({ path: '/login', query: { redirect: to.fullPath } }) // 로그인 잠시 해제
-  } else if (to.path === '/login' && authStore.isAuthenticated) {
-    // Already logged in, redirect to dashboard
+    next({ path: '/login', query: { redirect: to.fullPath } })
+    return
+  }
+
+  // 2. SUPER 전용 라우트: 로그인했지만 SUPER가 아니면 → 대시보드
+  const isSuperRoute = superRoutes.some((r) => to.path.startsWith(r))
+  if (isSuperRoute && authStore.user?.systemRole !== 'SUPER') {
+    next('/helper/dashboard')
+    return
+  }
+
+  // 3. 이미 로그인 상태에서 /login 접근 → 대시보드
+  if (to.path === '/login' && authStore.isAuthenticated) {
     next('/helper/dashboard')
   } else {
     next()

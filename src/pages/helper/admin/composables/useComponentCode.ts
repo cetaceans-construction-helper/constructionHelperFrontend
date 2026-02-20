@@ -1,12 +1,15 @@
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import {
   referenceApi,
   type IdNameResponse,
   type ComponentCodeResponse,
   type ComponentCodeMappingResponse,
-  type BulkMappingResponse,
   type WorkTypeResponse,
   type SubWorkTypeResponse,
+  type WorkStepResponse,
+  type MaterialTypeResponse,
+  type MaterialSpecResponse,
+  type CreateTasksResponse,
 } from '@/api/reference'
 
 export function useComponentCode() {
@@ -22,14 +25,20 @@ export function useComponentCode() {
   const isCreatingCode = ref(false)
 
   // 매핑 관리
-  const mappings = ref<ComponentCodeMappingResponse[]>([])
-  const selectedComponentCodeId = ref<number | null>(null) // 0 = 모든코드
+  const allMappings = ref<ComponentCodeMappingResponse[]>([])
+  const selectedComponentCodeIds = ref<number[]>([]) // 다중선택
   const isCreatingMapping = ref(false)
 
-  // 매핑 폼: 캐스케이딩 셀렉트
+  // 매핑 폼: 캐스케이딩 셀렉트 (공종 분류)
   const divisions = ref<IdNameResponse[]>([])
   const workTypes = ref<WorkTypeResponse[]>([])
   const subWorkTypes = ref<SubWorkTypeResponse[]>([])
+  const workSteps = ref<WorkStepResponse[]>([])
+  const selectedWorkStepIds = ref<number[]>([]) // 다중선택
+
+  // 매핑 폼: 자재 분류
+  const materialTypes = ref<MaterialTypeResponse[]>([])
+  const materialSpecs = ref<MaterialSpecResponse[]>([])
 
   const mappingForm = ref({
     divisionId: '',
@@ -37,8 +46,25 @@ export function useComponentCode() {
     subWorkTypeId: '',
   })
 
+  // 자재 적용 폼 (테이블 하단용)
+  const materialApplyForm = ref({
+    materialTypeId: '',
+    materialSpecId: '',
+  })
+
+  // 매핑 row 선택 (매핑 ID 기반)
+  const selectedMappingIds = ref<number[]>([])
+
   const isLoadingWorkTypes = ref(false)
   const isLoadingSubWorkTypes = ref(false)
+  const isLoadingWorkSteps = ref(false)
+  const isLoadingMaterialSpecs = ref(false)
+  const isApplyingMaterial = ref(false)
+
+  // 세부작업 생성
+  const isCreatingTasks = ref(false)
+  const createTasksResult = ref<CreateTasksResponse | null>(null)
+  const showCreateTasksResult = ref(false)
 
   // ========== 부재 타입 관련 ==========
 
@@ -100,14 +126,110 @@ export function useComponentCode() {
     }
   }
 
+  // ========== 부재코드 다중선택 헬퍼 ==========
+
+  const isAllComponentCodesSelected = computed(() => {
+    if (componentCodes.value.length === 0) return false
+    return componentCodes.value.every((cc) => selectedComponentCodeIds.value.includes(cc.id))
+  })
+
+  const toggleComponentCode = (id: number) => {
+    const idx = selectedComponentCodeIds.value.indexOf(id)
+    if (idx === -1) {
+      selectedComponentCodeIds.value.push(id)
+    } else {
+      selectedComponentCodeIds.value.splice(idx, 1)
+    }
+  }
+
+  const toggleAllComponentCodes = () => {
+    if (isAllComponentCodesSelected.value) {
+      selectedComponentCodeIds.value = []
+    } else {
+      selectedComponentCodeIds.value = componentCodes.value.map((cc) => cc.id)
+    }
+  }
+
+  // ========== 작업절차 다중선택 헬퍼 ==========
+
+  const isAllWorkStepsSelected = computed(() => {
+    if (workSteps.value.length === 0) return false
+    return workSteps.value.every((ws) => selectedWorkStepIds.value.includes(ws.id))
+  })
+
+  const toggleWorkStep = (id: number) => {
+    const idx = selectedWorkStepIds.value.indexOf(id)
+    if (idx === -1) {
+      selectedWorkStepIds.value.push(id)
+    } else {
+      selectedWorkStepIds.value.splice(idx, 1)
+    }
+  }
+
+  const toggleAllWorkSteps = () => {
+    if (isAllWorkStepsSelected.value) {
+      selectedWorkStepIds.value = []
+    } else {
+      selectedWorkStepIds.value = workSteps.value.map((ws) => ws.id)
+    }
+  }
+
   // ========== 매핑 관련 ==========
 
-  const loadMappings = async (componentCodeId: number) => {
+  const loadAllMappings = async () => {
     try {
-      mappings.value = await referenceApi.getComponentCodeMappingList(componentCodeId)
+      allMappings.value = await referenceApi.getComponentCodeMappingList()
+      // 매핑 목록이 갱신되면 선택 초기화
+      selectedMappingIds.value = []
     } catch (error) {
-      console.error('매핑 목록 로드 실패:', error)
-      mappings.value = []
+      console.error('전체 매핑 로드 실패:', error)
+      allMappings.value = []
+    }
+  }
+
+  const filteredMappings = computed(() => {
+    let result = allMappings.value
+
+    // 부재타입으로 필터링
+    if (selectedComponentTypeId.value != null && componentCodes.value.length > 0) {
+      const codeIds = componentCodes.value.map((c) => c.id)
+      result = result.filter((m) => codeIds.includes(m.componentCodeId))
+    }
+
+    // 부재코드로 필터링 (선택된 코드들만)
+    if (selectedComponentCodeIds.value.length > 0) {
+      result = result.filter((m) => selectedComponentCodeIds.value.includes(m.componentCodeId))
+    }
+
+    // 작업절차로 필터링 (선택된 절차들만)
+    if (selectedWorkStepIds.value.length > 0) {
+      result = result.filter((m) => selectedWorkStepIds.value.includes(m.workStepId))
+    }
+
+    return result
+  })
+
+  // ========== 매핑 row 선택 헬퍼 (매핑 ID 기반) ==========
+
+  const isAllMappingsSelected = computed(() => {
+    if (filteredMappings.value.length === 0) return false
+    return filteredMappings.value.every((m) => selectedMappingIds.value.includes(m.id))
+  })
+
+  const toggleMapping = (id: number) => {
+    const idx = selectedMappingIds.value.indexOf(id)
+    if (idx === -1) {
+      selectedMappingIds.value.push(id)
+    } else {
+      selectedMappingIds.value.splice(idx, 1)
+    }
+  }
+
+  const toggleAllMappings = () => {
+    if (isAllMappingsSelected.value) {
+      selectedMappingIds.value = []
+    } else {
+      selectedMappingIds.value = filteredMappings.value.map((m) => m.id)
     }
   }
 
@@ -119,28 +241,51 @@ export function useComponentCode() {
     }
   }
 
+  const loadMaterialTypes = async () => {
+    try {
+      materialTypes.value = await referenceApi.getMaterialTypeList()
+    } catch (error) {
+      console.error('MaterialType 목록 로드 실패:', error)
+    }
+  }
+
   const addMapping = async () => {
     if (isCreatingMapping.value) return
-    if (selectedComponentCodeId.value == null || !mappingForm.value.subWorkTypeId) return
-
-    const isAllCodes = selectedComponentCodeId.value === 0
-    if (isAllCodes && selectedComponentTypeId.value == null) return
+    if (selectedComponentCodeIds.value.length === 0) return
+    if (selectedWorkStepIds.value.length === 0) return
 
     isCreatingMapping.value = true
     try {
-      const result = await referenceApi.createComponentCodeMapping(
-        selectedComponentCodeId.value,
-        Number(mappingForm.value.subWorkTypeId),
-        isAllCodes ? selectedComponentTypeId.value! : undefined,
-      )
-      mappingForm.value = { divisionId: '', workTypeId: '', subWorkTypeId: '' }
+      let totalMapped = 0
+      let totalSkipped = 0
 
-      if (isAllCodes) {
-        const bulkResult = result as BulkMappingResponse
-        alert(`${bulkResult.mappedCount}개 부재코드에 매핑되었습니다.`)
-      } else {
-        await loadMappings(selectedComponentCodeId.value)
+      // 선택된 모든 부재코드 × 작업절차 조합에 대해 매핑 생성 (자재 정보 없이)
+      for (const componentCodeId of selectedComponentCodeIds.value) {
+        for (const workStepId of selectedWorkStepIds.value) {
+          try {
+            const result = await referenceApi.createComponentCodeMapping({
+              componentCodeId,
+              workStepId,
+            })
+            totalMapped += result.mappedCount
+            totalSkipped += result.skippedCount
+          } catch {
+            // 개별 매핑 실패는 무시하고 계속 진행
+            totalSkipped += 1
+          }
+        }
       }
+
+      const messages: string[] = []
+      if (totalMapped > 0) {
+        messages.push(`${totalMapped}개 매핑 생성`)
+      }
+      if (totalSkipped > 0) {
+        messages.push(`${totalSkipped}개 스킵(중복)`)
+      }
+      alert(messages.join(', ') || '매핑 완료')
+
+      await loadAllMappings()
     } catch (error: unknown) {
       console.error('매핑 추가 실패:', error)
       const err = error as { response?: { data?: { message?: string } }; message?: string }
@@ -150,27 +295,61 @@ export function useComponentCode() {
     }
   }
 
+  // ========== 자재 일괄 적용 ==========
+
+  const applyMaterialToSelectedMappings = async () => {
+    if (selectedMappingIds.value.length === 0) return
+    if (!materialApplyForm.value.materialSpecId) return
+
+    isApplyingMaterial.value = true
+    try {
+      const result = await referenceApi.updateComponentCodeMapping({
+        ids: selectedMappingIds.value,
+        materialSpecId: Number(materialApplyForm.value.materialSpecId),
+      })
+
+      alert(`${result.updatedCount}개 매핑에 자재규격 적용됨`)
+      await loadAllMappings()
+      // 자재 적용 폼 초기화
+      materialApplyForm.value.materialTypeId = ''
+      materialApplyForm.value.materialSpecId = ''
+    } catch (error: unknown) {
+      console.error('자재 적용 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+    } finally {
+      isApplyingMaterial.value = false
+    }
+  }
+
+  // ========== 세부작업 생성 ==========
+
+  const createTasks = async () => {
+    if (isCreatingTasks.value) return
+
+    isCreatingTasks.value = true
+    try {
+      const result = await referenceApi.createTasks()
+      createTasksResult.value = result
+      showCreateTasksResult.value = true
+    } catch (error: unknown) {
+      console.error('세부작업 생성 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+    } finally {
+      isCreatingTasks.value = false
+    }
+  }
+
   // ========== Watch: 캐스케이딩 셀렉트 ==========
 
-  // 부재 타입 선택 시 → 부재 코드 목록 로드
   watch(selectedComponentTypeId, (typeId) => {
     if (typeId != null) {
       loadComponentCodes(typeId)
     } else {
       componentCodes.value = []
     }
-    // 부재 코드 선택 초기화
-    selectedComponentCodeId.value = null
-    mappings.value = []
-  })
-
-  // 부재 코드 선택 시 → 매핑 목록 로드 (0 = 모든코드는 제외)
-  watch(selectedComponentCodeId, (codeId) => {
-    if (codeId != null && codeId > 0) {
-      loadMappings(codeId)
-    } else {
-      mappings.value = []
-    }
+    selectedComponentCodeIds.value = []
   })
 
   // Division 선택 시 → WorkTypes 로드
@@ -179,8 +358,10 @@ export function useComponentCode() {
     async (divisionId) => {
       workTypes.value = []
       subWorkTypes.value = []
+      workSteps.value = []
       mappingForm.value.workTypeId = ''
       mappingForm.value.subWorkTypeId = ''
+      selectedWorkStepIds.value = []
       if (!divisionId) return
 
       isLoadingWorkTypes.value = true
@@ -199,7 +380,9 @@ export function useComponentCode() {
     () => mappingForm.value.workTypeId,
     async (workTypeId) => {
       subWorkTypes.value = []
+      workSteps.value = []
       mappingForm.value.subWorkTypeId = ''
+      selectedWorkStepIds.value = []
       if (!workTypeId) return
 
       isLoadingSubWorkTypes.value = true
@@ -209,6 +392,44 @@ export function useComponentCode() {
         console.error('SubWorkType 목록 로드 실패:', error)
       } finally {
         isLoadingSubWorkTypes.value = false
+      }
+    },
+  )
+
+  // SubWorkType 선택 시 → WorkSteps 로드
+  watch(
+    () => mappingForm.value.subWorkTypeId,
+    async (subWorkTypeId) => {
+      workSteps.value = []
+      selectedWorkStepIds.value = []
+      if (!subWorkTypeId) return
+
+      isLoadingWorkSteps.value = true
+      try {
+        workSteps.value = await referenceApi.getWorkStepList(Number(subWorkTypeId))
+      } catch (error) {
+        console.error('WorkStep 목록 로드 실패:', error)
+      } finally {
+        isLoadingWorkSteps.value = false
+      }
+    },
+  )
+
+  // MaterialType 선택 시 → MaterialSpecs 로드 (materialApplyForm 기준)
+  watch(
+    () => materialApplyForm.value.materialTypeId,
+    async (materialTypeId) => {
+      materialSpecs.value = []
+      materialApplyForm.value.materialSpecId = ''
+      if (!materialTypeId) return
+
+      isLoadingMaterialSpecs.value = true
+      try {
+        materialSpecs.value = await referenceApi.getMaterialSpecList(Number(materialTypeId))
+      } catch (error) {
+        console.error('MaterialSpec 목록 로드 실패:', error)
+      } finally {
+        isLoadingMaterialSpecs.value = false
       }
     },
   )
@@ -228,18 +449,53 @@ export function useComponentCode() {
     isCreatingCode,
     addComponentCode,
 
+    // 부재코드 다중선택
+    selectedComponentCodeIds,
+    isAllComponentCodesSelected,
+    toggleComponentCode,
+    toggleAllComponentCodes,
+
     // 매핑
-    mappings,
-    selectedComponentCodeId,
+    allMappings,
+    filteredMappings,
     isCreatingMapping,
     divisions,
     workTypes,
     subWorkTypes,
+    workSteps,
+    materialTypes,
+    materialSpecs,
     mappingForm,
     isLoadingWorkTypes,
     isLoadingSubWorkTypes,
+    isLoadingWorkSteps,
+    isLoadingMaterialSpecs,
     loadDivisions,
-    loadMappings,
+    loadMaterialTypes,
+    loadAllMappings,
     addMapping,
+
+    // 작업절차 다중선택
+    selectedWorkStepIds,
+    isAllWorkStepsSelected,
+    toggleWorkStep,
+    toggleAllWorkSteps,
+
+    // 매핑 row 선택 (자재 일괄 적용용)
+    selectedMappingIds,
+    isAllMappingsSelected,
+    toggleMapping,
+    toggleAllMappings,
+
+    // 자재 일괄 적용
+    materialApplyForm,
+    isApplyingMaterial,
+    applyMaterialToSelectedMappings,
+
+    // 세부작업 생성
+    isCreatingTasks,
+    createTasksResult,
+    showCreateTasksResult,
+    createTasks,
   }
 }

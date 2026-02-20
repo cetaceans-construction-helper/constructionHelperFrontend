@@ -21,6 +21,7 @@ export default defineConfig({
     },
   },
   server: {
+    allowedHosts: ['conhelp.kr', 'www.conhelp.kr', 'localhost'],
     proxy: {
       '/api': {
         target: 'http://localhost:8080',

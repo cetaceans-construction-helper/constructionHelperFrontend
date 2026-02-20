@@ -11,4 +11,8 @@ export const taskApi = {
     })
     return data
   },
+
+  async updateTaskQuantity(taskId: number, quantity: number): Promise<void> {
+    await apiClient.put(`/task/updateTaskQuantity/${taskId}`, { quantity })
+  },
 }

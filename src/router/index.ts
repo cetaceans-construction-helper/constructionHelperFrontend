@@ -85,7 +85,18 @@ const router = createRouter({
           name: 'admin',
           component: () => import('@/pages/helper/admin/AdminPage.vue'),
         },
+        {
+          path: 'admin/resource',
+          name: 'admin-resource',
+          component: () => import('@/pages/helper/admin/ResourceManagementPage.vue'),
+        },
       ],
+    },
+    {
+      path: '/system-admin',
+      name: 'system-admin',
+      component: () => import('@/pages/system-admin/SystemAdminPage.vue'),
+      meta: { requiresSuper: true },
     },
   ],
 })

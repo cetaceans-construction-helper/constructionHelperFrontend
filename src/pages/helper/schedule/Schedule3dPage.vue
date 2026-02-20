@@ -30,6 +30,7 @@ const object3dMap = ref<Map<number, Object3d>>(new Map())
 
 // 선택 상태
 const selectedObject3d = ref<Object3d | null>(null)
+const selectedObject3dIds = ref<number[]>([])
 const selectedTasks = ref<Task[]>([])
 const isLoadingTasks = ref(false)
 
@@ -79,6 +80,11 @@ watch(
 )
 
 async function handleSelect(selected: THREE.Object3D[]) {
+  // 다중 선택된 ID 추적
+  selectedObject3dIds.value = selected
+    .map((obj) => obj.userData?.dbId as number | undefined)
+    .filter((id): id is number => id != null)
+
   if (selected.length === 0) return
 
   const lastSelected = selected[selected.length - 1]
@@ -109,6 +115,7 @@ async function handleSelect(selected: THREE.Object3D[]) {
 
 function handleDeselect() {
   selectedObject3d.value = null
+  selectedObject3dIds.value = []
   selectedTasks.value = []
   isLoadingTasks.value = false
 }
@@ -127,6 +134,13 @@ async function handleWorkClick(workId: number) {
   await dailyReport.selectWork(workId)
   dailyReport.updateModelAppearance(engine.value)
 }
+
+function handleTasksUpdated(updates: { taskId: number; quantity: number }[]) {
+  for (const { taskId, quantity } of updates) {
+    const task = selectedTasks.value.find((t) => t.id === taskId)
+    if (task) task.planedQuantity = quantity
+  }
+}
 </script>
 
 <template>
@@ -137,6 +151,7 @@ async function handleWorkClick(workId: number) {
         :load-progress="loadProgress"
         :load-error="loadError"
         :selected-object3d="selectedObject3d"
+        :selected-object3d-ids="selectedObject3dIds"
         :selected-tasks="selectedTasks"
         :is-loading-tasks="isLoadingTasks"
         :works="works"
@@ -150,6 +165,7 @@ async function handleWorkClick(workId: number) {
         @date-change="handleDateChange"
         @toggle-today-only="handleToggleTodayOnly"
         @work-click="handleWorkClick"
+        @tasks-updated="handleTasksUpdated"
       >
         <template #canvas>
           <div ref="canvasContainer" class="w-full h-full" />

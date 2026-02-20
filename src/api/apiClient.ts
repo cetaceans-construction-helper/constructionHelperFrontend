@@ -4,7 +4,7 @@ import { useProjectStore } from '@/stores/project'
 
 // 인증이 필요한 일반 API용 클라이언트
 const apiClient = axios.create({
-  baseURL: '/api',
+  baseURL: import.meta.env.VITE_API_BASE_URL,
   timeout: 10000,
   withCredentials: true,
   headers: {

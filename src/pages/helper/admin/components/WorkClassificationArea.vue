@@ -8,18 +8,23 @@ const {
   divisions,
   workTypes,
   subWorkTypes,
+  workSteps,
   selectedDivisionId,
   selectedWorkTypeId,
+  selectedSubWorkTypeId,
   newDivisionName,
   newWorkTypeName,
   newSubWorkTypeName,
+  newWorkStepName,
   isCreating,
   loadDivisions,
   selectDivision,
   selectWorkType,
+  selectSubWorkType,
   addDivision,
   addWorkType,
   addSubWorkType,
+  addWorkStep,
 } = useWorkClassification()
 
 onMounted(() => {
@@ -30,7 +35,7 @@ onMounted(() => {
 <template>
   <div>
     <h3 class="text-sm font-semibold mb-3">공종분류</h3>
-    <div class="grid grid-cols-3 gap-4">
+    <div class="grid grid-cols-4 gap-4">
       <!-- Division 컬럼 -->
       <div class="space-y-2">
         <p class="text-xs text-muted-foreground font-medium">분류 (Division)</p>
@@ -141,7 +146,12 @@ onMounted(() => {
           <div
             v-for="swt in subWorkTypes"
             :key="swt.id"
-            class="px-3 py-2 border rounded-md text-sm border-border"
+            class="px-3 py-2 border rounded-md cursor-pointer text-sm transition-colors"
+            :class="{
+              'border-primary bg-primary/10 font-medium': selectedSubWorkTypeId === swt.id,
+              'border-border hover:bg-muted/50': selectedSubWorkTypeId !== swt.id,
+            }"
+            @click="selectSubWorkType(swt.id)"
           >
             {{ swt.name }}
           </div>
@@ -156,6 +166,49 @@ onMounted(() => {
             class="text-xs text-muted-foreground py-2 text-center"
           >
             공종을 선택하세요
+          </p>
+        </div>
+      </div>
+
+      <!-- WorkStep 컬럼 -->
+      <div class="space-y-2">
+        <p class="text-xs text-muted-foreground font-medium">작업절차 (WorkStep)</p>
+        <div class="flex gap-1">
+          <Input
+            v-model="newWorkStepName"
+            placeholder="이름 입력"
+            class="h-8 text-sm"
+            :disabled="!selectedSubWorkTypeId"
+            @keyup.enter="addWorkStep"
+          />
+          <Button
+            size="sm"
+            class="h-8 shrink-0"
+            :disabled="isCreating || !newWorkStepName.trim() || !selectedSubWorkTypeId"
+            @click="addWorkStep"
+          >
+            추가
+          </Button>
+        </div>
+        <div class="space-y-1 max-h-48 overflow-y-auto">
+          <div
+            v-for="ws in workSteps"
+            :key="ws.id"
+            class="px-3 py-2 border rounded-md text-sm border-border"
+          >
+            {{ ws.name }}
+          </div>
+          <p
+            v-if="selectedSubWorkTypeId && workSteps.length === 0"
+            class="text-xs text-muted-foreground py-2 text-center"
+          >
+            항목 없음
+          </p>
+          <p
+            v-if="!selectedSubWorkTypeId"
+            class="text-xs text-muted-foreground py-2 text-center"
+          >
+            세부공종을 선택하세요
           </p>
         </div>
       </div>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, watch } from 'vue'
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Sun, Moon } from 'lucide-vue-next'
 import {
@@ -39,7 +39,7 @@ const projectStore = useProjectStore()
 const sections = [
   { id: 'dashboard', label: '대시보드', path: '/helper/dashboard' },
   { id: 'process', label: '공정관리', path: '/helper/schedule/3d' },
-  { id: 'material', label: '자재관리', path: '/helper/material/invoice' },
+  { id: 'material', label: '현장관리', path: '/helper/material/invoice' },
   { id: 'safety', label: '안전관리', path: '/helper/safety' },
   { id: 'document', label: '문서관리', path: '/helper/document/manager' },
   { id: 'utility', label: '유용한 기능', path: '/helper/functions' },
@@ -53,8 +53,8 @@ const menusBySection: Record<string, { id: string; label: string; path: string }
     { id: '2d-schedule', label: '2D공정표', path: '/helper/schedule/2d' },
   ],
   material: [
-    { id: 'invoice', label: '송장입력', path: '/helper/material/invoice' },
-    { id: 'list', label: '자재목록', path: '/helper/material/list' },
+    { id: 'invoice', label: '자재관리', path: '/helper/material/invoice' },
+    { id: 'list', label: '출역관리', path: '/helper/material/list' },
   ],
   safety: [{ id: 'placeholder', label: '(구현예정)', path: '/helper/safety' }],
   document: [
@@ -67,7 +67,10 @@ const menusBySection: Record<string, { id: string; label: string; path: string }
     },
   ],
   utility: [{ id: 'placeholder', label: '(구현예정)', path: '/helper/functions' }],
-  admin: [{ id: 'master-data', label: '기준정보 관리', path: '/helper/admin' }],
+  admin: [
+    { id: 'master-data', label: '기준정보 관리', path: '/helper/admin' },
+    { id: 'resource-info', label: '자원정보 관리', path: '/helper/admin/resource' },
+  ],
 }
 
 // URL 기반으로 현재 Section 감지
@@ -153,6 +156,28 @@ const handleLogout = async () => {
   await authStore.logout()
   router.push('/')
 }
+
+// Tab 키로 다음 메뉴 전환
+const handleTabKey = (e: KeyboardEvent) => {
+  if (e.key !== 'Tab') return
+  const menus = currentMenus.value
+  if (menus.length <= 1) return
+
+  e.preventDefault()
+  const currentIndex = menus.findIndex((m) => route.path === m.path)
+  const nextIndex = e.shiftKey
+    ? (currentIndex - 1 + menus.length) % menus.length
+    : (currentIndex + 1) % menus.length
+  router.push(menus[nextIndex].path)
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', handleTabKey)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleTabKey)
+})
 </script>
 
 <template>
@@ -160,22 +185,21 @@ const handleLogout = async () => {
     <div class="min-h-screen flex flex-col w-full">
       <!-- Header with Sections (1단계: Section) -->
       <header class="border-b border-border bg-background">
-        <div class="flex items-center justify-between p-2">
+        <div class="flex items-center justify-between p-3">
           <!-- Logo -->
-          <div class="flex items-center gap-2 px-2">
-            <span class="font-semibold hidden md:inline">건설업무도우미</span>
+          <div class="flex items-center gap-3 px-3">
+            <span class="font-semibold text-2xl hidden md:inline">건설업무도우미</span>
           </div>
 
           <!-- Section Buttons (Segmented Design) -->
           <div class="flex-1 flex justify-center">
-            <div class="inline-flex rounded-lg bg-muted p-1">
+            <div class="inline-flex rounded-lg bg-muted p-1.5">
               <Button
                 v-for="section in sections"
                 :key="section.id"
                 :variant="currentSection === section.id ? 'default' : 'ghost'"
-                size="sm"
                 @click="selectSection(section.id)"
-                class="rounded-md"
+                class="rounded-md text-base px-4 py-2"
               >
                 {{ section.label }}
               </Button>
@@ -183,9 +207,9 @@ const handleLogout = async () => {
           </div>
 
           <!-- User Actions -->
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-3">
             <Select v-model="selectedProject" :disabled="isLoadingProjects">
-              <SelectTrigger class="w-48">
+              <SelectTrigger class="w-72 h-10 text-base">
                 <SelectValue :placeholder="isLoadingProjects ? '로딩 중...' : '프로젝트 선택'" />
               </SelectTrigger>
               <SelectContent>
@@ -194,7 +218,7 @@ const handleLogout = async () => {
                 </SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" size="sm" @click="handleLogout">로그아웃</Button>
+            <Button variant="outline" @click="handleLogout" class="text-base px-4 py-2">로그아웃</Button>
           </div>
         </div>
       </header>
@@ -202,7 +226,7 @@ const handleLogout = async () => {
       <!-- Main Content Area -->
       <div class="flex flex-1 relative">
         <!-- Floating Sidebar (2단계: Menu) - 대시보드에서는 숨김 -->
-        <Sidebar v-if="currentSection !== 'dashboard'" collapsible="offcanvas" class="border-r shadow-lg">
+        <Sidebar v-if="currentSection !== 'dashboard'" collapsible="none" class="border-r shadow-lg">
           <SidebarContent>
             <SidebarGroup>
               <SidebarGroupLabel>{{
@@ -231,10 +255,10 @@ const handleLogout = async () => {
         </Sidebar>
 
         <!-- Toggle Button - 사이드바 외부에 고정 (대시보드에서는 숨김) -->
-        <SidebarTrigger
+        <!-- <SidebarTrigger
           v-if="currentSection !== 'dashboard'"
           class="fixed top-[60px] z-20 bg-background border border-border rounded-md transition-[left] duration-200 ease-linear left-[calc(var(--sidebar-width)+4px)] peer-data-[state=collapsed]:left-[4px] h-11 w-11 [&_svg]:size-6"
-        />
+        /> -->
 
         <!-- Content Area - RouterView로 각 페이지 렌더링 -->
         <div class="flex-1 w-full flex flex-col" @click="closeSidebar">

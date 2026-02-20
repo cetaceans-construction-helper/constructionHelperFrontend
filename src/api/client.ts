@@ -23,7 +23,7 @@ export class ValidationError extends Error {
 }
 
 const client = axios.create({
-  baseURL: '/api/auth',
+  baseURL: `${import.meta.env.VITE_API_BASE_URL}/auth`,
   timeout: 10000,
   withCredentials: true,
   headers: {

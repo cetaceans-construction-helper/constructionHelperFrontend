@@ -19,6 +19,48 @@ export interface SubWorkTypeResponse {
   workTypeId: number
 }
 
+export interface WorkStepResponse {
+  id: number
+  name: string
+  subWorkTypeId: number
+}
+
+// 직종(LaborType) 타입
+export interface LaborTypeResponse {
+  id: number
+  name: string
+  workTypeId: number
+  workTypeName: string
+  subWorkTypeId: number | null
+  subWorkTypeName: string | null
+}
+
+// 장비 마스터 타입
+export interface EquipmentTypeResponse {
+  id: number
+  name: string
+}
+
+export interface EquipmentSpecResponse {
+  id: number
+  name: string
+  equipmentTypeId: number
+  equipmentTypeName: string
+}
+
+// 자재 마스터 타입
+export interface MaterialTypeResponse {
+  id: number
+  name: string
+  unit: string
+}
+
+export interface MaterialSpecResponse {
+  id: number
+  name: string
+  materialTypeId: number
+}
+
 // 부재 코드 타입
 export interface ComponentCodeResponse {
   id: number
@@ -27,16 +69,37 @@ export interface ComponentCodeResponse {
 }
 
 export interface ComponentCodeMappingResponse {
+  id: number
   componentCodeId: number
-  componentCode: string
-  subWorkTypeId: number
+  componentCodeName: string
+  componentTypeName: string
+  workStepId: number
+  workStepName: string
   subWorkTypeName: string
   workTypeName: string
   divisionName: string
+  materialSpecId: number | null
+  materialSpecName: string | null
+  materialTypeName: string | null
+  unitName: string | null
 }
 
-export interface BulkMappingResponse {
+export interface MappingResultResponse {
   mappedCount: number
+  skippedCount: number
+  componentCodeCount: number
+  workStepCount: number
+}
+
+export interface UpdateMappingResultResponse {
+  updatedCount: number
+  materialSpecId: number
+}
+
+export interface CreateTasksResponse {
+  createdCount: number
+  skippedDuplicateCount: number
+  skippedNoCcodeCount: number
 }
 
 export const referenceApi = {
@@ -77,6 +140,51 @@ export const referenceApi = {
   async createSubWorkType(workTypeId: number, name: string): Promise<SubWorkTypeResponse> {
     const { data } = await apiClient.post<SubWorkTypeResponse>('/reference/createSubWorkType', {
       workTypeId,
+      name,
+    })
+    return data
+  },
+
+  async getWorkStepList(subWorkTypeId: number): Promise<WorkStepResponse[]> {
+    const { data } = await apiClient.get<WorkStepResponse[]>('/reference/getWorkStepList', {
+      params: { subWorkTypeId },
+    })
+    return data
+  },
+
+  async createWorkStep(subWorkTypeId: number, name: string): Promise<WorkStepResponse> {
+    const { data } = await apiClient.post<WorkStepResponse>('/reference/createWorkStep', {
+      subWorkTypeId,
+      name,
+    })
+    return data
+  },
+
+  // ========== 자재 마스터 (MaterialType → MaterialSpec) ==========
+
+  async getMaterialTypeList(): Promise<MaterialTypeResponse[]> {
+    const { data } = await apiClient.get<MaterialTypeResponse[]>('/reference/getMaterialTypeList')
+    return data
+  },
+
+  async createMaterialType(name: string, unit?: string): Promise<MaterialTypeResponse> {
+    const { data } = await apiClient.post<MaterialTypeResponse>('/reference/createMaterialType', {
+      name,
+      unit,
+    })
+    return data
+  },
+
+  async getMaterialSpecList(materialTypeId: number): Promise<MaterialSpecResponse[]> {
+    const { data } = await apiClient.get<MaterialSpecResponse[]>('/reference/getMaterialSpecList', {
+      params: { materialTypeId },
+    })
+    return data
+  },
+
+  async createMaterialSpec(materialTypeId: number, name: string): Promise<MaterialSpecResponse> {
+    const { data } = await apiClient.post<MaterialSpecResponse>('/reference/createMaterialSpec', {
+      materialTypeId,
       name,
     })
     return data
@@ -161,19 +269,93 @@ export const referenceApi = {
     return data
   },
 
-  async createComponentCodeMapping(
-    componentCodeId: number,
-    subWorkTypeId: number,
-    componentTypeId?: number,
-  ): Promise<ComponentCodeMappingResponse | BulkMappingResponse> {
-    const { data } = await apiClient.post<ComponentCodeMappingResponse | BulkMappingResponse>(
+  async createComponentCodeMapping(params: {
+    componentCodeId?: number
+    componentTypeId?: number
+    workStepId?: number
+    subWorkTypeId?: number
+    workTypeId?: number
+  }): Promise<MappingResultResponse> {
+    const { data } = await apiClient.post<MappingResultResponse>(
       '/reference/createComponentCodeMapping',
-      {
-        componentCodeId: componentCodeId || 0,
-        subWorkTypeId,
-        ...(componentTypeId != null && { componentTypeId }),
-      },
+      params,
     )
+    return data
+  },
+
+  async updateComponentCodeMapping(params: {
+    ids: number[]
+    materialSpecId: number
+  }): Promise<UpdateMappingResultResponse> {
+    const { data } = await apiClient.post<UpdateMappingResultResponse>(
+      '/reference/updateComponentCodeMapping',
+      params,
+    )
+    return data
+  },
+
+  // ========== 장비 마스터 (EquipmentType → EquipmentSpec) ==========
+
+  async getEquipmentTypeList(): Promise<EquipmentTypeResponse[]> {
+    const { data } = await apiClient.get<EquipmentTypeResponse[]>('/reference/getEquipmentTypeList')
+    return data
+  },
+
+  async createEquipmentType(name: string): Promise<EquipmentTypeResponse> {
+    const { data } = await apiClient.post<EquipmentTypeResponse>('/reference/createEquipmentType', {
+      name,
+    })
+    return data
+  },
+
+  async getEquipmentSpecList(equipmentTypeId?: number): Promise<EquipmentSpecResponse[]> {
+    const { data } = await apiClient.get<EquipmentSpecResponse[]>('/reference/getEquipmentSpecList', {
+      params: equipmentTypeId != null ? { equipmentTypeId } : undefined,
+    })
+    return data
+  },
+
+  async createEquipmentSpec(equipmentTypeId: number, name: string): Promise<EquipmentSpecResponse> {
+    const { data } = await apiClient.post<EquipmentSpecResponse>('/reference/createEquipmentSpec', {
+      equipmentTypeId,
+      name,
+    })
+    return data
+  },
+
+  // ========== 직종 (LaborType) ==========
+
+  async getLaborTypeList(): Promise<LaborTypeResponse[]> {
+    const { data } = await apiClient.get<LaborTypeResponse[]>(
+      '/reference/getLaborTypeList',
+    )
+    return data
+  },
+
+  async getLaborTypeListByWorkType(workTypeId: number): Promise<LaborTypeResponse[]> {
+    const { data } = await apiClient.get<LaborTypeResponse[]>(
+      '/reference/getLaborTypeListByWorkType',
+      { params: { workTypeId } },
+    )
+    return data
+  },
+
+  async createLaborType(params: {
+    name: string
+    workTypeId: number
+    subWorkTypeId?: number | null
+  }): Promise<LaborTypeResponse> {
+    const { data } = await apiClient.post<LaborTypeResponse>(
+      '/reference/createLaborType',
+      params,
+    )
+    return data
+  },
+
+  // ========== 세부작업 생성 ==========
+
+  async createTasks(): Promise<CreateTasksResponse> {
+    const { data } = await apiClient.post<CreateTasksResponse>('/task/createTasks')
     return data
   },
 }

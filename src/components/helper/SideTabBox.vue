@@ -36,7 +36,7 @@ const slotProps = computed(() => ({ activeTab: activeTab.value }))
 </script>
 
 <template>
-  <div class="w-80 flex-shrink-0 border border-border rounded-lg flex flex-col">
+  <div class="w-[30rem] flex-shrink-0 border border-border rounded-lg flex flex-col">
     <!-- 탭 헤더 -->
     <div class="flex border-b border-border bg-muted/30 rounded-t-lg">
       <button

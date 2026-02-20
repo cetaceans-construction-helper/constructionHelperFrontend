@@ -3,6 +3,7 @@ import PageContainer from '@/components/helper/PageContainer.vue'
 import AreaCard from '@/components/helper/AreaCard.vue'
 import { Separator } from '@/components/ui/separator'
 import WorkClassificationArea from './components/WorkClassificationArea.vue'
+import MaterialMasterArea from './components/MaterialMasterArea.vue'
 import LocationMasterArea from './components/LocationMasterArea.vue'
 import ComponentCodeArea from './components/ComponentCodeArea.vue'
 </script>
@@ -12,6 +13,8 @@ import ComponentCodeArea from './components/ComponentCodeArea.vue'
     <AreaCard title="작업관련" height="flex-1" min-height="600px">
       <div class="p-4 space-y-6">
         <WorkClassificationArea />
+        <Separator />
+        <MaterialMasterArea />
         <Separator />
         <LocationMasterArea />
         <Separator />
