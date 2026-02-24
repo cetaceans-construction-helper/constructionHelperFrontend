@@ -35,6 +35,21 @@ export const authGuard = async (
     return
   }
 
+  // 2.5 강제 뷰 전환 쿼리 처리
+  const viewQuery = typeof to.query.view === 'string' ? to.query.view : null
+  if (to.path === '/helper/schedule/3d' && viewQuery === 'mobile') {
+    const query = { ...to.query }
+    delete query.view
+    next({ path: '/m/helper/schedule/3d', query, hash: to.hash })
+    return
+  }
+  if (to.path === '/m/helper/schedule/3d' && viewQuery === 'pc') {
+    const query = { ...to.query }
+    delete query.view
+    next({ path: '/helper/schedule/3d', query, hash: to.hash })
+    return
+  }
+
   // 3. 이미 로그인 상태에서 /login 접근 → 대시보드
   if (to.path === '/login' && authStore.isAuthenticated) {
     next('/helper/dashboard')

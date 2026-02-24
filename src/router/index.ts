@@ -93,6 +93,11 @@ const router = createRouter({
       ],
     },
     {
+      path: '/m/helper/schedule/3d',
+      name: 'mobile-schedule-3d',
+      component: () => import('@/pages/mobile/schedule/MobileSchedule3dPage.vue'),
+    },
+    {
       path: '/system-admin',
       name: 'system-admin',
       component: () => import('@/pages/system-admin/SystemAdminPage.vue'),
