@@ -168,7 +168,8 @@ const handleTabKey = (e: KeyboardEvent) => {
   const nextIndex = e.shiftKey
     ? (currentIndex - 1 + menus.length) % menus.length
     : (currentIndex + 1) % menus.length
-  router.push(menus[nextIndex].path)
+  const nextMenu = menus[nextIndex]
+  if (nextMenu) router.push(nextMenu.path)
 }
 
 onMounted(() => {

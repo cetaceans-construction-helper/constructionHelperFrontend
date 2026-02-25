@@ -5,6 +5,7 @@ import AreaCard from '@/components/helper/AreaCard.vue'
 import { Button } from '@/components/ui/button'
 import { workApi, type WorkResponse } from '@/api/work'
 import { attendanceApi, type AttendanceByDateItem } from '@/api/attendance'
+import { materialOrderApi, type DeliveryQuantityByDate } from '@/api/materialOrder'
 import { useProjectStore } from '@/stores/project'
 import { useCalendarStore } from '@/stores/calendarStore'
 
@@ -34,6 +35,7 @@ const allWorks = ref<WorkResponse[]>([])
 const todayWorkIds = ref<number[]>([])
 const tomorrowWorkIds = ref<number[]>([])
 const todayAttendance = ref<AttendanceByDateItem[]>([])
+const todayDeliveryQuantities = ref<DeliveryQuantityByDate[]>([])
 const isLoading = ref(false)
 
 // 오늘 작업 (workType별 그루핑)
@@ -64,6 +66,17 @@ const tomorrowWorksByType = computed(() => {
       grouped.set(wt, [])
     }
     grouped.get(wt)!.push(work)
+  }
+  return grouped
+})
+
+// 반입 자재 (workTypeName별 그룹핑)
+const deliveryByWorkType = computed(() => {
+  const grouped = new Map<string, DeliveryQuantityByDate[]>()
+  for (const item of todayDeliveryQuantities.value) {
+    const wt = item.workTypeName || '미분류'
+    if (!grouped.has(wt)) grouped.set(wt, [])
+    grouped.get(wt)!.push(item)
   }
   return grouped
 })
@@ -110,17 +123,19 @@ onMounted(async () => {
     await calendarStore.getCalendar(projectStore.selectedProjectId)
 
     // 작업 데이터 병렬 로드
-    const [works, todayIds, tomorrowIds, attendance] = await Promise.all([
+    const [works, todayIds, tomorrowIds, attendance, deliveryQuantities] = await Promise.all([
       workApi.getWorkList(),
       workApi.getWorkListByDate(todayString),
       workApi.getWorkListByDate(tomorrowString),
       attendanceApi.getAttendanceListByDate(todayString),
+      materialOrderApi.getTotalDeliveryQuantityByDate(todayString),
     ])
 
     allWorks.value = works
     todayWorkIds.value = todayIds
     tomorrowWorkIds.value = tomorrowIds
     todayAttendance.value = attendance
+    todayDeliveryQuantities.value = deliveryQuantities
   } catch (error) {
     console.error('대시보드 데이터 로드 실패:', error)
   } finally {
@@ -196,11 +211,16 @@ onMounted(async () => {
           <!-- 반입 자재 -->
           <div class="border border-border rounded-lg p-3">
             <h4 class="text-sm font-semibold mb-2 text-foreground">반입 자재</h4>
-            <div class="space-y-3">
-              <div>
-                <p class="text-sm font-medium mb-1">&#9632; 철근콘크리트공사</p>
+            <div v-if="deliveryByWorkType.size === 0" class="text-sm text-muted-foreground">
+              오늘 반입된 자재가 없습니다.
+            </div>
+            <div v-else class="space-y-3">
+              <div v-for="[workType, items] in deliveryByWorkType" :key="workType">
+                <p class="text-sm font-medium mb-1">&#9632; {{ workType }}</p>
                 <div class="space-y-0.5">
-                  <p class="text-sm text-muted-foreground">- 철근(SD400) : 8.234 ton</p>
+                  <p v-for="item in items" :key="item.materialSpecName" class="text-sm text-muted-foreground">
+                    - {{ item.materialTypeName }}({{ item.materialSpecName }}) : {{ item.totalQuantity }} {{ item.unit }}
+                  </p>
                 </div>
               </div>
             </div>

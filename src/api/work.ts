@@ -3,7 +3,7 @@ import apiClient from './apiClient'
 // 작업 생성 페이로드
 export interface CreateWorkPayload {
   subWorkTypeId: number
-  componentTypeId?: number
+  componentTypeIds?: number[]
   zoneId?: number
   floorId?: number
   sectionId?: number

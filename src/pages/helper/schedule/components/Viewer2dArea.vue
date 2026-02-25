@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { VueFlow, useVueFlow, type Node, type Edge } from '@vue-flow/core'
 import { Controls } from '@vue-flow/controls'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -823,24 +824,30 @@ onUnmounted(() => {
                 </Select>
               </div>
 
-              <!-- 부재 타입 -->
+              <!-- 부재 타입 (복수 선택) -->
               <div class="space-y-2">
                 <p class="text-xs font-medium text-muted-foreground">부재 타입</p>
 
-                <Select v-model="workFormState.component_type_id">
-                  <SelectTrigger class="w-full h-8 text-sm">
-                    <SelectValue placeholder="부재타입" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem
-                      v-for="ct in componentTypes"
-                      :key="ct.id"
-                      :value="String(ct.id)"
-                    >
-                      {{ ct.name }}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+                <div class="border border-input rounded-md p-2 max-h-32 overflow-y-auto space-y-1.5">
+                  <label
+                    v-for="ct in componentTypes"
+                    :key="ct.id"
+                    class="flex items-center gap-2 cursor-pointer"
+                  >
+                    <Checkbox
+                      :checked="workFormState.component_type_ids.includes(String(ct.id))"
+                      @update:checked="(checked: boolean) => {
+                        const id = String(ct.id)
+                        if (checked) {
+                          workFormState.component_type_ids.push(id)
+                        } else {
+                          workFormState.component_type_ids = workFormState.component_type_ids.filter(v => v !== id)
+                        }
+                      }"
+                    />
+                    <span class="text-sm">{{ ct.name }}</span>
+                  </label>
+                </div>
               </div>
 
               <!-- 위치 분류 -->
