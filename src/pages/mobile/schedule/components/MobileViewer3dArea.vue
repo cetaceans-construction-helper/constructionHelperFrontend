@@ -28,11 +28,5 @@ const props = defineProps<{
       <p class="font-medium">로드 실패</p>
       <p class="mt-0.5 break-words">{{ props.errorMessage }}</p>
     </div>
-
-    <div
-      class="absolute bottom-2 right-2 rounded bg-background/70 px-2 py-1 text-[11px] text-muted-foreground"
-    >
-      1손가락 회전 · 2손가락 확대/이동
-    </div>
   </div>
 </template>
