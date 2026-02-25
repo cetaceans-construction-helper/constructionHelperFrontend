@@ -1,1 +1,0 @@
-import{a}from"./apiClient-B23t6YBI.js";const s={async getContractorList(t){const{data:e}=await a.get("/attendance/getContractorList",{params:{date:t}});return e},async getAttendanceListByDate(t){return(await a.get("/attendance/getAttendanceListByDate",{params:{date:t}})).data},async updateAttendance(t){await a.post("/attendance/updateAttendance",t)}};export{s as a};
