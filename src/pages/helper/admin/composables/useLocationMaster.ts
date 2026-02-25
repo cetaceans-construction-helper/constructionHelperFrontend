@@ -19,6 +19,13 @@ export function useLocationMaster() {
     usage: false,
   })
 
+  const isDeleting = ref<Record<string, boolean>>({
+    zone: false,
+    floor: false,
+    section: false,
+    usage: false,
+  })
+
   // 개별 목록 로드
   const loadZones = async () => {
     try {
@@ -133,6 +140,67 @@ export function useLocationMaster() {
     }
   }
 
+  // 삭제
+  const deleteZone = async (id: number) => {
+    if (isDeleting.value.zone) return
+    isDeleting.value.zone = true
+    try {
+      await referenceApi.deleteZone(id)
+      await loadZones()
+    } catch (error: unknown) {
+      console.error('Zone 삭제 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+    } finally {
+      isDeleting.value.zone = false
+    }
+  }
+
+  const deleteFloor = async (id: number) => {
+    if (isDeleting.value.floor) return
+    isDeleting.value.floor = true
+    try {
+      await referenceApi.deleteFloor(id)
+      await loadFloors()
+    } catch (error: unknown) {
+      console.error('Floor 삭제 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+    } finally {
+      isDeleting.value.floor = false
+    }
+  }
+
+  const deleteSection = async (id: number) => {
+    if (isDeleting.value.section) return
+    isDeleting.value.section = true
+    try {
+      await referenceApi.deleteSection(id)
+      await loadSections()
+    } catch (error: unknown) {
+      console.error('Section 삭제 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+    } finally {
+      isDeleting.value.section = false
+    }
+  }
+
+  const deleteUsage = async (id: number) => {
+    if (isDeleting.value.usage) return
+    isDeleting.value.usage = true
+    try {
+      await referenceApi.deleteUsage(id)
+      await loadUsages()
+    } catch (error: unknown) {
+      console.error('Usage 삭제 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+    } finally {
+      isDeleting.value.usage = false
+    }
+  }
+
   return {
     zones,
     floors,
@@ -143,10 +211,15 @@ export function useLocationMaster() {
     newSection,
     newUsage,
     isCreating,
+    isDeleting,
     loadAll,
     addZone,
     addFloor,
     addSection,
     addUsage,
+    deleteZone,
+    deleteFloor,
+    deleteSection,
+    deleteUsage,
   }
 }

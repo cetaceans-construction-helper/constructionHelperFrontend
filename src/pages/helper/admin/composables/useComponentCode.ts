@@ -18,11 +18,14 @@ export function useComponentCode() {
   const newComponentTypeName = ref('')
   const isCreatingType = ref(false)
 
+  const isDeletingType = ref(false)
+
   // 부재 코드 관리
   const componentCodes = ref<ComponentCodeResponse[]>([])
   const selectedComponentTypeId = ref<number | null>(null)
   const newComponentCode = ref('')
   const isCreatingCode = ref(false)
+  const isDeletingCode = ref(false)
 
   // 매핑 관리
   const allMappings = ref<ComponentCodeMappingResponse[]>([])
@@ -95,6 +98,26 @@ export function useComponentCode() {
     }
   }
 
+  const deleteComponentType = async (id: number) => {
+    if (isDeletingType.value) return
+    isDeletingType.value = true
+    try {
+      await referenceApi.deleteComponentType(id)
+      if (selectedComponentTypeId.value === id) {
+        selectedComponentTypeId.value = null
+        componentCodes.value = []
+        selectedComponentCodeIds.value = []
+      }
+      await loadComponentTypes()
+    } catch (error: unknown) {
+      console.error('ComponentType 삭제 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+    } finally {
+      isDeletingType.value = false
+    }
+  }
+
   // ========== 부재 코드 관련 ==========
 
   const loadComponentCodes = async (componentTypeId: number) => {
@@ -123,6 +146,23 @@ export function useComponentCode() {
       alert(err.response?.data?.message || err.message)
     } finally {
       isCreatingCode.value = false
+    }
+  }
+
+  const deleteComponentCode = async (id: number) => {
+    if (isDeletingCode.value) return
+    isDeletingCode.value = true
+    try {
+      await referenceApi.deleteComponentCode(id)
+      const idx = selectedComponentCodeIds.value.indexOf(id)
+      if (idx !== -1) selectedComponentCodeIds.value.splice(idx, 1)
+      if (selectedComponentTypeId.value != null) await loadComponentCodes(selectedComponentTypeId.value)
+    } catch (error: unknown) {
+      console.error('ComponentCode 삭제 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+    } finally {
+      isDeletingCode.value = false
     }
   }
 
@@ -439,15 +479,19 @@ export function useComponentCode() {
     componentTypes,
     newComponentTypeName,
     isCreatingType,
+    isDeletingType,
     loadComponentTypes,
     addComponentType,
+    deleteComponentType,
 
     // 부재 코드
     componentCodes,
     selectedComponentTypeId,
     newComponentCode,
     isCreatingCode,
+    isDeletingCode,
     addComponentCode,
+    deleteComponentCode,
 
     // 부재코드 다중선택
     selectedComponentCodeIds,

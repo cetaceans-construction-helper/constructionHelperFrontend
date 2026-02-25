@@ -1,7 +1,18 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
+import { X } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { useMaterialMaster } from '../composables/useMaterialMaster'
 
 const {
@@ -12,15 +23,38 @@ const {
   newMaterialTypeUnit,
   newMaterialSpecName,
   isCreating,
+  isDeleting,
   loadMaterialTypes,
   selectMaterialType,
   addMaterialType,
   addMaterialSpec,
+  deleteMaterialType,
+  deleteMaterialSpec,
 } = useMaterialMaster()
 
 onMounted(() => {
   loadMaterialTypes()
 })
+
+// 삭제 다이얼로그 상태
+const showDeleteDialog = ref(false)
+const deleteTargetId = ref<number | null>(null)
+const deleteTargetName = ref('')
+const deleteAction = ref<((id: number) => Promise<void>) | null>(null)
+
+function openDeleteDialog(id: number, name: string, fn: (id: number) => Promise<void>) {
+  deleteTargetId.value = id
+  deleteTargetName.value = name
+  deleteAction.value = fn
+  showDeleteDialog.value = true
+}
+
+async function confirmDelete() {
+  if (deleteTargetId.value != null && deleteAction.value) {
+    await deleteAction.value(deleteTargetId.value)
+  }
+  showDeleteDialog.value = false
+}
 </script>
 
 <template>
@@ -56,15 +90,24 @@ onMounted(() => {
           <div
             v-for="mt in materialTypes"
             :key="mt.id"
-            class="px-3 py-2 border rounded-md cursor-pointer text-sm transition-colors"
+            class="flex items-center px-3 py-2 border rounded-md cursor-pointer text-sm transition-colors"
             :class="{
               'border-primary bg-primary/10 font-medium': selectedMaterialTypeId === mt.id,
               'border-border hover:bg-muted/50': selectedMaterialTypeId !== mt.id,
             }"
             @click="selectMaterialType(mt.id)"
           >
-            <span>{{ mt.name }}</span>
-            <span v-if="mt.unit" class="text-muted-foreground ml-1">({{ mt.unit }})</span>
+            <span class="flex-1 truncate">
+              {{ mt.name }}
+              <span v-if="mt.unit" class="text-muted-foreground">({{ mt.unit }})</span>
+            </span>
+            <button
+              class="ml-1 p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive shrink-0"
+              :disabled="isDeleting"
+              @click.stop="openDeleteDialog(mt.id, mt.name, deleteMaterialType)"
+            >
+              <X class="w-3 h-3" />
+            </button>
           </div>
           <p v-if="materialTypes.length === 0" class="text-xs text-muted-foreground py-2 text-center">
             항목 없음
@@ -96,9 +139,16 @@ onMounted(() => {
           <div
             v-for="ms in materialSpecs"
             :key="ms.id"
-            class="px-3 py-2 border rounded-md text-sm border-border"
+            class="flex items-center px-3 py-2 border rounded-md text-sm border-border"
           >
-            {{ ms.name }}
+            <span class="flex-1 truncate">{{ ms.name }}</span>
+            <button
+              class="ml-1 p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive shrink-0"
+              :disabled="isDeleting"
+              @click.stop="openDeleteDialog(ms.id, ms.name, deleteMaterialSpec)"
+            >
+              <X class="w-3 h-3" />
+            </button>
           </div>
           <p
             v-if="selectedMaterialTypeId && materialSpecs.length === 0"
@@ -115,5 +165,20 @@ onMounted(() => {
         </div>
       </div>
     </div>
+
+    <AlertDialog :open="showDeleteDialog" @update:open="showDeleteDialog = $event">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>삭제 확인</AlertDialogTitle>
+          <AlertDialogDescription>
+            '{{ deleteTargetName }}' 항목을 삭제하시겠습니까?
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>취소</AlertDialogCancel>
+          <AlertDialogAction @click="confirmDelete">삭제</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </div>
 </template>

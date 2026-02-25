@@ -15,6 +15,7 @@ export function useEquipmentMaster() {
   const newEquipmentSpecName = ref('')
 
   const isCreating = ref(false)
+  const isDeleting = ref(false)
 
   // 목록 로드
   const loadEquipmentTypes = async () => {
@@ -77,6 +78,41 @@ export function useEquipmentMaster() {
     }
   }
 
+  // 삭제
+  const deleteEquipmentType = async (id: number) => {
+    if (isDeleting.value) return
+    isDeleting.value = true
+    try {
+      await referenceApi.deleteEquipmentType(id)
+      if (selectedEquipmentTypeId.value === id) {
+        selectedEquipmentTypeId.value = null
+        equipmentSpecs.value = []
+      }
+      await loadEquipmentTypes()
+    } catch (error: unknown) {
+      console.error('EquipmentType 삭제 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+    } finally {
+      isDeleting.value = false
+    }
+  }
+
+  const deleteEquipmentSpec = async (id: number) => {
+    if (isDeleting.value) return
+    isDeleting.value = true
+    try {
+      await referenceApi.deleteEquipmentSpec(id)
+      if (selectedEquipmentTypeId.value) await loadEquipmentSpecs(selectedEquipmentTypeId.value)
+    } catch (error: unknown) {
+      console.error('EquipmentSpec 삭제 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+    } finally {
+      isDeleting.value = false
+    }
+  }
+
   // 캐스케이딩 로드
   watch(selectedEquipmentTypeId, (id) => {
     equipmentSpecs.value = []
@@ -90,9 +126,12 @@ export function useEquipmentMaster() {
     newEquipmentTypeName,
     newEquipmentSpecName,
     isCreating,
+    isDeleting,
     loadEquipmentTypes,
     selectEquipmentType,
     addEquipmentType,
     addEquipmentSpec,
+    deleteEquipmentType,
+    deleteEquipmentSpec,
   }
 }

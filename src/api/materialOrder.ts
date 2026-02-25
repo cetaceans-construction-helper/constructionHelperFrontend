@@ -28,6 +28,8 @@ export interface MaterialOrderResponse {
   materialTypeId: number
   materialTypeName: string
   unit: string
+  workTypeId: number
+  workTypeName: string
   totalQuantity: number
   orderedAt: string | null
   createdAt: string
@@ -69,10 +71,11 @@ export const materialOrderApi = {
   async createMaterialOrder(
     object3dIds: number[],
     materialTypeId: number,
+    workTypeId: number,
   ): Promise<MaterialOrderResponse> {
     const { data } = await apiClient.post<MaterialOrderResponse>(
       '/materialOrder/createMaterialOrder',
-      { object3dIds, materialTypeId },
+      { object3dIds, materialTypeId, workTypeId },
     )
     return data
   },

@@ -21,7 +21,12 @@ import {
 import { ChevronLeft, ChevronRight, Truck } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 import SideTabBox from '@/components/helper/SideTabBox.vue'
-import { referenceApi, type MaterialTypeResponse } from '@/api/reference'
+import {
+  referenceApi,
+  type MaterialTypeResponse,
+  type IdNameResponse,
+  type WorkTypeResponse,
+} from '@/api/reference'
 import { materialOrderApi } from '@/api/materialOrder'
 import { taskApi } from '@/api/task'
 import type { Object3d, Task } from '@/types/object3d'
@@ -105,7 +110,12 @@ async function handleUpdateQuantity() {
 const showOrderDialog = ref(false)
 const materialTypes = ref<MaterialTypeResponse[]>([])
 const selectedMaterialTypeId = ref<string>('')
+const divisions = ref<IdNameResponse[]>([])
+const workTypes = ref<WorkTypeResponse[]>([])
+const selectedDivisionId = ref<string>('')
+const selectedWorkTypeId = ref<string>('')
 const isCreatingOrder = ref(false)
+const isLoadingWorkTypes = ref(false)
 
 async function handleTruckClick() {
   if (props.selectedObject3dIds.length === 0) {
@@ -114,13 +124,37 @@ async function handleTruckClick() {
   }
 
   try {
-    materialTypes.value = await referenceApi.getMaterialTypeList()
+    const [mtList, divList] = await Promise.all([
+      referenceApi.getMaterialTypeList(),
+      referenceApi.getDivisionList(),
+    ])
+    materialTypes.value = mtList
+    divisions.value = divList
     selectedMaterialTypeId.value = ''
+    selectedDivisionId.value = ''
+    selectedWorkTypeId.value = ''
+    workTypes.value = []
     showOrderDialog.value = true
   } catch (error: unknown) {
-    console.error('자재유형 목록 로드 실패:', error)
+    console.error('목록 로드 실패:', error)
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     alert(err.response?.data?.message || err.message)
+  }
+}
+
+async function handleDivisionChange(divisionId: any) {
+  selectedDivisionId.value = String(divisionId ?? '')
+  selectedWorkTypeId.value = ''
+  workTypes.value = []
+  if (!selectedDivisionId.value) return
+
+  isLoadingWorkTypes.value = true
+  try {
+    workTypes.value = await referenceApi.getWorkTypeList(Number(selectedDivisionId.value))
+  } catch (error: unknown) {
+    console.error('공종 목록 로드 실패:', error)
+  } finally {
+    isLoadingWorkTypes.value = false
   }
 }
 
@@ -129,12 +163,17 @@ async function handleCreateOrder() {
     alert('자재유형을 선택해주세요')
     return
   }
+  if (!selectedWorkTypeId.value) {
+    alert('공종을 선택해주세요')
+    return
+  }
 
   isCreatingOrder.value = true
   try {
     await materialOrderApi.createMaterialOrder(
       props.selectedObject3dIds,
       Number(selectedMaterialTypeId.value),
+      Number(selectedWorkTypeId.value),
     )
     showOrderDialog.value = false
     router.push('/helper/material/invoice')
@@ -278,11 +317,44 @@ const groupedDailyWorks = computed<GroupedWorks>(() => {
               </SelectContent>
             </Select>
           </div>
+
+          <div class="space-y-2">
+            <label class="text-sm font-medium">공종</label>
+            <Select :model-value="selectedDivisionId" @update:model-value="handleDivisionChange">
+              <SelectTrigger>
+                <SelectValue placeholder="분류 선택" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  v-for="div in divisions"
+                  :key="div.id"
+                  :value="String(div.id)"
+                >
+                  {{ div.name }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <Select v-model="selectedWorkTypeId" :disabled="!selectedDivisionId || isLoadingWorkTypes">
+              <SelectTrigger>
+                <SelectValue :placeholder="isLoadingWorkTypes ? '로딩중...' : '공종 선택'" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  v-for="wt in workTypes"
+                  :key="wt.id"
+                  :value="String(wt.id)"
+                >
+                  {{ wt.name }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
         </div>
 
         <DialogFooter>
           <Button variant="outline" @click="showOrderDialog = false">취소</Button>
-          <Button :disabled="!selectedMaterialTypeId || isCreatingOrder" @click="handleCreateOrder">
+          <Button :disabled="!selectedMaterialTypeId || !selectedWorkTypeId || isCreatingOrder" @click="handleCreateOrder">
             {{ isCreatingOrder ? '생성 중...' : '발주서 생성' }}
           </Button>
         </DialogFooter>

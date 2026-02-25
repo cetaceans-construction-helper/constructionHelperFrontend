@@ -1,7 +1,18 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
+import { X } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { useLaborType } from '../composables/useLaborType'
 
 const {
@@ -14,18 +25,38 @@ const {
   selectedSubWorkTypeId,
   newLaborTypeName,
   isCreating,
+  isDeleting,
   loadDivisions,
   loadLaborTypes,
   selectDivision,
   selectWorkType,
   selectSubWorkType,
   addLaborType,
+  deleteLaborType,
 } = useLaborType()
 
 onMounted(() => {
   loadDivisions()
   loadLaborTypes()
 })
+
+// 삭제 다이얼로그 상태
+const showDeleteDialog = ref(false)
+const deleteTargetId = ref<number | null>(null)
+const deleteTargetName = ref('')
+
+function openDeleteDialog(id: number, name: string) {
+  deleteTargetId.value = id
+  deleteTargetName.value = name
+  showDeleteDialog.value = true
+}
+
+async function confirmDelete() {
+  if (deleteTargetId.value != null) {
+    await deleteLaborType(deleteTargetId.value)
+  }
+  showDeleteDialog.value = false
+}
 </script>
 
 <template>
@@ -160,6 +191,7 @@ onMounted(() => {
               <th class="text-left px-3 py-2 font-medium">직종명</th>
               <th class="text-left px-3 py-2 font-medium">공종</th>
               <th class="text-left px-3 py-2 font-medium">세부공종</th>
+              <th class="w-10 px-2"></th>
             </tr>
           </thead>
           <tbody>
@@ -171,9 +203,18 @@ onMounted(() => {
               <td class="px-3 py-2">{{ lt.name }}</td>
               <td class="px-3 py-2 text-muted-foreground">{{ lt.workTypeName }}</td>
               <td class="px-3 py-2 text-muted-foreground">{{ lt.subWorkTypeName || '-' }}</td>
+              <td class="px-2 text-center">
+                <button
+                  class="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                  :disabled="isDeleting"
+                  @click="openDeleteDialog(lt.id, lt.name)"
+                >
+                  <X class="w-3 h-3" />
+                </button>
+              </td>
             </tr>
             <tr v-if="laborTypes.length === 0">
-              <td colspan="3" class="px-3 py-4 text-center text-muted-foreground">
+              <td colspan="4" class="px-3 py-4 text-center text-muted-foreground">
                 등록된 직종이 없습니다
               </td>
             </tr>
@@ -181,5 +222,20 @@ onMounted(() => {
         </table>
       </div>
     </div>
+
+    <AlertDialog :open="showDeleteDialog" @update:open="showDeleteDialog = $event">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>삭제 확인</AlertDialogTitle>
+          <AlertDialogDescription>
+            '{{ deleteTargetName }}' 직종을 삭제하시겠습니까?
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>취소</AlertDialogCancel>
+          <AlertDialogAction @click="confirmDelete">삭제</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </div>
 </template>

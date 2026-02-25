@@ -352,6 +352,68 @@ export const referenceApi = {
     return data
   },
 
+  // ========== 삭제 ==========
+
+  async deleteDivision(id: number): Promise<void> {
+    await apiClient.delete(`/reference/deleteDivision/${id}`)
+  },
+
+  async deleteWorkType(id: number): Promise<void> {
+    await apiClient.delete(`/reference/deleteWorkType/${id}`)
+  },
+
+  async deleteSubWorkType(id: number): Promise<void> {
+    await apiClient.delete(`/reference/deleteSubWorkType/${id}`)
+  },
+
+  async deleteWorkStep(id: number): Promise<void> {
+    await apiClient.delete(`/reference/deleteWorkStep/${id}`)
+  },
+
+  async deleteMaterialType(id: number): Promise<void> {
+    await apiClient.delete(`/reference/deleteMaterialType/${id}`)
+  },
+
+  async deleteMaterialSpec(id: number): Promise<void> {
+    await apiClient.delete(`/reference/deleteMaterialSpec/${id}`)
+  },
+
+  async deleteEquipmentType(id: number): Promise<void> {
+    await apiClient.delete(`/reference/deleteEquipmentType/${id}`)
+  },
+
+  async deleteEquipmentSpec(id: number): Promise<void> {
+    await apiClient.delete(`/reference/deleteEquipmentSpec/${id}`)
+  },
+
+  async deleteComponentType(id: number): Promise<void> {
+    await apiClient.delete(`/reference/deleteComponentType/${id}`)
+  },
+
+  async deleteComponentCode(id: number): Promise<void> {
+    await apiClient.delete(`/reference/deleteComponentCode/${id}`)
+  },
+
+  async deleteLaborType(id: number): Promise<void> {
+    await apiClient.delete(`/reference/deleteLaborType/${id}`)
+  },
+
+  async deleteZone(id: number): Promise<void> {
+    await apiClient.delete(`/reference/deleteZone/${id}`)
+  },
+
+  async deleteFloor(id: number): Promise<void> {
+    await apiClient.delete(`/reference/deleteFloor/${id}`)
+  },
+
+  async deleteSection(id: number): Promise<void> {
+    await apiClient.delete(`/reference/deleteSection/${id}`)
+  },
+
+  async deleteUsage(id: number): Promise<void> {
+    await apiClient.delete(`/reference/deleteUsage/${id}`)
+  },
+
   // ========== 세부작업 생성 ==========
 
   async createTasks(): Promise<CreateTasksResponse> {

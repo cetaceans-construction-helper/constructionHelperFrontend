@@ -23,6 +23,7 @@ export function useWorkClassification() {
   const newWorkStepName = ref('')
 
   const isCreating = ref(false)
+  const isDeleting = ref(false)
 
   // 목록 로드
   const loadDivisions = async () => {
@@ -153,6 +154,85 @@ export function useWorkClassification() {
     }
   }
 
+  // 삭제
+  const deleteDivision = async (id: number) => {
+    if (isDeleting.value) return
+    isDeleting.value = true
+    try {
+      await referenceApi.deleteDivision(id)
+      if (selectedDivisionId.value === id) {
+        selectedDivisionId.value = null
+        selectedWorkTypeId.value = null
+        selectedSubWorkTypeId.value = null
+        workTypes.value = []
+        subWorkTypes.value = []
+        workSteps.value = []
+      }
+      await loadDivisions()
+    } catch (error: unknown) {
+      console.error('Division 삭제 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+    } finally {
+      isDeleting.value = false
+    }
+  }
+
+  const deleteWorkType = async (id: number) => {
+    if (isDeleting.value) return
+    isDeleting.value = true
+    try {
+      await referenceApi.deleteWorkType(id)
+      if (selectedWorkTypeId.value === id) {
+        selectedWorkTypeId.value = null
+        selectedSubWorkTypeId.value = null
+        subWorkTypes.value = []
+        workSteps.value = []
+      }
+      if (selectedDivisionId.value) await loadWorkTypes(selectedDivisionId.value)
+    } catch (error: unknown) {
+      console.error('WorkType 삭제 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+    } finally {
+      isDeleting.value = false
+    }
+  }
+
+  const deleteSubWorkType = async (id: number) => {
+    if (isDeleting.value) return
+    isDeleting.value = true
+    try {
+      await referenceApi.deleteSubWorkType(id)
+      if (selectedSubWorkTypeId.value === id) {
+        selectedSubWorkTypeId.value = null
+        workSteps.value = []
+      }
+      if (selectedWorkTypeId.value) await loadSubWorkTypes(selectedWorkTypeId.value)
+    } catch (error: unknown) {
+      console.error('SubWorkType 삭제 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+    } finally {
+      isDeleting.value = false
+    }
+  }
+
+  const deleteWorkStep = async (id: number) => {
+    if (isDeleting.value) return
+    isDeleting.value = true
+    try {
+      await referenceApi.deleteWorkStep(id)
+      if (selectedSubWorkTypeId.value) await loadWorkSteps(selectedSubWorkTypeId.value)
+    } catch (error: unknown) {
+      console.error('WorkStep 삭제 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+    } finally {
+      isDeleting.value = false
+    }
+  }
+
   // 캐스케이딩 로드
   watch(selectedDivisionId, (id) => {
     workTypes.value = []
@@ -182,6 +262,7 @@ export function useWorkClassification() {
     newSubWorkTypeName,
     newWorkStepName,
     isCreating,
+    isDeleting,
     loadDivisions,
     selectDivision,
     selectWorkType,
@@ -190,5 +271,9 @@ export function useWorkClassification() {
     addWorkType,
     addSubWorkType,
     addWorkStep,
+    deleteDivision,
+    deleteWorkType,
+    deleteSubWorkType,
+    deleteWorkStep,
   }
 }

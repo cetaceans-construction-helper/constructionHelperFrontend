@@ -835,10 +835,10 @@ onUnmounted(() => {
                     class="flex items-center gap-2 cursor-pointer"
                   >
                     <Checkbox
-                      :checked="workFormState.component_type_ids.includes(String(ct.id))"
-                      @update:checked="(checked: boolean) => {
+                      :model-value="workFormState.component_type_ids.includes(String(ct.id))"
+                      @update:model-value="(checked: boolean | 'indeterminate') => {
                         const id = String(ct.id)
-                        if (checked) {
+                        if (checked === true) {
                           workFormState.component_type_ids.push(id)
                         } else {
                           workFormState.component_type_ids = workFormState.component_type_ids.filter(v => v !== id)

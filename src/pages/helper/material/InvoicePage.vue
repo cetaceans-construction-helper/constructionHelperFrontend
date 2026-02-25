@@ -447,6 +447,7 @@ function formatLocation(line: MaterialOrderResponse['orderLines'][number]): stri
                 {{ getStatusLabel(order.orderStatus) }}
               </Badge>
               <span class="text-sm font-medium">{{ order.orderNo }}</span>
+              <span class="text-xs text-muted-foreground">{{ order.workTypeName }}</span>
               <span class="text-sm font-medium bg-muted/30 border border-foreground px-2 py-0.5 rounded">
                 {{ order.totalQuantity }} {{ order.unit }}
               </span>

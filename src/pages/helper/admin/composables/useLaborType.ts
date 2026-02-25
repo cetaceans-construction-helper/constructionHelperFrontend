@@ -29,6 +29,7 @@ export function useLaborType() {
   // 입력 필드
   const newLaborTypeName = ref('')
   const isCreating = ref(false)
+  const isDeleting = ref(false)
 
   // 분류 목록 로드
   const loadDivisions = async () => {
@@ -113,6 +114,22 @@ export function useLaborType() {
     }
   }
 
+  // 직종 삭제
+  const deleteLaborType = async (id: number) => {
+    if (isDeleting.value) return
+    isDeleting.value = true
+    try {
+      await referenceApi.deleteLaborType(id)
+      await loadLaborTypes()
+    } catch (error: unknown) {
+      console.error('LaborType 삭제 실패:', error)
+      const err = error as ApiError
+      alert(err.response?.data?.message || err.message)
+    } finally {
+      isDeleting.value = false
+    }
+  }
+
   // 캐스케이딩 로드
   watch(selectedDivisionId, (id) => {
     workTypes.value = []
@@ -134,11 +151,13 @@ export function useLaborType() {
     selectedSubWorkTypeId,
     newLaborTypeName,
     isCreating,
+    isDeleting,
     loadDivisions,
     loadLaborTypes,
     selectDivision,
     selectWorkType,
     selectSubWorkType,
     addLaborType,
+    deleteLaborType,
   }
 }

@@ -77,10 +77,6 @@ export function useWorkForm(onWorkCreated: () => Promise<void>) {
       alert('공종을 선택해주세요.')
       return false
     }
-    if (component_type_ids.length === 0) {
-      alert('부재타입을 선택해주세요.')
-      return false
-    }
     if (!start_date) {
       alert('시작일을 입력해주세요.')
       return false
@@ -90,7 +86,7 @@ export function useWorkForm(onWorkCreated: () => Promise<void>) {
     try {
       const payload = {
         subWorkTypeId: Number(sub_work_type_id),
-        componentTypeIds: component_type_ids.map(Number),
+        ...(component_type_ids.length > 0 && { componentTypeIds: component_type_ids.map(Number) }),
         startDate: start_date,
         workLeadTime: work_days,
         isWorkingOnHoliday,
