@@ -22,7 +22,6 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  (e: 'select-object', object3dId: number): void
   (e: 'move-to', payload: MiniMapMovePayload): void
   (e: 'floor-change', floorKey: string): void
 }>()
@@ -491,7 +490,7 @@ function handleMapClick(event: MouseEvent) {
 
 function handlePolygonClick(polygon: MiniMapPolygon, event: MouseEvent) {
   if (Date.now() < suppressClickUntil) return
-  emit('select-object', polygon.object3dId)
+  void polygon
   handleMapClick(event)
 }
 </script>
