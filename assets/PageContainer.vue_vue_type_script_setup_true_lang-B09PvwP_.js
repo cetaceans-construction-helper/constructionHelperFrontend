@@ -1,1 +1,0 @@
-import{d as o,c as s,s as t,o as a}from"./index-DcaPXdBc.js";const n={class:"flex-1 flex flex-col gap-4"},p=o({__name:"PageContainer",props:{title:{}},setup(r){return(e,l)=>(a(),s("div",n,[t(e.$slots,"default")]))}});export{p as _};
