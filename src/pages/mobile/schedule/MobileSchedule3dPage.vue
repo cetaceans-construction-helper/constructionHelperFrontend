@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import * as THREE from 'three'
 import { useEngine } from '@/composables/useEngine'
 import { object3dApi } from '@/api/object3d'
+import { taskApi } from '@/api/task'
 import { projectApi } from '@/api/project'
 import { useProjectStore } from '@/stores/project'
-import type { Object3d } from '@/types/object3d'
+import type { Object3d, Task } from '@/types/object3d'
 import MobileViewer3dArea from './components/MobileViewer3dArea.vue'
 import MiniMap2d from './components/MiniMap2d.vue'
+import MobileTaskDetailPanel from './components/MobileTaskDetailPanel.vue'
 import type {
   MiniMapBounds,
   MiniMapCameraPose,
@@ -29,9 +31,13 @@ const initError = ref<string | null>(null)
 const modelCount = ref(0)
 const selectedObject3dId = ref<number | null>(null)
 const selectedFloorKey = ref<string | null>(null)
+const selectedTaskId = ref<number | null>(null)
 const object3dMetaById = ref<Map<number, Object3d>>(new Map())
 const objectMeshById = ref<Map<number, THREE.Object3D>>(new Map())
 const minimapFloors = ref<MiniMapFloorData[]>([])
+const selectedTasks = ref<Task[]>([])
+const isLoadingTasks = ref(false)
+const taskLoadError = ref<string | null>(null)
 const navigationPosition = ref<MiniMapPoint | null>(null)
 const navigationEyeY = ref<number | null>(null)
 const viewDistance = ref(12)
@@ -39,6 +45,10 @@ const cameraPose = ref<MiniMapCameraPose | null>(null)
 const minimapObjectCount = computed(() =>
   minimapFloors.value.reduce((sum, floor) => sum + floor.polygons.length, 0),
 )
+const selectedObject3d = computed(() => {
+  if (selectedObject3dId.value == null) return null
+  return object3dMetaById.value.get(selectedObject3dId.value) ?? null
+})
 
 const { isLoading, loadProgress, loadError, init, loadApiModel, getEngine } = useEngine(
   canvasContainer,
@@ -327,13 +337,47 @@ function getFloorBaseY(candidates: number[]): number {
 }
 
 function syncSelectedObject(dbId: number | null) {
+  const prevSelectedId = selectedObject3dId.value
   selectedObject3dId.value = dbId
+  if (prevSelectedId !== dbId) {
+    selectedTaskId.value = null
+  }
   if (dbId == null) return
 
   const meta = object3dMetaById.value.get(dbId)
   if (!meta) return
 
   selectedFloorKey.value = getFloorKey(meta)
+}
+
+let taskLoadRequestSeq = 0
+
+async function loadTasksForSelectedObject(object3dId: number | null) {
+  taskLoadRequestSeq += 1
+  const requestSeq = taskLoadRequestSeq
+
+  if (object3dId == null) {
+    selectedTasks.value = []
+    isLoadingTasks.value = false
+    taskLoadError.value = null
+    return
+  }
+
+  isLoadingTasks.value = true
+  taskLoadError.value = null
+  try {
+    const tasks = await taskApi.getTaskList(object3dId)
+    if (requestSeq !== taskLoadRequestSeq) return
+    selectedTasks.value = tasks
+  } catch (error) {
+    if (requestSeq !== taskLoadRequestSeq) return
+    selectedTasks.value = []
+    taskLoadError.value = getErrorMessage(error)
+  } finally {
+    if (requestSeq === taskLoadRequestSeq) {
+      isLoadingTasks.value = false
+    }
+  }
 }
 
 function captureNavigationAnchorFromCamera() {
@@ -713,6 +757,21 @@ function handleMiniMapFloorChange(floorKey: string) {
   moveCameraToMapPoint(point, floorKey)
 }
 
+function handleCloseTaskPanel() {
+  const engine = getEngine()
+  if (engine) {
+    engine.clearSelection()
+  }
+  syncSelectedObject(null)
+  selectedTasks.value = []
+  isLoadingTasks.value = false
+  taskLoadError.value = null
+}
+
+function handleTaskSelect(taskId: number) {
+  selectedTaskId.value = selectedTaskId.value === taskId ? null : taskId
+}
+
 onMounted(() => {
   prevHtmlOverflow = document.documentElement.style.overflow
   prevBodyOverflow = document.body.style.overflow
@@ -751,6 +810,10 @@ onMounted(async () => {
   }
 })
 
+watch(selectedObject3dId, (nextId) => {
+  loadTasksForSelectedObject(nextId)
+})
+
 onUnmounted(() => {
   removeControlsListener?.()
   removeControlsListener = null
@@ -764,7 +827,7 @@ onUnmounted(() => {
 <template>
   <div class="bg-background text-foreground flex flex-col overflow-hidden" style="height: 100dvh">
     <header class="shrink-0 px-4 py-3 flex items-center justify-between">
-      <h1 class="text-base font-semibold">모바일 3D 공정표 (Gate 4)</h1>
+      <h1 class="text-base font-semibold">모바일 3D 공정표 (Gate 5)</h1>
       <p class="text-xs text-muted-foreground">
         3D {{ modelCount }}개 · 미니맵 {{ minimapObjectCount }}개
       </p>
@@ -791,13 +854,23 @@ onUnmounted(() => {
           class="flex-[3] min-h-0 bg-amber-100 dark:bg-amber-950/40 overflow-hidden"
         >
           <MiniMap2d
+            v-if="!selectedObject3d"
             :floors="minimapFloors"
             :selected-object-id="selectedObject3dId"
             :selected-floor-key="selectedFloorKey"
             :camera-pose="cameraPose"
-            @select-object="handleMiniMapSelect"
             @move-to="handleMiniMapMove"
             @floor-change="handleMiniMapFloorChange"
+          />
+          <MobileTaskDetailPanel
+            v-else
+            :object3d="selectedObject3d"
+            :tasks="selectedTasks"
+            :is-loading-tasks="isLoadingTasks"
+            :task-load-error="taskLoadError"
+            :selected-task-id="selectedTaskId"
+            @close="handleCloseTaskPanel"
+            @select-task="handleTaskSelect"
           />
         </section>
       </div>
