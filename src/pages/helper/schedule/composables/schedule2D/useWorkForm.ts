@@ -8,6 +8,7 @@ import {
 import { workApi } from '@/api/work'
 import { projectApi } from '@/api/project'
 import type { Project } from '@/types/project'
+import { analyticsClient } from '@/lib/analytics/analyticsClient'
 
 
 export function useWorkForm(onWorkCreated: () => Promise<void>) {
@@ -98,9 +99,11 @@ export function useWorkForm(onWorkCreated: () => Promise<void>) {
 
       await workApi.createWork(payload)
       await onWorkCreated()
+      analyticsClient.trackAction('schedule_2d', 'create_work', 'success')
       return true
     } catch (error: any) {
       console.error('작업 생성 실패:', error)
+      analyticsClient.trackAction('schedule_2d', 'create_work', 'fail')
       const errorMessage = error.response?.data?.message || error.message
       alert(errorMessage)
       return false

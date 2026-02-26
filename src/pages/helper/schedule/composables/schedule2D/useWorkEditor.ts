@@ -1,6 +1,7 @@
 import { ref, computed, watch, type Ref } from 'vue'
 import type { Node } from '@vue-flow/core'
 import { workApi, type WorkResponse } from '@/api/work'
+import { analyticsClient } from '@/lib/analytics/analyticsClient'
 
 export function useWorkEditor(
   nodes: Ref<Node[]>,
@@ -41,9 +42,11 @@ export function useWorkEditor(
         isWorkingOnHoliday: workEditForm.value.isWorkingOnHoliday
       })
       await onWorkUpdated()
+      analyticsClient.trackAction('schedule_2d', 'update_work', 'success')
       selectedWorkId.value = null
     } catch (error: any) {
       console.error('작업 수정 실패:', error)
+      analyticsClient.trackAction('schedule_2d', 'update_work', 'fail')
       const errorMessage = error.response?.data?.message || error.message
       alert(errorMessage)
     } finally {

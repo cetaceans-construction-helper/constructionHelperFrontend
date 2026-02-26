@@ -6,6 +6,7 @@ import {
   type EquipmentDeploymentEntry,
 } from '@/api/equipment'
 import type { Contractor } from '@/api/attendance'
+import { analyticsClient } from '@/lib/analytics/analyticsClient'
 
 export interface EquipmentBox {
   id: string
@@ -301,10 +302,12 @@ export function useEquipmentDeployment(
         entries,
       })
 
+      analyticsClient.trackAction('material_equipment', 'save_equipment', 'success')
       alert('출역장비가 저장되었습니다.')
       await loadTodayEquipment()
     } catch (error: unknown) {
       console.error('출역장비 저장 실패:', error)
+      analyticsClient.trackAction('material_equipment', 'save_equipment', 'fail')
       alert(getErrorMessage(error))
     } finally {
       isSubmittingEquipment.value = false

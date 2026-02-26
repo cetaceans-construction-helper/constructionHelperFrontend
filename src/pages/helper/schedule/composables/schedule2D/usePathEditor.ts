@@ -2,6 +2,7 @@ import { ref, computed, type Ref, type ComputedRef } from 'vue'
 import type { Node, Edge } from '@vue-flow/core'
 import { workPathApi, type PathResponse, type PathEdge } from '@/api/workPath'
 import type { WorkResponse } from '@/api/work'
+import { analyticsClient } from '@/lib/analytics/analyticsClient'
 
 // 엣지 배열 → 순서 있는 체인 배열
 function edgesToChain(edges: PathEdge[]): number[] {
@@ -214,10 +215,12 @@ export function usePathEditor(
     try {
       await workPathApi.updateWorkPath(selectedPathId.value, editingPathEdges.value)
       await onPathUpdated()
+      analyticsClient.trackAction('schedule_2d', 'update_path', 'success')
       selectedPathId.value = null
       editingPathEdges.value = []
     } catch (error: any) {
       console.error('패스 수정 실패:', error)
+      analyticsClient.trackAction('schedule_2d', 'update_path', 'fail')
       const errorMessage = error.response?.data?.message || error.message
       alert(errorMessage)
     } finally {

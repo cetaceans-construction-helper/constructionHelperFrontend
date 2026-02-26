@@ -27,6 +27,7 @@ import { workApi, type WorkResponse } from '@/api/work'
 import { workPathApi, type PathResponse } from '@/api/workPath'
 import { useProjectStore } from '@/stores/project'
 import { useCalendarStore } from '@/stores/calendarStore'
+import { analyticsClient } from '@/lib/analytics/analyticsClient'
 import { worksToNodes } from '../nodeConfig'
 
 // Composables
@@ -161,9 +162,11 @@ const executeOptimize = async () => {
     }
     // 최적화 후 work 목록 다시 조회
     await loadWorkData()
+    analyticsClient.trackAction('schedule_2d', 'optimize_path', 'success')
     showOptimizeDialog.value = false
   } catch (error: any) {
     console.error('최적화 실패:', error)
+    analyticsClient.trackAction('schedule_2d', 'optimize_path', 'fail')
     // 백엔드에서 전달한 에러 메시지 사용
     const errorMessage = error.response?.data?.message || error.message
     alert(errorMessage)
@@ -181,19 +184,28 @@ const openDeleteDialog = (type: 'work' | 'path') => {
 // 삭제 실행
 const executeDelete = async () => {
   isDeleting.value = true
+  let deleteAction: 'delete_work' | 'delete_path' | null = null
   try {
     if (deleteType.value === 'work' && selectedWorkId.value) {
+      deleteAction = 'delete_work'
       await workApi.deleteWork(selectedWorkId.value)
       clearWorkSelection()
       tooltip.value.visible = false
     } else if (deleteType.value === 'path' && selectedPathId.value) {
+      deleteAction = 'delete_path'
       await workPathApi.deleteWorkPath(selectedPathId.value)
       cancelPathEdit()
     }
     await loadWorkData()
+    if (deleteAction) {
+      analyticsClient.trackAction('schedule_2d', deleteAction, 'success')
+    }
     showDeleteDialog.value = false
   } catch (error: any) {
     console.error('삭제 실패:', error)
+    if (deleteAction) {
+      analyticsClient.trackAction('schedule_2d', deleteAction, 'fail')
+    }
     const errorMessage = error.response?.data?.message || error.message
     alert(errorMessage)
   } finally {
@@ -327,8 +339,10 @@ const createPath = async () => {
     pathFormState.value.pathName = ''
     pathFormState.value.pathColor = '#3b82f6'
     await loadWorkData()
+    analyticsClient.trackAction('schedule_2d', 'create_path', 'success')
   } catch (error: any) {
     console.error('패스 생성 실패:', error)
+    analyticsClient.trackAction('schedule_2d', 'create_path', 'fail')
     const errorMessage = error.response?.data?.message || error.message
     alert(errorMessage)
   } finally {

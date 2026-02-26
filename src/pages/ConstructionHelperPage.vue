@@ -27,6 +27,7 @@ import { useThemeStore } from '@/stores/theme'
 import { useAuthStore } from '@/stores/auth'
 import { useProjectStore } from '@/stores/project'
 import { projectApi } from '@/api/project'
+import { analyticsClient } from '@/lib/analytics/analyticsClient'
 import type { Project } from '@/types/project'
 
 const router = useRouter()
@@ -90,7 +91,20 @@ const currentSection = computed(() => {
 const projects = ref<Project[]>([])
 const selectedProject = computed({
   get: () => projectStore.selectedProjectId,
-  set: (val) => val && projectStore.setProject(val)
+  set: (val) => {
+    if (!val) return
+    const previousProjectId = projectStore.selectedProjectId
+    if (previousProjectId === val) return
+
+    projectStore.setProject(val)
+    analyticsClient.trackProjectSelected({
+      projectId: val,
+      selectionState: 'manual',
+      previousProjectId,
+      routeName: route.name,
+      routePath: route.fullPath,
+    })
+  },
 })
 const isLoadingProjects = ref(false)
 
@@ -106,6 +120,13 @@ onMounted(async () => {
       const firstProject = projects.value[0]
       if (firstProject) {
         projectStore.setProject(firstProject.id)
+        analyticsClient.trackProjectSelected({
+          projectId: firstProject.id,
+          selectionState: savedProjectId ? 'auto_recovery' : 'auto_initial',
+          previousProjectId: savedProjectId,
+          routeName: route.name,
+          routePath: route.fullPath,
+        })
       }
     }
   } catch (e) {

@@ -10,8 +10,17 @@ type AuthEventName =
 
 type ActionResult = 'success' | 'fail'
 type StatusGroup = '4xx' | '5xx' | 'network'
+type ProjectSelectionState = 'manual' | 'auto_initial' | 'auto_recovery'
 
 interface RouteTrackInput {
+  routeName: unknown
+  routePath: string
+}
+
+interface ProjectSelectedInput {
+  projectId: string
+  previousProjectId: string | null
+  selectionState: ProjectSelectionState
   routeName: unknown
   routePath: string
 }
@@ -73,6 +82,19 @@ class AnalyticsClient {
       route_path: routePath,
     })
     this.lastRouteKey = routeKey
+  }
+
+  trackProjectSelected(input: ProjectSelectedInput) {
+    const routeName = this.normalizeRouteName(input.routeName)
+    const routePath = this.normalizeRoutePath(input.routePath)
+
+    this.trackEvent('project_selected', {
+      project_id: input.projectId,
+      previous_project_id: input.previousProjectId,
+      selection_state: input.selectionState,
+      route_name: routeName,
+      route_path: routePath,
+    })
   }
 
   trackAction(feature: string, action: string, result: ActionResult, params: AnalyticsParams = {}) {

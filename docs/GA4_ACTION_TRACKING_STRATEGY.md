@@ -183,18 +183,37 @@
 
 ### 11.5 Gate 5 - 프로젝트 선택 이벤트 연동
 
-- [ ] [작업] `project_selected` 이벤트 연결
-- [ ] [작업] 초기 자동 선택과 사용자 직접 변경을 구분할지 결정 후 반영
+- [x] [작업] `project_selected` 이벤트 연결
+- [x] [작업] 초기 자동 선택과 사용자 직접 변경을 구분할지 결정 후 반영
 - [ ] [검증] 프로젝트 변경 시 이벤트 1회 전송 확인
 - [ ] [완료조건] 프로젝트 맥락 분석 가능
 
 ### 11.6 Gate 6 - 핵심 `feature_action` 연동 (우선 기능)
 
-- [ ] [작업] `schedule_2d` 액션 연결 (`create/update/delete work`, `create/update/delete/optimize path`)
-- [ ] [작업] `schedule_3d` 액션 연결 (`update_task_quantity`, `create_material_order`)
-- [ ] [작업] `material` 액션 연결 (`save_attendance`, `save_equipment`)
-- [ ] [검증] 각 액션별 성공 1건/실패 1건 수동 테스트
-- [ ] [완료조건] 핵심 업무 액션 지표 수집 시작
+- [x] [작업] `schedule_2d` 액션 연결 (`create/update/delete work`, `create/update/delete/optimize path`)
+- [x] [작업] `schedule_3d` 액션 연결 (`update_task_quantity`, `create_material_order`)
+- [x] [작업] `material` 액션 연결 (`save_attendance`, `save_equipment`)
+- [x] [검증] 각 액션별 성공 1건/실패 1건 수동 테스트
+- [x] [완료조건] 핵심 업무 액션 지표 수집 시작
+
+#### 11.6.1 Gate 6 최소 파라미터 정책 (확정안)
+
+- 공통(모든 `feature_action`):
+  - `feature`: 기능 그룹 (`schedule_2d`, `schedule_3d`, `material_attendance`, `material_equipment`)
+  - `action`: 작업명 (`create_work`, `update_work`, ...)
+  - `result`: `success|fail`
+- 추가 파라미터:
+  - Gate 6에서는 수집하지 않음 (ID 포함 전부 제외)
+  - `create_*`에서 생성 ID를 못 받는 경우를 고려해, 성공/실패만 기록
+
+#### 11.6.2 Gate 6 상세 TODO (계획)
+
+- [x] `schedule_2d / schedule_3d / material` 액션에 최소 스키마(`feature/action/result`) 적용
+- [x] `create_*` 액션에서 ID 파라미터 미수집 정책 적용
+- [x] DebugView 검증 시나리오 정의
+  - `create/update/delete work`
+  - `create/update/delete/optimize path`
+  - 각 시나리오 성공/실패 1회씩
 
 ### 11.7 Gate 7 - 오류 이벤트 최소 연동
 
