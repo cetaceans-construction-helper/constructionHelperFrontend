@@ -3,7 +3,7 @@ import { analyticsClient } from '@/lib/analytics/analyticsClient'
 
 type StatusGroup = '4xx' | '5xx' | 'network'
 
-const DEFAULT_SAMPLE_RATE = 1
+const DEFAULT_SAMPLE_RATE = 0.2
 
 function getSampleRate() {
   const parsed = Number(import.meta.env.VITE_GA_API_ERROR_SAMPLE_RATE ?? DEFAULT_SAMPLE_RATE)
@@ -47,36 +47,18 @@ function shouldSkipApiErrorTracking(error: AxiosError) {
   return false
 }
 
-function getDebugPayload(error: AxiosError, feature: string, statusGroup: StatusGroup) {
-  return {
-    feature,
-    status_group: statusGroup,
-    status_code: error.response?.status ?? null,
-    method: error.config?.method?.toUpperCase() ?? 'UNKNOWN',
-    url: normalizePath(error.config?.url),
-    message: error.message,
-  }
-}
-
-export function trackApiErrorFromAxiosError(
-  error: AxiosError,
-  defaultFeature = 'unknown',
-) {
+export function trackApiErrorFromAxiosError(error: AxiosError, defaultFeature = 'unknown') {
   const feature = getFeatureFromUrl(error.config?.url, defaultFeature)
   const statusGroup = getStatusGroup(error.response?.status)
-  const debugPayload = getDebugPayload(error, feature, statusGroup)
 
   if (shouldSkipApiErrorTracking(error)) {
-    console.log('[GA][api_error][skip]', debugPayload)
     return
   }
 
   const sampleRate = getSampleRate()
   if (sampleRate < 1 && Math.random() >= sampleRate) {
-    console.log('[GA][api_error][sampled_out]', { ...debugPayload, sample_rate: sampleRate })
     return
   }
 
   analyticsClient.trackError(feature, statusGroup)
-  console.log('[GA][api_error][tracked]', { ...debugPayload, sample_rate: sampleRate })
 }
