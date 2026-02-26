@@ -2,6 +2,8 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { authApi } from '@/api/auth'
 import { ValidationError } from '@/api/client'
+import { analyticsClient } from '@/lib/analytics/analyticsClient'
+import { getAuthErrorType } from '@/lib/analytics/helpers/errorClassifier'
 import type { User, LoginCredentials, SignupCredentials, FieldErrors } from '@/types/auth'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -23,7 +25,12 @@ export const useAuthStore = defineStore('auth', () => {
 
     try {
       user.value = await authApi.login(credentials)
+      analyticsClient.setUserId(user.value.id)
+      analyticsClient.trackAuth('login_result', 'success')
     } catch (e) {
+      analyticsClient.trackAuth('login_result', 'fail', {
+        error_type: getAuthErrorType(e),
+      })
       if (e instanceof ValidationError) {
         error.value = e.message
         fieldErrors.value = e.fieldErrors
@@ -43,10 +50,15 @@ export const useAuthStore = defineStore('auth', () => {
 
     try {
       await authApi.logout()
+      analyticsClient.trackAuth('logout', 'success')
     } catch (e) {
+      analyticsClient.trackAuth('logout', 'fail', {
+        error_type: getAuthErrorType(e),
+      })
       console.error('Logout error:', e)
     } finally {
       user.value = null
+      analyticsClient.setUserId(null)
       isLoading.value = false
     }
   }
@@ -58,8 +70,12 @@ export const useAuthStore = defineStore('auth', () => {
 
     try {
       await authApi.signup(credentials)
+      analyticsClient.trackAuth('signup_result', 'success')
       // 회원가입 성공 - 로그인 상태는 변경하지 않음
     } catch (e) {
+      analyticsClient.trackAuth('signup_result', 'fail', {
+        error_type: getAuthErrorType(e),
+      })
       if (e instanceof ValidationError) {
         error.value = e.message
         fieldErrors.value = e.fieldErrors
@@ -82,9 +98,11 @@ export const useAuthStore = defineStore('auth', () => {
 
     try {
       user.value = await authApi.me()
+      analyticsClient.setUserId(user.value.id)
     } catch {
       // Not authenticated - this is expected
       user.value = null
+      analyticsClient.setUserId(null)
     } finally {
       isLoading.value = false
       isInitialized.value = true

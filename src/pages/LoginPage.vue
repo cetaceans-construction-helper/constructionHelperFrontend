@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { analyticsClient } from '@/lib/analytics/analyticsClient'
 
 const router = useRouter()
 const route = useRoute()
@@ -18,6 +19,10 @@ onMounted(() => {
 })
 
 const handleLogin = async () => {
+  analyticsClient.trackAuth('login_attempt', undefined, {
+    route_name: typeof route.name === 'string' ? route.name : 'login',
+  })
+
   try {
     await authStore.login({ userEmail: userEmail.value, userPassword: userPassword.value }) //로그인 잠시 해제
 
