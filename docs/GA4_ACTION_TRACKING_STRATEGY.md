@@ -39,6 +39,7 @@
 - `route_name`: Vue Router name
 - `route_path`: hash 라우트 전체 경로
 - `section`: `main|auth|dashboard|process|material|safety|document|utility|admin|system_admin|mobile`
+- `user_id`: 로그인 사용자 고유 ID (비식별 내부 ID)
 - `user_role`: `anonymous|SUPER|...`
 - `project_selected`: `yes|no`
 - `platform_view`: `pc|mobile_route`
@@ -78,7 +79,7 @@
 ## 6. 구현 방식
 1. 공통 래퍼 생성
    - 파일: `src/lib/analytics/ga.ts`
-   - 함수: `trackPageView`, `trackAuth`, `trackAction`, `trackApiError`
+   - 함수: `trackPageView`, `trackAuth`, `trackAction`, `trackApiError`, `setUserId`
    - `VITE_GA_MEASUREMENT_ID` 미설정 시 no-op
 2. 자동 수집
    - 라우터 `afterEach`에서 `page_view`, `section_view`
@@ -88,6 +89,10 @@
 4. 오류 수집
    - API 에러는 샘플링(예: 20%) 적용
    - 401/403 토큰 갱신 경로는 제외
+5. 사용자 ID 연동 (GA4 User-ID)
+   - 로그인 성공 시 `user_id` 설정 (예: `gtag('config', 'G-61RZ9ZS0MN', { user_id: String(user.id) })`)
+   - 로그아웃 시 `user_id` 해제 (예: `gtag('config', 'G-61RZ9ZS0MN', { user_id: null })`)
+   - 주의: 이메일/전화번호 대신 내부 비식별 ID만 사용
 
 ## 7. 개인정보/데이터 품질 가이드
 - 금지:
@@ -140,9 +145,9 @@
 - [x] [완료조건] 기본 gtag 로딩 성공
 
 ### 11.2 Gate 2 - 분석 래퍼 유틸 생성
-- [ ] [작업] `src/lib/analytics/ga.ts` 생성 (`trackEvent`, `trackPageView`, `trackAction`, `trackAuth`, `trackError`)
-- [ ] [작업] `window.gtag` 미존재 시 no-op 처리
-- [ ] [작업] 공통 파라미터 빌더(`section`, `route_name`, `project_selected`) 추가
+- [x] [작업] `src/lib/analytics/ga.ts` 생성 (`trackEvent`, `trackPageView`, `trackAction`, `trackAuth`, `trackError`)
+- [x] [작업] `window.gtag` 미존재 시 no-op 처리
+- [x] [작업] 공통 파라미터 빌더(`section`, `route_name`, `project_selected`) 추가
 - [ ] [검증] 로컬에서 수동 호출 시 런타임 에러가 없는지 확인
 - [ ] [완료조건] 앱 어디서든 안전하게 호출 가능한 상태
 
@@ -157,7 +162,9 @@
 - [ ] [작업] `login_attempt`, `login_result` 연결
 - [ ] [작업] `signup_attempt`, `signup_result` 연결
 - [ ] [작업] `logout` 이벤트 연결
+- [ ] [작업] 로그인 성공 시 GA4 `user_id` 설정, 로그아웃 시 해제 로직 연결
 - [ ] [검증] 성공/실패 각각 테스트하고 `result=success|fail` 분리 확인
+- [ ] [검증] 로그인 전/후 이벤트에서 `user_id` 반영 상태가 의도와 일치하는지 확인
 - [ ] [완료조건] 인증 퍼널 데이터 수집 가능
 
 ### 11.5 Gate 5 - 프로젝트 선택 이벤트 연동
