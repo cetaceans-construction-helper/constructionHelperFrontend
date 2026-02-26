@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
+import { X } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -23,6 +24,16 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
@@ -40,13 +51,17 @@ const {
   companyToProjectList,
   isLoadingCompanyToProject,
   isCreatingCompanyToProject,
+  isDeletingCompanyToProject,
   companyToProjectFilter,
   createCompanyToProject,
+  deleteCompanyToProject,
   userToProjectList,
   isLoadingUserToProject,
   isCreatingUserToProject,
+  isDeletingUserToProject,
   userToProjectFilter,
   createUserToProject,
+  deleteUserToProject,
   loadAll,
 } = useMappingManagement()
 
@@ -123,6 +138,26 @@ const handleCreateUserToProject = async () => {
   }
 }
 
+// 삭제 다이얼로그 상태
+const showDeleteDialog = ref(false)
+const deleteTargetId = ref<number | null>(null)
+const deleteTargetName = ref('')
+const deleteAction = ref<((id: number) => Promise<void>) | null>(null)
+
+function openDeleteDialog(id: number, name: string, fn: (id: number) => Promise<void>) {
+  deleteTargetId.value = id
+  deleteTargetName.value = name
+  deleteAction.value = fn
+  showDeleteDialog.value = true
+}
+
+async function confirmDelete() {
+  if (deleteTargetId.value != null && deleteAction.value) {
+    await deleteAction.value(deleteTargetId.value)
+  }
+  showDeleteDialog.value = false
+}
+
 onMounted(() => {
   loadAll()
 })
@@ -175,16 +210,17 @@ onMounted(() => {
               <TableHead>회사</TableHead>
               <TableHead>역할</TableHead>
               <TableHead>공종</TableHead>
+              <TableHead class="w-10 text-center">삭제</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             <TableRow v-if="isLoadingCompanyToProject">
-              <TableCell colspan="4" class="text-center text-muted-foreground">
+              <TableCell colspan="5" class="text-center text-muted-foreground">
                 로딩 중...
               </TableCell>
             </TableRow>
             <TableRow v-else-if="companyToProjectList.length === 0">
-              <TableCell colspan="4" class="text-center text-muted-foreground">
+              <TableCell colspan="5" class="text-center text-muted-foreground">
                 매핑이 없습니다.
               </TableCell>
             </TableRow>
@@ -193,6 +229,15 @@ onMounted(() => {
               <TableCell>{{ mapping.companyName }}</TableCell>
               <TableCell>{{ mapping.roleName }}</TableCell>
               <TableCell>{{ mapping.workTypeName || '-' }}</TableCell>
+              <TableCell class="text-center">
+                <button
+                  class="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                  :disabled="isDeletingCompanyToProject"
+                  @click.stop="openDeleteDialog(mapping.id, `${mapping.companyName} - ${mapping.projectName}`, deleteCompanyToProject)"
+                >
+                  <X class="w-3 h-3" />
+                </button>
+              </TableCell>
             </TableRow>
           </TableBody>
         </Table>
@@ -235,16 +280,17 @@ onMounted(() => {
               <TableHead>소속회사</TableHead>
               <TableHead>프로젝트 직책</TableHead>
               <TableHead>시스템 역할</TableHead>
+              <TableHead class="w-10 text-center">삭제</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             <TableRow v-if="isLoadingUserToProject">
-              <TableCell colspan="6" class="text-center text-muted-foreground">
+              <TableCell colspan="7" class="text-center text-muted-foreground">
                 로딩 중...
               </TableCell>
             </TableRow>
             <TableRow v-else-if="userToProjectList.length === 0">
-              <TableCell colspan="6" class="text-center text-muted-foreground">
+              <TableCell colspan="7" class="text-center text-muted-foreground">
                 매핑이 없습니다.
               </TableCell>
             </TableRow>
@@ -255,6 +301,15 @@ onMounted(() => {
               <TableCell>{{ mapping.companyName }}</TableCell>
               <TableCell>{{ mapping.projectRole || '-' }}</TableCell>
               <TableCell>{{ mapping.systemRoleName }}</TableCell>
+              <TableCell class="text-center">
+                <button
+                  class="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                  :disabled="isDeletingUserToProject"
+                  @click.stop="openDeleteDialog(mapping.id, `${mapping.userName} - ${mapping.projectName}`, deleteUserToProject)"
+                >
+                  <X class="w-3 h-3" />
+                </button>
+              </TableCell>
             </TableRow>
           </TableBody>
         </Table>
@@ -396,5 +451,21 @@ onMounted(() => {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <!-- 삭제 확인 다이얼로그 -->
+    <AlertDialog :open="showDeleteDialog" @update:open="showDeleteDialog = $event">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>삭제 확인</AlertDialogTitle>
+          <AlertDialogDescription>
+            '{{ deleteTargetName }}' 항목을 삭제하시겠습니까?
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>취소</AlertDialogCancel>
+          <AlertDialogAction @click="confirmDelete">삭제</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </div>
 </template>

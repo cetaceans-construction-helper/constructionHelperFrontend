@@ -21,6 +21,12 @@ export interface MaterialOrderLineResponse {
   quantity: number
 }
 
+export interface SpecSummary {
+  materialSpecId: number
+  materialSpecName: string
+  quantity: number
+}
+
 export interface MaterialOrderResponse {
   id: number
   orderNo: string
@@ -31,6 +37,7 @@ export interface MaterialOrderResponse {
   workTypeId: number
   workTypeName: string
   totalQuantity: number
+  specSummary: SpecSummary[]
   orderedAt: string | null
   createdAt: string
   orderLines: MaterialOrderLineResponse[]
@@ -42,6 +49,7 @@ export interface MaterialDeliverySummary {
   materialOrderNumber: string
   supplier: string
   deliveryDate: string
+  location: string | null
   noteUrls: string[]
   unit: string
 }
@@ -102,29 +110,45 @@ export const materialOrderApi = {
     return data
   },
 
-  async createMaterialDelivery(
-    orderId: number,
-    deliveryNotes: File[],
-    deliveryPhotos: File[],
-    zoneIds: number[],
-    floorIds: number[],
-    sectionIds: number[],
-    usageIds: number[],
-  ): Promise<CreateDeliveryResponse> {
+  async createMaterialDelivery(params: {
+    orderId?: number
+    materialTypeId: number
+    workTypeId?: number
+    deliveryNotes: File[]
+    deliveryPhotos: File[]
+    zoneIds: number[]
+    floorIds: number[]
+    sectionIds: number[]
+    usageIds: number[]
+  }): Promise<CreateDeliveryResponse> {
     const formData = new FormData()
-    deliveryNotes.forEach((file) => formData.append('deliveryNotes', file))
-    deliveryPhotos.forEach((file) => formData.append('deliveryPhotos', file))
-    zoneIds.forEach((id) => formData.append('zoneIds', String(id)))
-    floorIds.forEach((id) => formData.append('floorIds', String(id)))
-    sectionIds.forEach((id) => formData.append('sectionIds', String(id)))
-    usageIds.forEach((id) => formData.append('usageIds', String(id)))
+    params.deliveryNotes.forEach((file) => formData.append('deliveryNotes', file))
+    params.deliveryPhotos.forEach((file) => formData.append('deliveryPhotos', file))
+    params.zoneIds.forEach((id) => formData.append('zoneIds', String(id)))
+    params.floorIds.forEach((id) => formData.append('floorIds', String(id)))
+    params.sectionIds.forEach((id) => formData.append('sectionIds', String(id)))
+    params.usageIds.forEach((id) => formData.append('usageIds', String(id)))
+
+    const queryParams: Record<string, string> = {
+      materialTypeId: String(params.materialTypeId),
+    }
+    if (params.orderId != null) queryParams.orderId = String(params.orderId)
+    if (params.workTypeId != null) queryParams.workTypeId = String(params.workTypeId)
 
     const { data } = await apiClient.post<CreateDeliveryResponse>(
-      `/materialDelivery/createMaterialDelivery/${orderId}`,
+      '/materialDelivery/createMaterialDelivery',
       formData,
-      { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 60000 },
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 60000,
+        params: queryParams,
+      },
     )
     return data
+  },
+
+  async deleteMaterialDelivery(deliveryId: number): Promise<void> {
+    await apiClient.delete(`/materialDelivery/deleteMaterialDelivery/${deliveryId}`)
   },
 
   async getMaterialDeliveryList(): Promise<MaterialDeliverySummary[]> {
@@ -149,6 +173,7 @@ export const materialOrderApi = {
     body: {
       supplier: string
       deliveryDate: string
+      location?: string | null
       deliveryLines: {
         deliveryLineId: number | null
         manufacturer: string | null

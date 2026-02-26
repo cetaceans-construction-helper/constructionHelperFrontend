@@ -414,6 +414,10 @@ export const referenceApi = {
     await apiClient.delete(`/reference/deleteUsage/${id}`)
   },
 
+  async deleteCwmMapping(id: number): Promise<void> {
+    await apiClient.delete(`/reference/deleteCwmMapping/${id}`)
+  },
+
   // ========== 세부작업 생성 ==========
 
   async createTasks(): Promise<CreateTasksResponse> {
