@@ -29,6 +29,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { X } from 'lucide-vue-next'
 import { useMaterialOrder } from './composables/useMaterialOrder'
 import { materialOrderApi } from '@/api/materialOrder'
 import type {
@@ -37,7 +48,12 @@ import type {
   DeliveryLineResponse,
 } from '@/api/materialOrder'
 import { referenceApi } from '@/api/reference'
-import type { MaterialSpecResponse } from '@/api/reference'
+import type {
+  MaterialSpecResponse,
+  MaterialTypeResponse,
+  IdNameResponse,
+  WorkTypeResponse,
+} from '@/api/reference'
 
 const { orders, isLoading, loadOrders } = useMaterialOrder()
 const expandedOrders = reactive<Record<number, boolean>>({})
@@ -53,6 +69,34 @@ const selectedSectionIds = ref<number[]>([])
 const selectedUsageIds = ref<number[]>([])
 const isSaving = ref(false)
 
+// 발주서 없이 송장입력 다이얼로그 상태
+const directDeliveryDialogOpen = ref(false)
+const directSelectedMaterialTypeId = ref<string>('')
+const directSelectedDivisionId = ref<string>('')
+const directSelectedWorkTypeId = ref<string>('')
+const directMaterialTypes = ref<MaterialTypeResponse[]>([])
+const directDivisions = ref<IdNameResponse[]>([])
+const directWorkTypes = ref<WorkTypeResponse[]>([])
+const isLoadingDirectWorkTypes = ref(false)
+const isSavingDirect = ref(false)
+const directDeliveryNotes = ref<File[]>([])
+const directDeliveryPhotos = ref<File[]>([])
+// 발주서 없이 송장입력 - 위치 선택
+const directZones = ref<IdNameResponse[]>([])
+const directFloors = ref<IdNameResponse[]>([])
+const directSections = ref<IdNameResponse[]>([])
+const directUsages = ref<IdNameResponse[]>([])
+const directSelectedZoneIds = ref<number[]>([])
+const directSelectedFloorIds = ref<number[]>([])
+const directSelectedSectionIds = ref<number[]>([])
+const directSelectedUsageIds = ref<number[]>([])
+
+// 삭제 다이얼로그 상태
+const showDeleteDialog = ref(false)
+const deleteTargetId = ref<number | null>(null)
+const deleteTargetName = ref('')
+const isDeletingDelivery = ref(false)
+
 // 반입자재 탭 상태
 const deliveries = ref<MaterialDeliverySummary[]>([])
 const isLoadingDeliveries = ref(false)
@@ -60,7 +104,7 @@ const isLoadingDeliveries = ref(false)
 // 반입자재 펼치기/접기 + 인라인 수정 상태
 const expandedDeliveries = reactive<Record<number, boolean>>({})
 const deliveryLinesMap = ref<Record<number, DeliveryLineResponse[]>>({})
-const deliveryEditState = ref<Record<number, { supplier: string; deliveryDate: string }>>({})
+const deliveryEditState = ref<Record<number, { supplier: string; deliveryDate: string; location: string }>>({})
 const isLoadingLines = ref<Record<number, boolean>>({})
 const isUpdatingDelivery = ref<Record<number, boolean>>({})
 const materialSpecs = ref<MaterialSpecResponse[]>([])
@@ -146,28 +190,25 @@ function onDeliveryPhotosChange(event: Event) {
   deliveryPhotos.value = input.files ? Array.from(input.files) : []
 }
 
-function toggleCheckbox(list: number[], id: number) {
-  const idx = list.indexOf(id)
-  if (idx === -1) {
-    list.push(id)
-  } else {
-    list.splice(idx, 1)
-  }
+function toggleId(list: number[], id: number): number[] {
+  return list.includes(id) ? list.filter((v) => v !== id) : [...list, id]
 }
 
 async function saveDelivery() {
   if (!selectedOrder.value) return
   isSaving.value = true
   try {
-    await materialOrderApi.createMaterialDelivery(
-      selectedOrder.value.id,
-      deliveryNotes.value,
-      deliveryPhotos.value,
-      selectedZoneIds.value,
-      selectedFloorIds.value,
-      selectedSectionIds.value,
-      selectedUsageIds.value,
-    )
+    await materialOrderApi.createMaterialDelivery({
+      orderId: selectedOrder.value.id,
+      materialTypeId: selectedOrder.value.materialTypeId,
+      workTypeId: selectedOrder.value.workTypeId,
+      deliveryNotes: deliveryNotes.value,
+      deliveryPhotos: deliveryPhotos.value,
+      zoneIds: selectedZoneIds.value,
+      floorIds: selectedFloorIds.value,
+      sectionIds: selectedSectionIds.value,
+      usageIds: selectedUsageIds.value,
+    })
     deliveryDialogOpen.value = false
     loadOrders()
     loadDeliveries()
@@ -177,6 +218,121 @@ async function saveDelivery() {
     alert(err.response?.data?.message || err.message)
   } finally {
     isSaving.value = false
+  }
+}
+
+async function openDirectDeliveryDialog() {
+  directDeliveryNotes.value = []
+  directDeliveryPhotos.value = []
+  directSelectedMaterialTypeId.value = ''
+  directSelectedDivisionId.value = ''
+  directSelectedWorkTypeId.value = ''
+  directWorkTypes.value = []
+  directSelectedZoneIds.value = []
+  directSelectedFloorIds.value = []
+  directSelectedSectionIds.value = []
+  directSelectedUsageIds.value = []
+
+  try {
+    const [mtList, divList, zoneList, floorList, sectionList, usageList] = await Promise.all([
+      referenceApi.getMaterialTypeList(),
+      referenceApi.getDivisionList(),
+      referenceApi.getZoneList(),
+      referenceApi.getFloorList(),
+      referenceApi.getSectionList(),
+      referenceApi.getUsageList(),
+    ])
+    directMaterialTypes.value = mtList
+    directDivisions.value = divList
+    directZones.value = zoneList
+    directFloors.value = floorList
+    directSections.value = sectionList
+    directUsages.value = usageList
+  } catch (error: unknown) {
+    console.error('기초 데이터 로드 실패:', error)
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    alert(err.response?.data?.message || err.message)
+    return
+  }
+
+  directDeliveryDialogOpen.value = true
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function handleDirectDivisionChange(divisionId: any) {
+  directSelectedDivisionId.value = String(divisionId ?? '')
+  directSelectedWorkTypeId.value = ''
+  directWorkTypes.value = []
+  if (!directSelectedDivisionId.value) return
+
+  isLoadingDirectWorkTypes.value = true
+  try {
+    directWorkTypes.value = await referenceApi.getWorkTypeList(Number(directSelectedDivisionId.value))
+  } catch (error: unknown) {
+    console.error('공종 목록 로드 실패:', error)
+  } finally {
+    isLoadingDirectWorkTypes.value = false
+  }
+}
+
+function onDirectDeliveryNotesChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  directDeliveryNotes.value = input.files ? Array.from(input.files) : []
+}
+
+function onDirectDeliveryPhotosChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  directDeliveryPhotos.value = input.files ? Array.from(input.files) : []
+}
+
+async function saveDirectDelivery() {
+  if (!directSelectedMaterialTypeId.value) {
+    alert('자재유형을 선택해주세요.')
+    return
+  }
+  isSavingDirect.value = true
+  try {
+    await materialOrderApi.createMaterialDelivery({
+      materialTypeId: Number(directSelectedMaterialTypeId.value),
+      workTypeId: directSelectedWorkTypeId.value ? Number(directSelectedWorkTypeId.value) : undefined,
+      deliveryNotes: directDeliveryNotes.value,
+      deliveryPhotos: directDeliveryPhotos.value,
+      zoneIds: directSelectedZoneIds.value,
+      floorIds: directSelectedFloorIds.value,
+      sectionIds: directSelectedSectionIds.value,
+      usageIds: directSelectedUsageIds.value,
+    })
+    directDeliveryDialogOpen.value = false
+    loadDeliveries()
+  } catch (error: unknown) {
+    console.error('송장입력 실패:', error)
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    alert(err.response?.data?.message || err.message)
+  } finally {
+    isSavingDirect.value = false
+  }
+}
+
+function openDeleteDialog(deliveryId: number, deliveryName: string) {
+  deleteTargetId.value = deliveryId
+  deleteTargetName.value = deliveryName
+  showDeleteDialog.value = true
+}
+
+async function confirmDeleteDelivery() {
+  if (deleteTargetId.value == null) return
+  isDeletingDelivery.value = true
+  try {
+    await materialOrderApi.deleteMaterialDelivery(deleteTargetId.value)
+    showDeleteDialog.value = false
+    loadDeliveries()
+    loadOrders()
+  } catch (error: unknown) {
+    console.error('반입자재 삭제 실패:', error)
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    alert(err.response?.data?.message || err.message)
+  } finally {
+    isDeletingDelivery.value = false
   }
 }
 
@@ -209,6 +365,7 @@ async function toggleDelivery(delivery: MaterialDeliverySummary) {
     deliveryEditState.value[id] = {
       supplier: delivery.supplier,
       deliveryDate: delivery.deliveryDate,
+      location: delivery.location ?? '',
     }
     deliveryImageIndex.value[id] = 0
     deliveryImageScale.value[id] = 1
@@ -321,6 +478,7 @@ async function updateDelivery(delivery: MaterialDeliverySummary) {
     await materialOrderApi.updateMaterialDelivery(id, {
       supplier: editState.supplier,
       deliveryDate: editState.deliveryDate,
+      location: editState.location || null,
       deliveryLines: lines.map((line) => ({
         deliveryLineId: line.deliveryLineId,
         manufacturer: line.manufacturer,
@@ -451,6 +609,18 @@ function formatLocation(line: MaterialOrderResponse['orderLines'][number]): stri
               <span class="text-sm font-medium bg-muted/30 border border-foreground px-2 py-0.5 rounded">
                 {{ order.totalQuantity }} {{ order.unit }}
               </span>
+              <div v-if="order.specSummary?.length > 0" class="flex items-center gap-2 flex-wrap">
+                <Badge
+                  v-for="spec in order.specSummary"
+                  :key="spec.materialSpecId"
+                  variant="outline"
+                  class="text-sm px-2.5 py-1"
+                >
+                  {{ spec.materialSpecName }}
+                  <span class="font-semibold ml-1">{{ spec.quantity }}</span>
+                  <span class="text-muted-foreground ml-0.5">{{ order.unit }}</span>
+                </Badge>
+              </div>
               <div class="flex items-center gap-2 ml-auto">
                 <Button
                   variant="outline"
@@ -502,6 +672,13 @@ function formatLocation(line: MaterialOrderResponse['orderLines'][number]): stri
         </div>
       </template>
       <template #tab-incoming>
+        <!-- 상단 버튼 -->
+        <div class="flex justify-end mb-4">
+          <Button variant="outline" size="sm" @click="openDirectDeliveryDialog">
+            발주서 없이 송장입력
+          </Button>
+        </div>
+
         <!-- 로딩 -->
         <div v-if="isLoadingDeliveries" class="text-sm text-muted-foreground text-center py-8">
           반입자재 목록 로딩 중...
@@ -527,9 +704,18 @@ function formatLocation(line: MaterialOrderResponse['orderLines'][number]): stri
               <span class="text-sm font-medium">{{ delivery.materialOrderNumber }}</span>
               <span class="text-sm text-muted-foreground">{{ delivery.supplier }}</span>
               <span class="text-sm text-muted-foreground">{{ delivery.deliveryDate }}</span>
-              <div class="ml-auto">
+              <span v-if="delivery.location" class="text-sm text-muted-foreground">{{ delivery.location }}</span>
+              <div class="flex items-center gap-1 ml-auto">
                 <Button variant="ghost" size="sm" @click="toggleDelivery(delivery)">
                   {{ expandedDeliveries[delivery.materialDeliveryId] ? '접기 ▲' : '펼치기 ▼' }}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  class="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                  @click="openDeleteDialog(delivery.materialDeliveryId, delivery.materialOrderNumber)"
+                >
+                  <X class="h-4 w-4" />
                 </Button>
               </div>
             </div>
@@ -596,7 +782,7 @@ function formatLocation(line: MaterialOrderResponse['orderLines'][number]): stri
                   <!-- 우측: 수정 폼 -->
                   <div class="w-1/2 space-y-4 overflow-y-auto">
                     <!-- 공급업체 / 납품일 -->
-                    <div class="grid grid-cols-2 gap-4">
+                    <div class="grid grid-cols-3 gap-4">
                       <div class="space-y-1.5">
                         <Label>공급업체</Label>
                         <Input v-model="deliveryEditState[delivery.materialDeliveryId]!.supplier" />
@@ -604,6 +790,10 @@ function formatLocation(line: MaterialOrderResponse['orderLines'][number]): stri
                       <div class="space-y-1.5">
                         <Label>납품일</Label>
                         <Input v-model="deliveryEditState[delivery.materialDeliveryId]!.deliveryDate" type="date" />
+                      </div>
+                      <div class="space-y-1.5">
+                        <Label>위치</Label>
+                        <Input v-model="deliveryEditState[delivery.materialDeliveryId]!.location" placeholder="예: A동 3층" />
                       </div>
                     </div>
 
@@ -757,8 +947,8 @@ function formatLocation(line: MaterialOrderResponse['orderLines'][number]): stri
               <div v-for="zone in uniqueZones" :key="zone.id" class="flex items-center gap-1.5">
                 <Checkbox
                   :id="`zone-${zone.id}`"
-                  :checked="selectedZoneIds.includes(zone.id)"
-                  @update:checked="toggleCheckbox(selectedZoneIds, zone.id)"
+                  :model-value="selectedZoneIds.includes(zone.id)"
+                  @update:model-value="selectedZoneIds = toggleId(selectedZoneIds, zone.id)"
                 />
                 <label :for="`zone-${zone.id}`" class="text-sm cursor-pointer">{{ zone.name }}</label>
               </div>
@@ -771,8 +961,8 @@ function formatLocation(line: MaterialOrderResponse['orderLines'][number]): stri
               <div v-for="floor in uniqueFloors" :key="floor.id" class="flex items-center gap-1.5">
                 <Checkbox
                   :id="`floor-${floor.id}`"
-                  :checked="selectedFloorIds.includes(floor.id)"
-                  @update:checked="toggleCheckbox(selectedFloorIds, floor.id)"
+                  :model-value="selectedFloorIds.includes(floor.id)"
+                  @update:model-value="selectedFloorIds = toggleId(selectedFloorIds, floor.id)"
                 />
                 <label :for="`floor-${floor.id}`" class="text-sm cursor-pointer">{{ floor.name }}</label>
               </div>
@@ -785,8 +975,8 @@ function formatLocation(line: MaterialOrderResponse['orderLines'][number]): stri
               <div v-for="section in uniqueSections" :key="section.id" class="flex items-center gap-1.5">
                 <Checkbox
                   :id="`section-${section.id}`"
-                  :checked="selectedSectionIds.includes(section.id)"
-                  @update:checked="toggleCheckbox(selectedSectionIds, section.id)"
+                  :model-value="selectedSectionIds.includes(section.id)"
+                  @update:model-value="selectedSectionIds = toggleId(selectedSectionIds, section.id)"
                 />
                 <label :for="`section-${section.id}`" class="text-sm cursor-pointer">{{ section.name }}</label>
               </div>
@@ -799,8 +989,8 @@ function formatLocation(line: MaterialOrderResponse['orderLines'][number]): stri
               <div v-for="usage in uniqueUsages" :key="usage.id" class="flex items-center gap-1.5">
                 <Checkbox
                   :id="`usage-${usage.id}`"
-                  :checked="selectedUsageIds.includes(usage.id)"
-                  @update:checked="toggleCheckbox(selectedUsageIds, usage.id)"
+                  :model-value="selectedUsageIds.includes(usage.id)"
+                  @update:model-value="selectedUsageIds = toggleId(selectedUsageIds, usage.id)"
                 />
                 <label :for="`usage-${usage.id}`" class="text-sm cursor-pointer">{{ usage.name }}</label>
               </div>
@@ -821,6 +1011,191 @@ function formatLocation(line: MaterialOrderResponse['orderLines'][number]): stri
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <!-- 발주서 없이 송장입력 다이얼로그 -->
+    <Dialog v-model:open="directDeliveryDialogOpen">
+      <DialogContent class="sm:max-w-[520px]">
+        <DialogHeader>
+          <DialogTitle>발주서 없이 송장입력</DialogTitle>
+        </DialogHeader>
+
+        <div class="space-y-5 py-2">
+          <!-- 자재유형 -->
+          <div class="space-y-2">
+            <Label>자재유형</Label>
+            <Select v-model="directSelectedMaterialTypeId">
+              <SelectTrigger>
+                <SelectValue placeholder="자재유형 선택" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  v-for="mt in directMaterialTypes"
+                  :key="mt.id"
+                  :value="String(mt.id)"
+                >
+                  {{ mt.name }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <!-- 분류 (선택사항) -->
+          <div class="space-y-2">
+            <Label>분류 (선택사항)</Label>
+            <Select
+              :model-value="directSelectedDivisionId"
+              @update:model-value="handleDirectDivisionChange"
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="분류 선택" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  v-for="div in directDivisions"
+                  :key="div.id"
+                  :value="String(div.id)"
+                >
+                  {{ div.name }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <!-- 공종 (선택사항) -->
+          <div class="space-y-2">
+            <Label>공종 (선택사항)</Label>
+            <Select
+              v-model="directSelectedWorkTypeId"
+              :disabled="!directSelectedDivisionId || isLoadingDirectWorkTypes"
+            >
+              <SelectTrigger>
+                <SelectValue :placeholder="isLoadingDirectWorkTypes ? '로딩중...' : '공종 선택'" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  v-for="wt in directWorkTypes"
+                  :key="wt.id"
+                  :value="String(wt.id)"
+                >
+                  {{ wt.name }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <!-- 송장파일 -->
+          <div class="space-y-2">
+            <Label>송장파일</Label>
+            <input
+              type="file"
+              multiple
+              accept=".pdf,.png,.jpg,.jpeg"
+              class="block w-full text-sm text-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded file:border file:border-input file:bg-muted file:text-sm file:font-medium hover:file:bg-muted/80 cursor-pointer"
+              @change="onDirectDeliveryNotesChange"
+            />
+          </div>
+
+          <!-- 반입사진 -->
+          <div class="space-y-2">
+            <Label>반입사진</Label>
+            <input
+              type="file"
+              multiple
+              accept="image/*"
+              class="block w-full text-sm text-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded file:border file:border-input file:bg-muted file:text-sm file:font-medium hover:file:bg-muted/80 cursor-pointer"
+              @change="onDirectDeliveryPhotosChange"
+            />
+          </div>
+
+          <!-- 위치정보 -->
+          <div v-if="directZones.length > 0" class="space-y-2">
+            <Label>존</Label>
+            <div class="flex flex-wrap gap-3">
+              <div v-for="zone in directZones" :key="zone.id" class="flex items-center gap-1.5">
+                <Checkbox
+                  :id="`direct-zone-${zone.id}`"
+                  :model-value="directSelectedZoneIds.includes(zone.id)"
+                  @update:model-value="directSelectedZoneIds = toggleId(directSelectedZoneIds, zone.id)"
+                />
+                <label :for="`direct-zone-${zone.id}`" class="text-sm cursor-pointer">{{ zone.name }}</label>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="directFloors.length > 0" class="space-y-2">
+            <Label>층</Label>
+            <div class="flex flex-wrap gap-3">
+              <div v-for="floor in directFloors" :key="floor.id" class="flex items-center gap-1.5">
+                <Checkbox
+                  :id="`direct-floor-${floor.id}`"
+                  :model-value="directSelectedFloorIds.includes(floor.id)"
+                  @update:model-value="directSelectedFloorIds = toggleId(directSelectedFloorIds, floor.id)"
+                />
+                <label :for="`direct-floor-${floor.id}`" class="text-sm cursor-pointer">{{ floor.name }}</label>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="directSections.length > 0" class="space-y-2">
+            <Label>구역</Label>
+            <div class="flex flex-wrap gap-3">
+              <div v-for="section in directSections" :key="section.id" class="flex items-center gap-1.5">
+                <Checkbox
+                  :id="`direct-section-${section.id}`"
+                  :model-value="directSelectedSectionIds.includes(section.id)"
+                  @update:model-value="directSelectedSectionIds = toggleId(directSelectedSectionIds, section.id)"
+                />
+                <label :for="`direct-section-${section.id}`" class="text-sm cursor-pointer">{{ section.name }}</label>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="directUsages.length > 0" class="space-y-2">
+            <Label>용도</Label>
+            <div class="flex flex-wrap gap-3">
+              <div v-for="usage in directUsages" :key="usage.id" class="flex items-center gap-1.5">
+                <Checkbox
+                  :id="`direct-usage-${usage.id}`"
+                  :model-value="directSelectedUsageIds.includes(usage.id)"
+                  @update:model-value="directSelectedUsageIds = toggleId(directSelectedUsageIds, usage.id)"
+                />
+                <label :for="`direct-usage-${usage.id}`" class="text-sm cursor-pointer">{{ usage.name }}</label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter class="flex-col items-end gap-2">
+          <div class="flex gap-2">
+            <Button variant="outline" @click="directDeliveryDialogOpen = false">취소</Button>
+            <Button :disabled="isSavingDirect" @click="saveDirectDelivery">
+              {{ isSavingDirect ? '저장 중...' : '저장' }}
+            </Button>
+          </div>
+          <p v-if="isSavingDirect" class="text-sm text-muted-foreground">
+            시간이 좀 걸립니다. 기다려주세요.
+          </p>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <!-- 반입자재 삭제 확인 다이얼로그 -->
+    <AlertDialog :open="showDeleteDialog" @update:open="showDeleteDialog = $event">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>삭제 확인</AlertDialogTitle>
+          <AlertDialogDescription>
+            '{{ deleteTargetName }}' 반입자재를 삭제하시겠습니까?
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel :disabled="isDeletingDelivery">취소</AlertDialogCancel>
+          <AlertDialogAction :disabled="isDeletingDelivery" @click="confirmDeleteDelivery">
+            {{ isDeletingDelivery ? '삭제 중...' : '삭제' }}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
 
   </PageContainer>
 </template>

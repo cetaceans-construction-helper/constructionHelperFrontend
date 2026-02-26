@@ -113,4 +113,14 @@ export const superApi = {
     const { data } = await apiClient.put<Worker>(`/super/updateWorker/${workerId}`, payload)
     return data
   },
+
+  // Company-Project 삭제
+  async deleteCompanyToProject(id: number): Promise<void> {
+    await apiClient.delete(`/companyProject/deleteCompanyToProject/${id}`)
+  },
+
+  // User-Project 삭제
+  async deleteUserToProject(id: number): Promise<void> {
+    await apiClient.delete(`/userProject/deleteUserToProject/${id}`)
+  },
 }

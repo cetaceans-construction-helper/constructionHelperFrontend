@@ -60,6 +60,8 @@ const {
   // 매핑
   filteredMappings,
   isCreatingMapping,
+  isDeletingMapping,
+  deleteCwmMapping,
   divisions,
   workTypes,
   subWorkTypes,
@@ -497,6 +499,7 @@ async function confirmDelete() {
                 <th class="px-3 py-2 text-left font-medium">자재유형</th>
                 <th class="px-3 py-2 text-left font-medium">자재규격</th>
                 <th class="px-3 py-2 text-left font-medium">단위</th>
+                <th class="w-10 px-2 text-center font-medium">삭제</th>
               </tr>
             </thead>
             <tbody class="divide-y">
@@ -516,6 +519,15 @@ async function confirmDelete() {
                 <td class="px-3 py-2">{{ m.materialTypeName || '-' }}</td>
                 <td class="px-3 py-2">{{ m.materialSpecName || '-' }}</td>
                 <td class="px-3 py-2">{{ m.unitName || '-' }}</td>
+                <td class="px-2 text-center">
+                  <button
+                    class="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                    :disabled="isDeletingMapping"
+                    @click.stop="openDeleteDialog(m.id, m.componentCodeName, deleteCwmMapping)"
+                  >
+                    <X class="w-3 h-3" />
+                  </button>
+                </td>
               </tr>
             </tbody>
           </table>

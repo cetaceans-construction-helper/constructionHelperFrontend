@@ -146,6 +146,26 @@ controls.dispose()
 - Tests use Vitest + @vue/test-utils with jsdom
 - ESLint uses flat config format
 
+**Checkbox Multi-Select with `Ref<number[]>` (필수 패턴):**
+- Reka UI Checkbox는 `modelValue` / `update:modelValue`를 사용함. `:checked` / `@update:checked`는 동작하지 않음
+- 배열 토글 시 새 배열을 만들어 ref에 재대입 (in-place `push`/`splice` 금지)
+```vue
+<script setup lang="ts">
+function toggleId(list: number[], id: number): number[] {
+  return list.includes(id) ? list.filter((v) => v !== id) : [...list, id]
+}
+</script>
+
+<template>
+  <Checkbox
+    :model-value="selectedIds.includes(item.id)"
+    @update:model-value="selectedIds = toggleId(selectedIds, item.id)"
+  />
+</template>
+```
+- **금지**: `:checked` / `@update:checked` — Reka UI가 emit하지 않아 핸들러가 실행 안 됨
+- **금지**: `list.push(id)` / `list.splice()` — in-place 변경은 ref setter를 트리거하지 않음
+
 **Error Handling:**
 - 에러 시 표출할 경고 문구는 백엔드에서 전달한 값을 사용할 것
 - 프론트엔드에서 임의로 에러 메시지를 작성하지 말 것

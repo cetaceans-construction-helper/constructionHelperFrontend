@@ -31,7 +31,7 @@ const router = createRouter({
         },
         {
           path: 'schedule',
-          redirect: '/helper/schedule/3d',
+          redirect: '/helper/schedule/2d',
           children: [
             {
               path: '3d',

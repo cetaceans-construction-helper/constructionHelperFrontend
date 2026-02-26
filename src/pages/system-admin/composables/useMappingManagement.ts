@@ -25,12 +25,14 @@ export function useMappingManagement() {
   const companyToProjectList = ref<CompanyToProject[]>([])
   const isLoadingCompanyToProject = ref(false)
   const isCreatingCompanyToProject = ref(false)
+  const isDeletingCompanyToProject = ref(false)
   const companyToProjectFilter = ref<{ projectId?: string; companyId?: string }>({})
 
   // User-Project Mapping
   const userToProjectList = ref<UserToProject[]>([])
   const isLoadingUserToProject = ref(false)
   const isCreatingUserToProject = ref(false)
+  const isDeletingUserToProject = ref(false)
   const userToProjectFilter = ref<{ projectId?: string; userId?: string }>({})
 
   // Load lookup data
@@ -144,6 +146,36 @@ export function useMappingManagement() {
     }
   }
 
+  const deleteCompanyToProject = async (id: number) => {
+    if (isDeletingCompanyToProject.value) return
+    isDeletingCompanyToProject.value = true
+    try {
+      await superApi.deleteCompanyToProject(id)
+      await loadCompanyToProjectList()
+    } catch (error: unknown) {
+      console.error('회사-프로젝트 매핑 삭제 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+    } finally {
+      isDeletingCompanyToProject.value = false
+    }
+  }
+
+  const deleteUserToProject = async (id: number) => {
+    if (isDeletingUserToProject.value) return
+    isDeletingUserToProject.value = true
+    try {
+      await superApi.deleteUserToProject(id)
+      await loadUserToProjectList()
+    } catch (error: unknown) {
+      console.error('사용자-프로젝트 매핑 삭제 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+    } finally {
+      isDeletingUserToProject.value = false
+    }
+  }
+
   // Watch filters and reload
   watch(companyToProjectFilter, () => loadCompanyToProjectList(), { deep: true })
   watch(userToProjectFilter, () => loadUserToProjectList(), { deep: true })
@@ -167,16 +199,20 @@ export function useMappingManagement() {
     companyToProjectList,
     isLoadingCompanyToProject,
     isCreatingCompanyToProject,
+    isDeletingCompanyToProject,
     companyToProjectFilter,
     loadCompanyToProjectList,
     createCompanyToProject,
+    deleteCompanyToProject,
     // User-Project
     userToProjectList,
     isLoadingUserToProject,
     isCreatingUserToProject,
+    isDeletingUserToProject,
     userToProjectFilter,
     loadUserToProjectList,
     createUserToProject,
+    deleteUserToProject,
     // Combined
     loadLookupData,
     loadAll,

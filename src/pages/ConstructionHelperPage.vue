@@ -38,7 +38,7 @@ const projectStore = useProjectStore()
 // Section 정의 (1단계 구조)
 const sections = [
   { id: 'dashboard', label: '대시보드', path: '/helper/dashboard' },
-  { id: 'process', label: '공정관리', path: '/helper/schedule/3d' },
+  { id: 'process', label: '공정관리', path: '/helper/schedule/2d' },
   { id: 'material', label: '현장관리', path: '/helper/material/invoice' },
   { id: 'safety', label: '안전관리', path: '/helper/safety' },
   { id: 'document', label: '문서관리', path: '/helper/document/manager' },
@@ -49,8 +49,8 @@ const sections = [
 // 각 Section별 Menu 정의 (2단계 구조)
 const menusBySection: Record<string, { id: string; label: string; path: string }[]> = {
   process: [
-    { id: '3d-schedule', label: '3D공정표', path: '/helper/schedule/3d' },
     { id: '2d-schedule', label: '2D공정표', path: '/helper/schedule/2d' },
+    { id: '3d-schedule', label: '3D공정표', path: '/helper/schedule/3d' },
   ],
   material: [
     { id: 'invoice', label: '자재관리', path: '/helper/material/invoice' },

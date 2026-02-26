@@ -31,6 +31,7 @@ export function useComponentCode() {
   const allMappings = ref<ComponentCodeMappingResponse[]>([])
   const selectedComponentCodeIds = ref<number[]>([]) // 다중선택
   const isCreatingMapping = ref(false)
+  const isDeletingMapping = ref(false)
 
   // 매핑 폼: 캐스케이딩 셀렉트 (공종 분류)
   const divisions = ref<IdNameResponse[]>([])
@@ -335,6 +336,21 @@ export function useComponentCode() {
     }
   }
 
+  const deleteCwmMapping = async (id: number) => {
+    if (isDeletingMapping.value) return
+    isDeletingMapping.value = true
+    try {
+      await referenceApi.deleteCwmMapping(id)
+      await loadAllMappings()
+    } catch (error: unknown) {
+      console.error('CwmMapping 삭제 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+    } finally {
+      isDeletingMapping.value = false
+    }
+  }
+
   // ========== 자재 일괄 적용 ==========
 
   const applyMaterialToSelectedMappings = async () => {
@@ -503,6 +519,8 @@ export function useComponentCode() {
     allMappings,
     filteredMappings,
     isCreatingMapping,
+    isDeletingMapping,
+    deleteCwmMapping,
     divisions,
     workTypes,
     subWorkTypes,
