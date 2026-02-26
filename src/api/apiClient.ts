@@ -1,6 +1,7 @@
-import axios from 'axios'
+import axios, { type AxiosError } from 'axios'
 import { getAccessToken } from './client'
 import { useProjectStore } from '@/stores/project'
+import { trackApiErrorFromAxiosError } from '@/lib/analytics/helpers/apiError'
 
 // 인증이 필요한 일반 API용 클라이언트
 const apiClient = axios.create({
@@ -27,5 +28,13 @@ apiClient.interceptors.request.use((config) => {
 
   return config
 })
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error: AxiosError) => {
+    trackApiErrorFromAxiosError(error, 'api')
+    return Promise.reject(error)
+  },
+)
 
 export default apiClient

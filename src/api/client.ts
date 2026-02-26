@@ -1,6 +1,7 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios'
 import router from '@/router'
 import type { FieldErrors, TokenResponse } from '@/types/auth'
+import { trackApiErrorFromAxiosError } from '@/lib/analytics/helpers/apiError'
 
 // Access Token 저장소 (메모리)
 let accessToken: string | null = null
@@ -83,6 +84,8 @@ const extractError = (error: AxiosError): Error => {
 client.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
+    trackApiErrorFromAxiosError(error, 'auth')
+
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
 
     // Handle 401/403 - Token expired or missing
