@@ -162,10 +162,10 @@ const executeOptimize = async () => {
     // 최적화 후 work 목록 다시 조회
     await loadWorkData()
     showOptimizeDialog.value = false
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('최적화 실패:', error)
-    // 백엔드에서 전달한 에러 메시지 사용
-    const errorMessage = error.response?.data?.message || error.message
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    const errorMessage = err.response?.data?.message || err.message
     alert(errorMessage)
   } finally {
     isOptimizing.value = false
@@ -192,9 +192,10 @@ const executeDelete = async () => {
     }
     await loadWorkData()
     showDeleteDialog.value = false
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('삭제 실패:', error)
-    const errorMessage = error.response?.data?.message || error.message
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    const errorMessage = err.response?.data?.message || err.message
     alert(errorMessage)
   } finally {
     isDeleting.value = false
@@ -209,17 +210,12 @@ const {
   subWorkTypes,
   componentTypes,
   locationOptions,
-  projects,
   isCreatingWork,
   isLoadingWorkTypes,
   isLoadingSubWorkTypes,
   createWork,
   loadInitialData
 } = useWorkForm(loadWorkData)
-
-const currentProject = computed(() =>
-  projects.value.find(p => p.id === projectStore.selectedProjectId)
-)
 
 const {
   containerRef,
@@ -250,7 +246,6 @@ const {
   cancelPathEdit,
   onConnect,
   removeNodeFromPath,
-  clearPathEditMode
 } = usePathEditor(nodes, edges, paths, loadWorkData)
 
 // 탭 변경 시 패스 선택 해제
@@ -327,9 +322,10 @@ const createPath = async () => {
     pathFormState.value.pathName = ''
     pathFormState.value.pathColor = '#3b82f6'
     await loadWorkData()
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('패스 생성 실패:', error)
-    const errorMessage = error.response?.data?.message || error.message
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    const errorMessage = err.response?.data?.message || err.message
     alert(errorMessage)
   } finally {
     isCreatingPath.value = false

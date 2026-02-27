@@ -13,7 +13,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
-  SidebarTrigger,
 } from '@/components/ui/sidebar'
 import {
   Select,
@@ -70,6 +69,7 @@ const menusBySection: Record<string, { id: string; label: string; path: string }
   admin: [
     { id: 'master-data', label: '기준정보 관리', path: '/helper/admin' },
     { id: 'resource-info', label: '자원정보 관리', path: '/helper/admin/resource' },
+    { id: 'document-setting', label: '문서 설정', path: '/helper/admin/document' },
   ],
 }
 

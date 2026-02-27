@@ -31,9 +31,10 @@ export const useCalendarStore = defineStore('calendar', () => {
       calendarData.value = data
       lastFetchedProjectId.value = projectId
       return data
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('캘린더 데이터 로드 실패:', err)
-      error.value = err.response?.data?.message || err.message
+      const e = err as { response?: { data?: { message?: string } }; message?: string }
+      error.value = e.response?.data?.message || e.message || '알 수 없는 오류'
       return null
     } finally {
       isLoading.value = false

@@ -99,9 +99,10 @@ export function useWorkForm(onWorkCreated: () => Promise<void>) {
       await workApi.createWork(payload)
       await onWorkCreated()
       return true
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('작업 생성 실패:', error)
-      const errorMessage = error.response?.data?.message || error.message
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      const errorMessage = err.response?.data?.message || err.message
       alert(errorMessage)
       return false
     } finally {

@@ -90,6 +90,11 @@ const router = createRouter({
           name: 'admin-resource',
           component: () => import('@/pages/helper/admin/ResourceManagementPage.vue'),
         },
+        {
+          path: 'admin/document',
+          name: 'admin-document',
+          component: () => import('@/pages/helper/admin/DocumentSettingPage.vue'),
+        },
       ],
     },
     {

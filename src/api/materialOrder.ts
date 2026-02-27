@@ -43,6 +43,13 @@ export interface MaterialOrderResponse {
   orderLines: MaterialOrderLineResponse[]
 }
 
+export interface DeliveryFileInfo {
+  noteId?: number
+  photoId?: number
+  url: string
+  description: string
+}
+
 export interface MaterialDeliverySummary {
   materialDeliveryId: number
   materialOrderId: number
@@ -50,7 +57,8 @@ export interface MaterialDeliverySummary {
   supplier: string
   deliveryDate: string
   location: string | null
-  noteUrls: string[]
+  noteFiles: DeliveryFileInfo[]
+  photoFiles: DeliveryFileInfo[]
   unit: string
 }
 
@@ -180,6 +188,8 @@ export const materialOrderApi = {
         specId: number | null
         quantity: string
       }[]
+      noteDescriptions?: { noteId: number; description: string }[]
+      photoDescriptions?: { photoId: number; description: string }[]
     },
   ): Promise<void> {
     await apiClient.put(

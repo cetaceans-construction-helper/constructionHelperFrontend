@@ -142,7 +142,7 @@ async function handleTruckClick() {
   }
 }
 
-async function handleDivisionChange(divisionId: any) {
+async function handleDivisionChange(divisionId: string | number | bigint | Record<string, unknown> | null) {
   selectedDivisionId.value = String(divisionId ?? '')
   selectedWorkTypeId.value = ''
   workTypes.value = []

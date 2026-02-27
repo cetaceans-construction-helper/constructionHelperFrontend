@@ -20,7 +20,7 @@ export const createGroupLogic = (nodes: Ref<Node[]>) => {
     let maxY = -Infinity
 
     children.forEach(child => {
-      const dims = (child as any).dimensions
+      const dims = (child as Node & { dimensions?: { width: number; height: number } }).dimensions
       const width = dims?.width ?? 0
       const height = dims?.height ?? 0
 
@@ -51,7 +51,7 @@ export const createGroupLogic = (nodes: Ref<Node[]>) => {
     const newWidth = maxX - minX + padding * 2
     const newHeight = maxY - minY + padding * 2
 
-    const style = (group.style ?? {}) as any
+    const style = (group.style ?? {}) as Record<string, string>
     style.width = `${Math.max(newWidth, 200)}px`
     style.height = `${Math.max(newHeight, 150)}px`
     group.style = style

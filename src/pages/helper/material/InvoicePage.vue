@@ -47,6 +47,8 @@ import type {
   MaterialDeliverySummary,
   DeliveryLineResponse,
 } from '@/api/materialOrder'
+import { materialInspectionRequestApi } from '@/api/projectDocumentCode'
+import type { MaterialInspectionRequestResponse } from '@/api/projectDocumentCode'
 import { referenceApi } from '@/api/reference'
 import type {
   MaterialSpecResponse,
@@ -104,7 +106,13 @@ const isLoadingDeliveries = ref(false)
 // 반입자재 펼치기/접기 + 인라인 수정 상태
 const expandedDeliveries = reactive<Record<number, boolean>>({})
 const deliveryLinesMap = ref<Record<number, DeliveryLineResponse[]>>({})
-const deliveryEditState = ref<Record<number, { supplier: string; deliveryDate: string; location: string }>>({})
+const deliveryEditState = ref<Record<number, {
+  supplier: string
+  deliveryDate: string
+  location: string
+  noteDescriptions: { noteId: number; description: string }[]
+  photoDescriptions: { photoId: number; description: string }[]
+}>>({})
 const isLoadingLines = ref<Record<number, boolean>>({})
 const isUpdatingDelivery = ref<Record<number, boolean>>({})
 const materialSpecs = ref<MaterialSpecResponse[]>([])
@@ -118,6 +126,11 @@ const deliveryImageTranslate = reactive<Record<number, { x: number; y: number }>
 const deliveryImageDragging = ref<Record<number, boolean>>({})
 const deliveryDragStart = reactive<Record<number, { x: number; y: number }>>({})
 const deliveryTranslateStart = reactive<Record<number, { x: number; y: number }>>({})
+
+// 자재반입검수요청서 상태
+const mirList = ref<MaterialInspectionRequestResponse[]>([])
+const mirDeliveryIds = computed(() => new Set(mirList.value.map((m) => m.materialDeliveryId)))
+const isGeneratingMir = ref<Record<number, boolean>>({})
 
 // 선택된 order의 orderLines에서 고유한 위치정보 추출
 const uniqueZones = computed(() => {
@@ -165,7 +178,15 @@ const uniqueUsages = computed(() => {
 })
 
 function toggleOrder(orderId: number) {
-  expandedOrders[orderId] = !expandedOrders[orderId]
+  if (expandedOrders[orderId]) {
+    expandedOrders[orderId] = false
+  } else {
+    // 다른 발주서 모두 접기
+    for (const key of Object.keys(expandedOrders)) {
+      expandedOrders[Number(key)] = false
+    }
+    expandedOrders[orderId] = true
+  }
 }
 
 async function openDeliveryDialog(order: MaterialOrderResponse) {
@@ -336,6 +357,20 @@ async function confirmDeleteDelivery() {
   }
 }
 
+async function generateMir(deliveryId: number) {
+  isGeneratingMir.value[deliveryId] = true
+  try {
+    await materialInspectionRequestApi.createMaterialInspectionRequest(deliveryId)
+    mirList.value = await materialInspectionRequestApi.getMaterialInspectionRequestList()
+  } catch (error: unknown) {
+    console.error('자재반입검수요청서 생성 실패:', error)
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    alert(err.response?.data?.message || err.message)
+  } finally {
+    isGeneratingMir.value[deliveryId] = false
+  }
+}
+
 async function toggleDelivery(delivery: MaterialDeliverySummary) {
   const id = delivery.materialDeliveryId
   if (expandedDeliveries[id]) {
@@ -354,6 +389,24 @@ async function toggleDelivery(delivery: MaterialDeliverySummary) {
     return
   }
 
+  // 다른 반입자재 모두 접기 (아코디언)
+  for (const key of Object.keys(expandedDeliveries)) {
+    const otherId = Number(key)
+    if (expandedDeliveries[otherId]) {
+      expandedDeliveries[otherId] = false
+      deliveryImageUrls.value[otherId]?.forEach((url) => URL.revokeObjectURL(url))
+      delete deliveryLinesMap.value[otherId]
+      delete deliveryEditState.value[otherId]
+      delete deliveryImageUrls.value[otherId]
+      delete deliveryImageIndex.value[otherId]
+      delete deliveryImageScale.value[otherId]
+      delete deliveryImageTranslate[otherId]
+      delete deliveryImageDragging.value[otherId]
+      delete deliveryDragStart[otherId]
+      delete deliveryTranslateStart[otherId]
+    }
+  }
+
   // 펼치기
   expandedDeliveries[id] = true
   isLoadingLines.value[id] = true
@@ -366,6 +419,8 @@ async function toggleDelivery(delivery: MaterialDeliverySummary) {
       supplier: delivery.supplier,
       deliveryDate: delivery.deliveryDate,
       location: delivery.location ?? '',
+      noteDescriptions: delivery.noteFiles.map((f) => ({ noteId: f.noteId!, description: f.description })),
+      photoDescriptions: delivery.photoFiles.map((f) => ({ photoId: f.photoId!, description: f.description })),
     }
     deliveryImageIndex.value[id] = 0
     deliveryImageScale.value[id] = 1
@@ -386,12 +441,16 @@ async function toggleDelivery(delivery: MaterialDeliverySummary) {
       }
     }
 
-    // noteUrls 기반 이미지 로드
-    if (delivery.noteUrls.length > 0) {
+    // noteFiles + photoFiles 기반 이미지 로드
+    const allFileUrls = [
+      ...delivery.noteFiles.map((f) => f.url),
+      ...delivery.photoFiles.map((f) => f.url),
+    ]
+    if (allFileUrls.length > 0) {
       isLoadingDeliveryImages.value[id] = true
       try {
         const blobUrls = await Promise.all(
-          delivery.noteUrls.map((url) => materialOrderApi.getDeliveryNoteImage(url)),
+          allFileUrls.map((url) => materialOrderApi.getDeliveryNoteImage(url)),
         )
         deliveryImageUrls.value[id] = blobUrls
       } catch (error) {
@@ -451,20 +510,19 @@ function onDeliveryImagePointerUp(deliveryId: number) {
 }
 
 function prevDeliveryImage(deliveryId: number) {
+  const urls = deliveryImageUrls.value[deliveryId] ?? []
+  if (urls.length === 0) return
   const idx = deliveryImageIndex.value[deliveryId] ?? 0
-  if (idx > 0) {
-    deliveryImageIndex.value[deliveryId] = idx - 1
-    resetDeliveryImageTransform(deliveryId)
-  }
+  deliveryImageIndex.value[deliveryId] = idx > 0 ? idx - 1 : urls.length - 1
+  resetDeliveryImageTransform(deliveryId)
 }
 
 function nextDeliveryImage(deliveryId: number) {
   const urls = deliveryImageUrls.value[deliveryId] ?? []
+  if (urls.length === 0) return
   const idx = deliveryImageIndex.value[deliveryId] ?? 0
-  if (idx < urls.length - 1) {
-    deliveryImageIndex.value[deliveryId] = idx + 1
-    resetDeliveryImageTransform(deliveryId)
-  }
+  deliveryImageIndex.value[deliveryId] = idx < urls.length - 1 ? idx + 1 : 0
+  resetDeliveryImageTransform(deliveryId)
 }
 
 async function updateDelivery(delivery: MaterialDeliverySummary) {
@@ -485,6 +543,8 @@ async function updateDelivery(delivery: MaterialDeliverySummary) {
         specId: line.materialSpecId,
         quantity: String(line.quantity),
       })),
+      noteDescriptions: editState.noteDescriptions,
+      photoDescriptions: editState.photoDescriptions,
     })
     // 성공 시 접기 + 목록 새로고침
     expandedDeliveries[id] = false
@@ -521,6 +581,10 @@ async function loadDeliveries() {
 onMounted(() => {
   loadOrders()
   loadDeliveries()
+  materialInspectionRequestApi
+    .getMaterialInspectionRequestList()
+    .then((list) => (mirList.value = list))
+    .catch(() => {})
 })
 
 onUnmounted(() => {
@@ -599,8 +663,12 @@ function formatLocation(line: MaterialOrderResponse['orderLines'][number]): stri
             :key="order.id"
             class="border border-border rounded-lg overflow-hidden"
           >
-            <!-- 카드 헤더 -->
-            <div class="flex items-center gap-3 px-4 py-3 bg-muted/30">
+            <!-- 카드 헤더 (클릭으로 펼치기/접기) -->
+            <div
+              class="flex items-center gap-3 px-4 py-3 bg-muted/30 cursor-pointer select-none"
+              @click="toggleOrder(order.id)"
+            >
+              <span class="text-xs text-muted-foreground">{{ expandedOrders[order.id] ? '▲' : '▼' }}</span>
               <Badge :class="['text-sm px-3 py-1', getStatusColor(order.orderStatus)]">
                 {{ getStatusLabel(order.orderStatus) }}
               </Badge>
@@ -621,7 +689,7 @@ function formatLocation(line: MaterialOrderResponse['orderLines'][number]): stri
                   <span class="text-muted-foreground ml-0.5">{{ order.unit }}</span>
                 </Badge>
               </div>
-              <div class="flex items-center gap-2 ml-auto">
+              <div class="flex items-center gap-2 ml-auto" @click.stop>
                 <Button
                   variant="outline"
                   size="sm"
@@ -636,9 +704,6 @@ function formatLocation(line: MaterialOrderResponse['orderLines'][number]): stri
                   @click="openDeliveryDialog(order)"
                 >
                   송장입력
-                </Button>
-                <Button variant="ghost" size="sm" @click="toggleOrder(order.id)">
-                  {{ expandedOrders[order.id] ? '접기 ▲' : '펼치기 ▼' }}
                 </Button>
               </div>
             </div>
@@ -699,16 +764,27 @@ function formatLocation(line: MaterialOrderResponse['orderLines'][number]): stri
             :key="delivery.materialDeliveryId"
             class="border border-border rounded-lg overflow-hidden"
           >
-            <!-- 카드 헤더 -->
-            <div class="flex items-center gap-3 px-4 py-3 bg-muted/30">
+            <!-- 카드 헤더 (클릭으로 펼치기/접기) -->
+            <div
+              class="flex items-center gap-3 px-4 py-3 bg-muted/30 cursor-pointer select-none"
+              @click="toggleDelivery(delivery)"
+            >
+              <span class="text-xs text-muted-foreground">{{ expandedDeliveries[delivery.materialDeliveryId] ? '▲' : '▼' }}</span>
               <span class="text-sm font-medium">{{ delivery.materialOrderNumber }}</span>
               <span class="text-sm text-muted-foreground">{{ delivery.supplier }}</span>
               <span class="text-sm text-muted-foreground">{{ delivery.deliveryDate }}</span>
               <span v-if="delivery.location" class="text-sm text-muted-foreground">{{ delivery.location }}</span>
-              <div class="flex items-center gap-1 ml-auto">
-                <Button variant="ghost" size="sm" @click="toggleDelivery(delivery)">
-                  {{ expandedDeliveries[delivery.materialDeliveryId] ? '접기 ▲' : '펼치기 ▼' }}
+              <div class="flex items-center gap-1 ml-auto" @click.stop>
+                <Button
+                  v-if="!mirDeliveryIds.has(delivery.materialDeliveryId)"
+                  variant="outline"
+                  size="sm"
+                  :disabled="isGeneratingMir[delivery.materialDeliveryId]"
+                  @click="generateMir(delivery.materialDeliveryId)"
+                >
+                  {{ isGeneratingMir[delivery.materialDeliveryId] ? '생성 중...' : '자재반입검수요청서' }}
                 </Button>
+                <Badge v-else variant="secondary">검수요청 완료</Badge>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -728,15 +804,15 @@ function formatLocation(line: MaterialOrderResponse['orderLines'][number]): stri
               </div>
 
               <template v-else>
-                <div class="flex gap-4" style="min-height: 400px">
-                  <!-- 좌측: 이미지 뷰어 -->
-                  <div class="w-1/2 flex flex-col gap-2 min-h-0">
-                    <div v-if="isLoadingDeliveryImages[delivery.materialDeliveryId]" class="flex-1 flex items-center justify-center border border-border rounded-lg bg-muted/20">
+                <div class="flex gap-4">
+                  <!-- 좌측: 이미지 뷰어 (고정 높이) -->
+                  <div class="w-1/2 flex flex-col gap-2">
+                    <div v-if="isLoadingDeliveryImages[delivery.materialDeliveryId]" class="h-[720px] flex items-center justify-center border border-border rounded-lg bg-muted/20">
                       <p class="text-sm text-muted-foreground">이미지 로딩 중...</p>
                     </div>
                     <template v-else-if="(deliveryImageUrls[delivery.materialDeliveryId] ?? []).length > 0">
                       <div
-                        class="flex-1 min-h-0 border border-border rounded-lg overflow-hidden bg-muted/20 relative"
+                        class="h-[720px] border border-border rounded-lg overflow-hidden bg-muted/20 relative"
                         :class="{ 'cursor-grab': (deliveryImageScale[delivery.materialDeliveryId] ?? 1) > 1, 'cursor-grabbing': deliveryImageDragging[delivery.materialDeliveryId] }"
                         @wheel.prevent="onDeliveryImageWheel(delivery.materialDeliveryId, $event)"
                         @pointerdown="onDeliveryImagePointerDown(delivery.materialDeliveryId, $event)"
@@ -762,19 +838,37 @@ function formatLocation(line: MaterialOrderResponse['orderLines'][number]): stri
                           <Button v-if="(deliveryImageScale[delivery.materialDeliveryId] ?? 1) !== 1" variant="ghost" size="sm" class="h-6 px-1 text-xs" @click="resetDeliveryImageTransform(delivery.materialDeliveryId)">초기화</Button>
                         </div>
                       </div>
+                      <!-- 현재 이미지의 설명 -->
+                      <div v-if="deliveryEditState[delivery.materialDeliveryId]" class="shrink-0">
+                        <template v-if="(deliveryImageIndex[delivery.materialDeliveryId] ?? 0) < delivery.noteFiles.length">
+                          <Input
+                            v-model="deliveryEditState[delivery.materialDeliveryId]!.noteDescriptions[(deliveryImageIndex[delivery.materialDeliveryId] ?? 0)]!.description"
+                            class="h-8 text-sm"
+                            placeholder="송장 설명"
+                          />
+                        </template>
+                        <template v-else>
+                          <Input
+                            v-model="deliveryEditState[delivery.materialDeliveryId]!.photoDescriptions[(deliveryImageIndex[delivery.materialDeliveryId] ?? 0) - delivery.noteFiles.length]!.description"
+                            class="h-8 text-sm"
+                            placeholder="사진 설명"
+                          />
+                        </template>
+                      </div>
+                      <!-- 페이지 넘기기 -->
                       <div v-if="(deliveryImageUrls[delivery.materialDeliveryId] ?? []).length > 1" class="flex items-center justify-center gap-3 shrink-0">
-                        <Button variant="outline" size="sm" :disabled="(deliveryImageIndex[delivery.materialDeliveryId] ?? 0) === 0" @click="prevDeliveryImage(delivery.materialDeliveryId)">
+                        <Button variant="outline" size="sm" @click="prevDeliveryImage(delivery.materialDeliveryId)">
                           ← 이전
                         </Button>
                         <span class="text-sm text-muted-foreground">
                           {{ (deliveryImageIndex[delivery.materialDeliveryId] ?? 0) + 1 }} / {{ (deliveryImageUrls[delivery.materialDeliveryId] ?? []).length }}
                         </span>
-                        <Button variant="outline" size="sm" :disabled="(deliveryImageIndex[delivery.materialDeliveryId] ?? 0) === (deliveryImageUrls[delivery.materialDeliveryId] ?? []).length - 1" @click="nextDeliveryImage(delivery.materialDeliveryId)">
+                        <Button variant="outline" size="sm" @click="nextDeliveryImage(delivery.materialDeliveryId)">
                           다음 →
                         </Button>
                       </div>
                     </template>
-                    <div v-else class="flex-1 flex items-center justify-center border border-border rounded-lg bg-muted/20">
+                    <div v-else class="h-[720px] flex items-center justify-center border border-border rounded-lg bg-muted/20">
                       <p class="text-sm text-muted-foreground">이미지가 없습니다</p>
                     </div>
                   </div>

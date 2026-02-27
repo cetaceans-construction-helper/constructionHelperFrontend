@@ -42,9 +42,10 @@ export function useWorkEditor(
       })
       await onWorkUpdated()
       selectedWorkId.value = null
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('작업 수정 실패:', error)
-      const errorMessage = error.response?.data?.message || error.message
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      const errorMessage = err.response?.data?.message || err.message
       alert(errorMessage)
     } finally {
       isUpdatingWork.value = false
