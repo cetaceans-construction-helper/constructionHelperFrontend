@@ -30,7 +30,7 @@ interface CellRefEditState {
   }
   lines: {
     startCell: string
-    shiftExisting: boolean
+    maxRows: string
     columns: {
       no: string
       specName: string
@@ -40,7 +40,7 @@ interface CellRefEditState {
     }
   }
   lineConcat: { cell: string; field: string; separator: string }[]
-  photos: { key: string; startCell: string; direction: 'row' | 'column'; span: number; descriptionOffsetRow: string; descriptionOffsetCol: string }[]
+  photos: { key: string; cells: string; descriptionOffsetRow: string; descriptionOffsetCol: string }[]
 }
 
 function createDefaultCellRef(): CellRefEditState {
@@ -55,7 +55,7 @@ function createDefaultCellRef(): CellRefEditState {
     },
     lines: {
       startCell: '',
-      shiftExisting: false,
+      maxRows: '',
       columns: {
         no: '',
         specName: '',
@@ -128,7 +128,7 @@ export function useDocumentSetting() {
       if (cellData.lines) {
         const l = cellData.lines as Record<string, unknown>
         cellRef.lines.startCell = (l.startCell as string) ?? ''
-        cellRef.lines.shiftExisting = (l.shiftExisting as boolean) ?? false
+        cellRef.lines.maxRows = l.maxRows != null ? String(l.maxRows) : ''
         if (l.columns) {
           const c = l.columns as Record<string, number | undefined>
           cellRef.lines.columns.no = c.no != null ? String(c.no) : ''
@@ -149,9 +149,7 @@ export function useDocumentSetting() {
         }
         cellRef.photos = Object.entries(photosMap).map(([key, val]) => ({
           key,
-          startCell: (val.startCell as string) ?? '',
-          direction: ((val.direction as string) ?? 'column') as 'row' | 'column',
-          span: (val.span as number) ?? 1,
+          cells: Array.isArray(val.cells) ? (val.cells as string[]).join(', ') : '',
           descriptionOffsetRow: descrOffset(val).row,
           descriptionOffsetCol: descrOffset(val).col,
         }))
@@ -212,7 +210,7 @@ export function useDocumentSetting() {
       const linesObj: Record<string, unknown> = {
         startCell: cellRef.lines.startCell,
       }
-      if (cellRef.lines.shiftExisting) linesObj.shiftExisting = true
+      if (cellRef.lines.maxRows !== '') linesObj.maxRows = Number(cellRef.lines.maxRows)
       // columns — 값이 입력된 필드만 (빈 문자열이면 제외)
       const cols: Record<string, number> = {}
       const c = cellRef.lines.columns
@@ -231,13 +229,13 @@ export function useDocumentSetting() {
     }
 
     // photos — named map으로 직렬화
-    const validPhotos = cellRef.photos.filter((p) => p.key && p.startCell)
+    const validPhotos = cellRef.photos.filter((p) => p.key && p.cells)
     if (validPhotos.length > 0) {
       const photosObj: Record<string, Record<string, unknown>> = {}
       for (const p of validPhotos) {
-        const entry: Record<string, unknown> = { startCell: p.startCell }
-        if (p.direction) entry.direction = p.direction
-        if (p.span > 1) entry.span = p.span
+        const entry: Record<string, unknown> = {
+          cells: p.cells.split(',').map((s) => s.trim()).filter(Boolean),
+        }
         if (p.descriptionOffsetRow !== '' || p.descriptionOffsetCol !== '') {
           entry.descriptionOffset = {
             row: p.descriptionOffsetRow !== '' ? Number(p.descriptionOffsetRow) : 0,

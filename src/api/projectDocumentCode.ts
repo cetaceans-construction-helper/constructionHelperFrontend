@@ -38,7 +38,7 @@ export interface MirCellReference {
   }
   lines?: {
     startCell: string
-    shiftExisting?: boolean
+    maxRows?: number
     columns?: {
       no?: number
       specName?: number
@@ -53,9 +53,7 @@ export interface MirCellReference {
     separator: string
   }[]
   photos?: Record<string, {
-    startCell: string
-    direction?: 'row' | 'column'
-    span?: number
+    cells: string[]
     descriptionOffset?: { row: number; col: number }
   }>
 }
@@ -169,5 +167,11 @@ export const materialInspectionRequestApi = {
       '/materialInspectionRequest/getMaterialInspectionRequestList',
     )
     return data
+  },
+
+  async deleteMaterialInspectionRequest(mirId: number): Promise<void> {
+    await apiClient.delete(
+      `/materialInspectionRequest/deleteMaterialInspectionRequest/${mirId}`,
+    )
   },
 }

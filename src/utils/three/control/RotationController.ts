@@ -19,13 +19,13 @@ export class RotationController {
     this.controls = new OrbitControls(camera, domElement)
     this.controls.enableDamping = true
     this.controls.dampingFactor = 0.05
-    this.controls.enableZoom = false // 기본 줌 비활성화 (Ctrl+휠로만 줌)
+    this.controls.enableZoom = false // 기본 줌 비활성화 (커스텀 휠 핸들러 사용)
     this.controls.enablePan = false // 드래그 이동 비활성화
     this.controls.enableRotate = false // 마우스 드래그 회전 비활성화
 
-    // Ctrl+휠 줌 핸들러
+    // 휠 줌 핸들러
     this.wheelHandler = (e: WheelEvent) => {
-      if (e.ctrlKey && this.controls) {
+      if (this.controls) {
         e.preventDefault()
         const zoomSpeed = 0.001
         const delta = e.deltaY * zoomSpeed

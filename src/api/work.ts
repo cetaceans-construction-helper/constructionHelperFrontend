@@ -29,17 +29,16 @@ export interface WorkResponse {
   floor?: string
   section?: string
   usage?: string
-  positionX: number
   positionY: number
-  width: number
-  height: number
+  componentTypeIds?: number[]
 }
 
 // 작업 수정 페이로드
 export interface UpdateWorkPayload {
-  startDate: string
-  workLeadTime: number
+  startDate?: string
+  workLeadTime?: number
   isWorkingOnHoliday?: boolean
+  positionY?: number
 }
 
 export const workApi = {
@@ -61,12 +60,7 @@ export const workApi = {
     return data
   },
 
-  // Y 위치 업데이트
-  async updateWorkPositionY(workId: number, positionY: number): Promise<void> {
-    await apiClient.put(`/work/updateWorkPositionY/${workId}`, { positionY })
-  },
-
-  // 작업 수정 (startDate, workLeadTime)
+  // 작업 수정
   async updateWork(workId: number, payload: UpdateWorkPayload): Promise<void> {
     await apiClient.put(`/work/updateWork/${workId}`, payload)
   },

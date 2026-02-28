@@ -38,7 +38,8 @@ const projectStore = useProjectStore()
 const sections = [
   { id: 'dashboard', label: '대시보드', path: '/helper/dashboard' },
   { id: 'process', label: '공정관리', path: '/helper/schedule/2d' },
-  { id: 'material', label: '현장관리', path: '/helper/material/invoice' },
+  { id: 'attendance', label: '출역관리', path: '/helper/attendance/input' },
+  { id: 'material', label: '자재관리', path: '/helper/material/order' },
   { id: 'safety', label: '안전관리', path: '/helper/safety' },
   { id: 'document', label: '문서관리', path: '/helper/document/manager' },
   { id: 'utility', label: '유용한 기능', path: '/helper/functions' },
@@ -51,9 +52,15 @@ const menusBySection: Record<string, { id: string; label: string; path: string }
     { id: '2d-schedule', label: '2D공정표', path: '/helper/schedule/2d' },
     { id: '3d-schedule', label: '3D공정표', path: '/helper/schedule/3d' },
   ],
+  attendance: [
+    { id: 'attendance-input', label: '출역입력', path: '/helper/attendance/input' },
+    { id: 'worker-register', label: '작업자등록', path: '/helper/attendance/register' },
+  ],
   material: [
-    { id: 'invoice', label: '자재관리', path: '/helper/material/invoice' },
-    { id: 'list', label: '출역관리', path: '/helper/material/list' },
+    { id: 'order', label: '자재발주서', path: '/helper/material/order' },
+    { id: 'incoming', label: '반입자재', path: '/helper/material/incoming' },
+    { id: 'outgoing', label: '반출자재', path: '/helper/material/outgoing' },
+    { id: 'remaining', label: '잔여자재', path: '/helper/material/remaining' },
   ],
   safety: [{ id: 'placeholder', label: '(구현예정)', path: '/helper/safety' }],
   document: [
@@ -78,6 +85,7 @@ const currentSection = computed(() => {
   const path = route.path
   if (path.startsWith('/helper/dashboard')) return 'dashboard'
   if (path.startsWith('/helper/schedule')) return 'process'
+  if (path.startsWith('/helper/attendance')) return 'attendance'
   if (path.startsWith('/helper/material')) return 'material'
   if (path.startsWith('/helper/safety')) return 'safety'
   if (path.startsWith('/helper/document')) return 'document'

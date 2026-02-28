@@ -121,7 +121,7 @@ function removeLineConcat(index: number) {
 
 // 사진 항목 관리
 function addPhoto() {
-  cellRef.photos.push({ key: '', startCell: '', direction: 'column', span: 1, descriptionOffsetRow: '', descriptionOffsetCol: '' })
+  cellRef.photos.push({ key: '', cells: '', descriptionOffsetRow: '', descriptionOffsetCol: '' })
 }
 
 function removePhoto(index: number) {
@@ -317,13 +317,16 @@ function removePhoto(index: number) {
         <div class="flex items-center gap-3">
           <Label class="text-xs text-muted-foreground w-24 shrink-0">시작 셀</Label>
           <Input v-model="cellRef.lines.startCell" placeholder="예: 0!A5" class="h-8 text-sm w-32" />
-          <label class="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Checkbox
-              :model-value="cellRef.lines.shiftExisting"
-              @update:model-value="cellRef.lines.shiftExisting = !!$event"
+          <div class="flex items-center gap-1.5">
+            <Label class="text-xs text-muted-foreground shrink-0">최대 행 수</Label>
+            <Input
+              v-model="cellRef.lines.maxRows"
+              type="number"
+              min="0"
+              placeholder="0"
+              class="h-8 text-sm w-20"
             />
-            기존 행 밀기
-          </label>
+          </div>
         </div>
         <p class="text-xs text-muted-foreground mt-2 mb-1">컬럼 오프셋 (비워두면 미사용)</p>
         <div class="grid grid-cols-5 gap-3">
@@ -438,26 +441,7 @@ function removePhoto(index: number) {
                 </SelectItem>
               </SelectContent>
             </Select>
-            <Input v-model="photo.startCell" placeholder="예: 1!A10" class="h-8 text-sm w-28" />
-            <Select :model-value="photo.direction" @update:model-value="photo.direction = $event as 'row' | 'column'">
-              <SelectTrigger class="w-28 h-8 text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="column">가로 (column)</SelectItem>
-                <SelectItem value="row">세로 (row)</SelectItem>
-              </SelectContent>
-            </Select>
-            <div class="flex items-center gap-1">
-              <Label class="text-xs text-muted-foreground shrink-0">Span</Label>
-              <Input
-                :model-value="String(photo.span)"
-                @update:model-value="photo.span = Number($event) || 1"
-                type="number"
-                min="1"
-                class="h-8 text-sm w-16"
-              />
-            </div>
+            <Input v-model="photo.cells" placeholder="예: 1!A10, 1!A15, 1!A20" class="h-8 text-sm flex-1" />
             <Button
               variant="ghost"
               size="sm"

@@ -134,11 +134,10 @@ export function usePathEditor(
       const node = nodes.value.find(n => n.id === `work-${workId}`)
       if (!node) return null
 
-      const work = node.data.work as WorkResponse
       return {
         workId,
         // 노드 우측 상단 위치
-        x: node.position.x + work.width,
+        x: node.position.x + (node.data.computedWidth as number),
         y: node.position.y
       }
     }).filter((item): item is { workId: number; x: number; y: number } => item !== null)

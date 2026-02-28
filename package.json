@@ -26,7 +26,7 @@
     "@vue-flow/core": "^1.48.1",
     "@vue-flow/minimap": "^1.5.4",
     "@vueuse/core": "^14.2.0",
-    "axios": "^1.13.2",
+    "axios": ">=1.13.5",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-vue-next": "^0.561.0",

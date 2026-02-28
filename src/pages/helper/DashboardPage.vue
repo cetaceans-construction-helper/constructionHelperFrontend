@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { workApi, type WorkResponse } from '@/api/work'
 import { attendanceApi, type AttendanceByDateItem } from '@/api/attendance'
 import { materialOrderApi, type DeliveryQuantityByDate } from '@/api/materialOrder'
+import { equipmentApi, type EquipmentDeploymentByDateItem } from '@/api/equipment'
 import { useProjectStore } from '@/stores/project'
 import { useCalendarStore } from '@/stores/calendarStore'
 
@@ -36,6 +37,7 @@ const todayWorkIds = ref<number[]>([])
 const tomorrowWorkIds = ref<number[]>([])
 const todayAttendance = ref<AttendanceByDateItem[]>([])
 const todayDeliveryQuantities = ref<DeliveryQuantityByDate[]>([])
+const todayEquipment = ref<EquipmentDeploymentByDateItem[]>([])
 const isLoading = ref(false)
 
 // 오늘 작업 (workType별 그루핑)
@@ -113,6 +115,36 @@ const attendanceByGroup = computed(() => {
   return groups
 })
 
+// 반입 장비 (company 기준 그루핑)
+interface EquipmentGroup {
+  companyDisplayName: string
+  totalCount: number
+  items: EquipmentDeploymentByDateItem[]
+}
+
+const equipmentByGroup = computed(() => {
+  const groups: EquipmentGroup[] = []
+  const groupMap = new Map<string, EquipmentGroup>()
+
+  for (const item of todayEquipment.value) {
+    const key = item.companyId
+    if (!groupMap.has(key)) {
+      const group: EquipmentGroup = {
+        companyDisplayName: item.companyDisplayName,
+        totalCount: 0,
+        items: [],
+      }
+      groupMap.set(key, group)
+      groups.push(group)
+    }
+    const group = groupMap.get(key)!
+    group.items.push(item)
+    group.totalCount += item.count
+  }
+
+  return groups
+})
+
 // 데이터 로드
 onMounted(async () => {
   if (!projectStore.selectedProjectId) return
@@ -123,12 +155,13 @@ onMounted(async () => {
     await calendarStore.getCalendar(projectStore.selectedProjectId)
 
     // 작업 데이터 병렬 로드
-    const [works, todayIds, tomorrowIds, attendance, deliveryQuantities] = await Promise.all([
+    const [works, todayIds, tomorrowIds, attendance, deliveryQuantities, equipment] = await Promise.all([
       workApi.getWorkList(),
       workApi.getWorkListByDate(todayString),
       workApi.getWorkListByDate(tomorrowString),
       attendanceApi.getAttendanceListByDate(todayString),
       materialOrderApi.getTotalDeliveryQuantityByDate(todayString),
+      equipmentApi.getEquipmentDeploymentListByDate(todayString),
     ])
 
     allWorks.value = works
@@ -136,6 +169,7 @@ onMounted(async () => {
     tomorrowWorkIds.value = tomorrowIds
     todayAttendance.value = attendance
     todayDeliveryQuantities.value = deliveryQuantities
+    todayEquipment.value = equipment
   } catch (error) {
     console.error('대시보드 데이터 로드 실패:', error)
   } finally {
@@ -229,8 +263,27 @@ onMounted(async () => {
           <!-- 반입 장비 -->
           <div class="border border-border rounded-lg p-3">
             <h4 class="text-sm font-semibold mb-2 text-foreground">반입 장비</h4>
-            <div class="space-y-0.5">
-              <p class="text-sm text-muted-foreground">- 크레인(25ton) : 1대</p>
+            <div v-if="equipmentByGroup.length === 0" class="text-sm text-muted-foreground">
+              오늘 반입된 장비가 없습니다.
+            </div>
+            <div v-else class="space-y-3">
+              <div v-for="(group, index) in equipmentByGroup" :key="index">
+                <p class="text-sm font-medium mb-1">
+                  &#9632; {{ group.companyDisplayName }} : {{ group.totalCount }}대
+                </p>
+                <div class="space-y-0.5">
+                  <p
+                    v-for="item in group.items"
+                    :key="item.equipmentSpecId"
+                    class="text-sm text-muted-foreground"
+                  >
+                    - {{ item.equipmentTypeName }}({{ item.equipmentSpecName }}) : {{ item.count }}대
+                  </p>
+                </div>
+              </div>
+              <p class="text-sm font-bold mt-2">
+                &#9632; 총 장비 : {{ equipmentByGroup.reduce((sum, g) => sum + g.totalCount, 0) }}대
+              </p>
             </div>
           </div>
 

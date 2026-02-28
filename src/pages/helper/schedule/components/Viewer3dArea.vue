@@ -285,7 +285,7 @@ const groupedDailyWorks = computed<GroupedWorks>(() => {
 
       <!-- 사용법 안내 -->
       <div class="absolute bottom-3 right-3 text-xs text-muted-foreground/60 bg-background/50 px-2 py-1 rounded">
-        Ctrl + 휠: 줌
+        휠: 줌
       </div>
     </div>
 

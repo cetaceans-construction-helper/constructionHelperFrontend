@@ -135,28 +135,8 @@ function handleWorkTimeInput(specId: number, val: string | number) {
             </Button>
           </div>
           <!-- 컨트롤 -->
-          <div class="flex items-center gap-3 pl-2">
-            <!-- 전일/반일 버튼 -->
-            <div class="flex items-center gap-1">
-              <Button
-                variant="outline"
-                size="sm"
-                class="h-7 px-2 text-xs"
-                @click="emit('setFullDay', boxId, spec.id)"
-              >
-                전일
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                class="h-7 px-2 text-xs"
-                @click="emit('setHalfDay', boxId, spec.id)"
-              >
-                반일
-              </Button>
-            </div>
-
-            <!-- workTime 컨트롤 -->
+          <div class="flex flex-col gap-1 pl-2">
+            <!-- 시간 컨트롤 -->
             <div class="flex items-center gap-1">
               <Button
                 variant="outline"
@@ -181,6 +161,25 @@ function handleWorkTimeInput(specId: number, val: string | number) {
                 <Plus class="w-3 h-3" />
               </Button>
               <span class="text-xs text-muted-foreground">시간</span>
+              <!-- 전일/반일 버튼 -->
+              <div class="flex items-center gap-1 ml-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  class="h-7 px-2 text-xs"
+                  @click="emit('setFullDay', boxId, spec.id)"
+                >
+                  전일
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  class="h-7 px-2 text-xs"
+                  @click="emit('setHalfDay', boxId, spec.id)"
+                >
+                  반일
+                </Button>
+              </div>
             </div>
 
             <!-- 대수 컨트롤 -->
@@ -194,7 +193,7 @@ function handleWorkTimeInput(specId: number, val: string | number) {
               </Button>
               <Input
                 type="number"
-                class="w-14 text-center h-7 text-sm"
+                class="w-16 text-center h-7 text-sm"
                 :model-value="getCount(boxId, spec.id)"
                 min="0"
                 @update:model-value="(val) => handleCountInput(spec.id, val)"

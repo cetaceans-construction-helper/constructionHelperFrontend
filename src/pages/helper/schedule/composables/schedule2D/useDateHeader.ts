@@ -1,6 +1,7 @@
 import { ref, computed, type Ref, type ComputedRef } from 'vue'
 import type { CalendarResponse, CalendarDateInfo } from '@/types/calendar'
 import { getDateType } from '@/types/calendar'
+import { useChartConfigStore } from '@/stores/chartConfigStore'
 
 // 날짜 헤더 타입 정의
 export interface DateCellInfo {
@@ -27,7 +28,6 @@ export interface MergedHeaderCell {
 
 // 상수
 export const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토']
-export const DAY_WIDTH = 40
 export const ROW_HEIGHT = 20
 export const HEADER_HEIGHT = ROW_HEIGHT * 5 // 100px (5단 헤더)
 
@@ -106,6 +106,9 @@ export function useDateHeader(
   viewport: Ref<Viewport>,
   calendarData: ComputedRef<CalendarResponse | null>
 ) {
+  const chartConfigStore = useChartConfigStore()
+  const DAY_WIDTH = computed(() => chartConfigStore.config.pixelPerDay)
+
   // 컨테이너 참조 및 크기
   const containerRef = ref<HTMLElement | null>(null)
   const containerWidth = ref(0)
@@ -145,8 +148,8 @@ export function useDateHeader(
     const endX = startX + containerWidth.value / vp.zoom
 
     // dayIndex 범위로 필터링 (dayIndex는 오늘 기준이므로 음수 가능)
-    const startDayIndex = Math.floor(startX / DAY_WIDTH)
-    const endDayIndex = Math.ceil(endX / DAY_WIDTH)
+    const startDayIndex = Math.floor(startX / DAY_WIDTH.value)
+    const endDayIndex = Math.ceil(endX / DAY_WIDTH.value)
 
     return allProjectDates.value.filter(
       d => d.dayIndex >= startDayIndex && d.dayIndex <= endDayIndex
@@ -162,8 +165,8 @@ export function useDateHeader(
     const firstDate = allProjectDates.value[0]!
     const lastDate = allProjectDates.value[allProjectDates.value.length - 1]!
 
-    const startX = firstDate.dayIndex * DAY_WIDTH
-    const endX = (lastDate.dayIndex + 1) * DAY_WIDTH // +1 to include last day's full width
+    const startX = firstDate.dayIndex * DAY_WIDTH.value
+    const endX = (lastDate.dayIndex + 1) * DAY_WIDTH.value // +1 to include last day's full width
 
     return {
       startX,
@@ -226,6 +229,9 @@ export function useDateHeader(
     // Refs
     containerRef,
     containerWidth,
+
+    // Config
+    DAY_WIDTH,
 
     // Computed
     allProjectDates,

@@ -46,14 +46,34 @@ const router = createRouter({
           ],
         },
         {
-          path: 'material/invoice',
-          name: 'material-invoice',
+          path: 'attendance/input',
+          name: 'attendance-input',
+          component: () => import('@/pages/helper/attendance/AttendanceInputPage.vue'),
+        },
+        {
+          path: 'attendance/register',
+          name: 'attendance-register',
+          component: () => import('@/pages/helper/attendance/WorkerRegisterPage.vue'),
+        },
+        {
+          path: 'material/order',
+          name: 'material-order',
           component: () => import('@/pages/helper/material/InvoicePage.vue'),
         },
         {
-          path: 'material/list',
-          name: 'material-list',
-          component: () => import('@/pages/helper/material/ListPage.vue'),
+          path: 'material/incoming',
+          name: 'material-incoming',
+          component: () => import('@/pages/helper/material/IncomingMaterialPage.vue'),
+        },
+        {
+          path: 'material/outgoing',
+          name: 'material-outgoing',
+          component: () => import('@/pages/helper/material/OutgoingMaterialPage.vue'),
+        },
+        {
+          path: 'material/remaining',
+          name: 'material-remaining',
+          component: () => import('@/pages/helper/material/RemainingMaterialPage.vue'),
         },
         {
           path: 'safety',
