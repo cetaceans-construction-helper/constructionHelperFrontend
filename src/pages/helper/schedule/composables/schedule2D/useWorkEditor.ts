@@ -35,11 +35,12 @@ export function useWorkEditor(
 
     isUpdatingWork.value = true
     try {
-      const mutation = await workApi.updateWork(selectedWorkId.value, {
-        startDate: workEditForm.value.startDate,
-        workLeadTime: workEditForm.value.workLeadTime,
-        isWorkingOnHoliday: workEditForm.value.isWorkingOnHoliday
-      })
+      const work = selectedWork.value
+      const payload: Record<string, any> = {}
+      if (work && workEditForm.value.startDate !== work.startDate) payload.startDate = workEditForm.value.startDate
+      if (work && workEditForm.value.workLeadTime !== work.workLeadTime) payload.workLeadTime = workEditForm.value.workLeadTime
+      if (work && workEditForm.value.isWorkingOnHoliday !== work.isWorkingOnHoliday) payload.isWorkingOnHoliday = workEditForm.value.isWorkingOnHoliday
+      const mutation = await workApi.updateWork(selectedWorkId.value, payload)
       onWorkUpdated(mutation)
       selectedWorkId.value = null
     } catch (error: unknown) {

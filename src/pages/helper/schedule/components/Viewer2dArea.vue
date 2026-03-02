@@ -129,8 +129,6 @@ const startGroupDrag = (index: number, event: MouseEvent) => {
       updates.push(
         workApi.updateWork(work.workId, {
           positionY: snappedY,
-          startDate: work.startDate,
-          workLeadTime: work.workLeadTime,
         }).then(() => {
           node.data.work = { ...work, positionY: snappedY }
         }).catch((error: any) => {
@@ -164,6 +162,7 @@ const executeOptimize = async () => {
       : await workPathApi.optimizePaths()
     applyMutation(mutation)
     showOptimizeDialog.value = false
+    showPathDialog.value = false
   } catch (error: any) {
     console.error('경로 최적화 실패:', error)
     const errorMessage = error.response?.data?.message || error.message
@@ -740,11 +739,7 @@ const updateTooltipWork = async (patch: { startDate?: string, workLeadTime?: num
   if (patch.isWorkingOnHoliday !== undefined) tooltip.value.isWorkingOnHoliday = patch.isWorkingOnHoliday
 
   try {
-    const mutation = await workApi.updateWork(tooltip.value.workId, {
-      startDate: tooltip.value.startDate,
-      workLeadTime: tooltip.value.workLeadTime,
-      isWorkingOnHoliday: tooltip.value.isWorkingOnHoliday
-    })
+    const mutation = await workApi.updateWork(tooltip.value.workId, patch)
     workEditForm.value.startDate = tooltip.value.startDate
     workEditForm.value.workLeadTime = tooltip.value.workLeadTime
     workEditForm.value.isWorkingOnHoliday = tooltip.value.isWorkingOnHoliday
@@ -875,8 +870,6 @@ const handleWorkEditSubmit = async () => {
     // Y 위치 백그라운드 저장
     workApi.updateWork(response.workId, {
       positionY: td.createPositionY,
-      startDate: response.startDate,
-      workLeadTime: response.workLeadTime,
     })
 
     // 선택 + 말풍선 표시
@@ -1017,7 +1010,6 @@ const onNodeDragStop = async (event: { node: Node }) => {
     try {
       const mutation = await workApi.updateWork(work.workId, {
         startDate: newStartDate,
-        workLeadTime: work.workLeadTime
       })
 
       workEditForm.value.startDate = newStartDate
@@ -1046,8 +1038,6 @@ const onNodeDragStop = async (event: { node: Node }) => {
   try {
     await workApi.updateWork(work.workId, {
       positionY: snappedY,
-      startDate: work.startDate,
-      workLeadTime: work.workLeadTime
     })
     event.node.data.work = { ...work, positionY: snappedY }
   } catch (error: any) {
@@ -1146,10 +1136,10 @@ const onResizeEnd = async () => {
   }
 
   try {
-    const mutation = await workApi.updateWork(r.workId, {
-      startDate: newStartDate,
-      workLeadTime: newLeadTime
-    })
+    const payload: Record<string, any> = {}
+    if (newStartDate !== r.origStartDate) payload.startDate = newStartDate
+    if (newLeadTime !== r.origLeadTime) payload.workLeadTime = newLeadTime
+    const mutation = await workApi.updateWork(r.workId, payload)
     workEditForm.value.startDate = newStartDate
     workEditForm.value.workLeadTime = newLeadTime
     applyMutation(mutation)
@@ -1848,7 +1838,7 @@ onUnmounted(() => {
           class="w-full py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950 rounded border border-blue-300 dark:border-blue-700 transition-colors"
           @click="optimizeTarget = 'all'; showOptimizeDialog = true"
         >
-          전체 경로 최적화
+          전체 패스 최적화
         </button>
       </DialogFooter>
     </DialogContent>
