@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { X } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -13,6 +12,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import SortableReferenceList from '@/components/helper/SortableReferenceList.vue'
 import { useMaterialMaster } from '../composables/useMaterialMaster'
 
 const {
@@ -30,6 +30,10 @@ const {
   addMaterialSpec,
   deleteMaterialType,
   deleteMaterialSpec,
+  updateMaterialTypeName,
+  updateMaterialSpecName,
+  reorderMaterialTypes,
+  reorderMaterialSpecs,
 } = useMaterialMaster()
 
 onMounted(() => {
@@ -86,33 +90,16 @@ async function confirmDelete() {
             추가
           </Button>
         </div>
-        <div class="space-y-1 max-h-48 overflow-y-auto">
-          <div
-            v-for="mt in materialTypes"
-            :key="mt.id"
-            class="flex items-center px-3 py-2 border rounded-md cursor-pointer text-sm transition-colors"
-            :class="{
-              'border-primary bg-primary/10 font-medium': selectedMaterialTypeId === mt.id,
-              'border-border hover:bg-muted/50': selectedMaterialTypeId !== mt.id,
-            }"
-            @click="selectMaterialType(mt.id)"
-          >
-            <span class="flex-1 truncate">
-              {{ mt.name }}
-              <span v-if="mt.unit" class="text-muted-foreground">({{ mt.unit }})</span>
-            </span>
-            <button
-              class="ml-1 p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive shrink-0"
-              :disabled="isDeleting"
-              @click.stop="openDeleteDialog(mt.id, mt.name, deleteMaterialType)"
-            >
-              <X class="w-3 h-3" />
-            </button>
-          </div>
-          <p v-if="materialTypes.length === 0" class="text-xs text-muted-foreground py-2 text-center">
-            항목 없음
-          </p>
-        </div>
+        <SortableReferenceList
+          :items="materialTypes"
+          :selected-id="selectedMaterialTypeId"
+          :disabled="isDeleting"
+          :display-suffix="(mt: any) => mt.unit ? `(${mt.unit})` : ''"
+          @select="selectMaterialType"
+          @delete="(id, name) => openDeleteDialog(id, name, deleteMaterialType)"
+          @update-name="({ id, name }) => updateMaterialTypeName(id, name)"
+          @reorder="reorderMaterialTypes"
+        />
       </div>
 
       <!-- MaterialSpec 컬럼 -->
@@ -135,34 +122,15 @@ async function confirmDelete() {
             추가
           </Button>
         </div>
-        <div class="space-y-1 max-h-48 overflow-y-auto">
-          <div
-            v-for="ms in materialSpecs"
-            :key="ms.id"
-            class="flex items-center px-3 py-2 border rounded-md text-sm border-border"
-          >
-            <span class="flex-1 truncate">{{ ms.name }}</span>
-            <button
-              class="ml-1 p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive shrink-0"
-              :disabled="isDeleting"
-              @click.stop="openDeleteDialog(ms.id, ms.name, deleteMaterialSpec)"
-            >
-              <X class="w-3 h-3" />
-            </button>
-          </div>
-          <p
-            v-if="selectedMaterialTypeId && materialSpecs.length === 0"
-            class="text-xs text-muted-foreground py-2 text-center"
-          >
-            항목 없음
-          </p>
-          <p
-            v-if="!selectedMaterialTypeId"
-            class="text-xs text-muted-foreground py-2 text-center"
-          >
-            자재유형을 선택하세요
-          </p>
-        </div>
+        <SortableReferenceList
+          :items="materialSpecs"
+          :selectable="false"
+          :disabled="isDeleting"
+          :empty-message="selectedMaterialTypeId ? '항목 없음' : '자재유형을 선택하세요'"
+          @delete="(id, name) => openDeleteDialog(id, name, deleteMaterialSpec)"
+          @update-name="({ id, name }) => updateMaterialSpecName(id, name)"
+          @reorder="reorderMaterialSpecs"
+        />
       </div>
     </div>
 

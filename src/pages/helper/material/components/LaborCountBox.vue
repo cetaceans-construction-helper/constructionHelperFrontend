@@ -50,22 +50,22 @@ function handleInputChange(laborTypeId: number, val: string | number) {
     <!-- 헤더 -->
     <div class="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/50">
       <div v-if="companyId" class="font-medium text-sm">
-        {{ companyName }} - {{ workTypeName }}
+        {{ workTypeName }} ({{ companyName }})
       </div>
       <div v-else class="flex-1 mr-4">
         <Select @update:model-value="handleCompanyChange">
           <SelectTrigger>
-            <SelectValue placeholder="협력업체 선택" />
+            <SelectValue placeholder="공종 선택" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem
-              v-for="company in contractors"
+              v-for="company in contractors.filter(c => c.eligible)"
               :key="company.companyId"
               :value="company.companyId"
             >
-              {{ company.companyDisplayName }}
-              <span v-if="company.workTypeName" class="text-muted-foreground ml-2">
-                ({{ company.workTypeName }})
+              {{ company.workTypeName }}
+              <span v-if="company.companyDisplayName" class="text-muted-foreground ml-2">
+                ({{ company.companyDisplayName }})
               </span>
             </SelectItem>
           </SelectContent>

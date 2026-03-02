@@ -10,7 +10,9 @@ import type { Contractor } from '@/api/attendance'
 export interface EquipmentBox {
   id: string
   companyId: string | null
+  companyToProjectId: number | null
   companyName: string
+  workTypeName: string
   selectedSpecs: EquipmentSpecResponse[]
   isLoading: boolean
 }
@@ -111,7 +113,7 @@ export function useEquipmentDeployment(
     const key = getKey(boxId, specId)
     const newWT = new Map(equipmentWorkTimes.value)
     const newCT = new Map(equipmentCounts.value)
-    newWT.set(key, 0)
+    newWT.set(key, 8)
     newCT.set(key, 1)
     equipmentWorkTimes.value = newWT
     equipmentCounts.value = newCT
@@ -179,6 +181,9 @@ export function useEquipmentDeployment(
       if (!first) continue
       const boxId = `ebox-${++boxIdCounter}`
 
+      // contractors에서 companyToProjectId 조회
+      const contractor = contractors.value.find((c) => c.companyId === companyId)
+
       const selectedSpecs: EquipmentSpecResponse[] = []
       for (const item of items) {
         const spec = allEquipmentSpecs.value.find((s) => s.id === item.equipmentSpecId)
@@ -192,7 +197,9 @@ export function useEquipmentDeployment(
       equipmentBoxes.value.push({
         id: boxId,
         companyId,
+        companyToProjectId: contractor?.companyToProjectId ?? null,
         companyName: first.companyDisplayName,
+        workTypeName: contractor?.workTypeName || '',
         selectedSpecs,
         isLoading: false,
       })
@@ -208,7 +215,9 @@ export function useEquipmentDeployment(
     equipmentBoxes.value.push({
       id: `ebox-${++boxIdCounter}`,
       companyId: null,
+      companyToProjectId: null,
       companyName: '',
+      workTypeName: '',
       selectedSpecs: [],
       isLoading: false,
     })
@@ -240,7 +249,9 @@ export function useEquipmentDeployment(
     equipmentCounts.value = newCT
 
     box.companyId = company.companyId
+    box.companyToProjectId = company.companyToProjectId
     box.companyName = company.companyDisplayName
+    box.workTypeName = company.workTypeName || ''
     box.selectedSpecs = []
   }
 
@@ -269,27 +280,49 @@ export function useEquipmentDeployment(
     }
 
     const entries: EquipmentDeploymentEntry[] = []
+    const warnings: string[] = []
 
     for (const box of validBoxes) {
       if (!box.companyId) continue
+
+      // companyToProjectId가 null이면 contractors에서 재조회 (race condition 대응)
+      const companyToProjectId =
+        box.companyToProjectId ??
+        contractors.value.find((c) => c.companyId === box.companyId)?.companyToProjectId ??
+        null
+      if (companyToProjectId == null) {
+        warnings.push(`${box.workTypeName || box.companyName}: 프로젝트 매핑 정보를 찾을 수 없습니다.`)
+        continue
+      }
 
       for (const spec of box.selectedSpecs) {
         const key = getKey(box.id, spec.id)
         const count = equipmentCounts.value.get(key) ?? 0
         const workTime = equipmentWorkTimes.value.get(key) ?? 0
-        if (count > 0 && workTime > 0) {
+        const specName = `${spec.equipmentTypeName} - ${spec.name}`
+
+        if (count <= 0 && workTime <= 0) {
+          warnings.push(`${specName}: 대수와 시간이 모두 입력되지 않았습니다.`)
+        } else if (count <= 0) {
+          warnings.push(`${specName}: 대수를 입력해주세요.`)
+        } else if (workTime <= 0) {
+          warnings.push(`${specName}: 시간을 입력해주세요.`)
+        } else {
           entries.push({
             equipmentSpecId: spec.id,
             count,
             workTime,
-            companyId: box.companyId,
+            companyToProjectId,
           })
         }
       }
     }
 
     if (entries.length === 0) {
-      alert('입력된 장비가 없습니다. 대수와 시간을 모두 입력해주세요.')
+      const message = warnings.length > 0
+        ? `입력된 장비가 없습니다.\n\n${warnings.join('\n')}`
+        : '입력된 장비가 없습니다. 대수와 시간을 모두 입력해주세요.'
+      alert(message)
       return
     }
 
@@ -308,6 +341,19 @@ export function useEquipmentDeployment(
       alert(getErrorMessage(error))
     } finally {
       isSubmittingEquipment.value = false
+    }
+  }
+
+  // 출역장비 초기화 (일괄 삭제)
+  async function resetEquipmentDeployment() {
+    if (!confirm(`${selectedDate.value} 출역장비를 초기화하시겠습니까?`)) return
+
+    try {
+      await equipmentApi.deleteEquipmentDeploymentList(selectedDate.value)
+      await loadTodayEquipment()
+    } catch (error: unknown) {
+      console.error('출역장비 초기화 실패:', error)
+      alert(getErrorMessage(error))
     }
   }
 
@@ -346,5 +392,6 @@ export function useEquipmentDeployment(
     incrementCount,
     decrementCount,
     submitEquipmentDeployment,
+    resetEquipmentDeployment,
   }
 }

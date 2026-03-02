@@ -3,13 +3,16 @@ import { superApi } from '@/api/super'
 import type {
   CompanyToProject,
   CreateCompanyToProjectPayload,
+  UpdateCompanyToProjectPayload,
   UserToProject,
   CreateUserToProjectPayload,
+  UpdateUserToProjectPayload,
   Company,
   Project,
   CompanyRole,
   SystemRole,
   WorkType,
+  User,
 } from '@/types/super'
 
 export function useMappingManagement() {
@@ -19,6 +22,7 @@ export function useMappingManagement() {
   const companyRoles = ref<CompanyRole[]>([])
   const systemRoles = ref<SystemRole[]>([])
   const workTypes = ref<WorkType[]>([])
+  const users = ref<User[]>([])
   const isLoadingWorkTypes = ref(false)
 
   // Company-Project Mapping
@@ -28,26 +32,32 @@ export function useMappingManagement() {
   const isDeletingCompanyToProject = ref(false)
   const companyToProjectFilter = ref<{ projectId?: string; companyId?: string }>({})
 
+  // Company-Project Update
+  const isUpdatingCompanyToProject = ref(false)
+
   // User-Project Mapping
   const userToProjectList = ref<UserToProject[]>([])
   const isLoadingUserToProject = ref(false)
   const isCreatingUserToProject = ref(false)
   const isDeletingUserToProject = ref(false)
+  const isUpdatingUserToProject = ref(false)
   const userToProjectFilter = ref<{ projectId?: string; userId?: string }>({})
 
   // Load lookup data
   const loadLookupData = async () => {
     try {
-      const [companiesData, projectsData, companyRolesData, systemRolesData] = await Promise.all([
+      const [companiesData, projectsData, companyRolesData, systemRolesData, usersData] = await Promise.all([
         superApi.getCompanyList(),
         superApi.getProjectList(),
         superApi.getCompanyRoleList(),
         superApi.getSystemRoleList(),
+        superApi.getUserList(),
       ])
       companies.value = companiesData
       projects.value = projectsData
       companyRoles.value = companyRolesData
       systemRoles.value = systemRolesData
+      users.value = usersData
     } catch (error) {
       console.error('조회 데이터 로드 실패:', error)
     }
@@ -108,6 +118,23 @@ export function useMappingManagement() {
     }
   }
 
+  const updateCompanyToProject = async (id: number, payload: UpdateCompanyToProjectPayload) => {
+    if (isUpdatingCompanyToProject.value) return false
+    isUpdatingCompanyToProject.value = true
+    try {
+      await superApi.updateCompanyToProject(id, payload)
+      await loadCompanyToProjectList()
+      return true
+    } catch (error: unknown) {
+      console.error('회사-프로젝트 매핑 수정 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+      return false
+    } finally {
+      isUpdatingCompanyToProject.value = false
+    }
+  }
+
   // User-Project Mapping Actions
   const loadUserToProjectList = async () => {
     isLoadingUserToProject.value = true
@@ -143,6 +170,23 @@ export function useMappingManagement() {
       return false
     } finally {
       isCreatingUserToProject.value = false
+    }
+  }
+
+  const updateUserToProject = async (id: number, payload: UpdateUserToProjectPayload) => {
+    if (isUpdatingUserToProject.value) return false
+    isUpdatingUserToProject.value = true
+    try {
+      await superApi.updateUserToProject(id, payload)
+      await loadUserToProjectList()
+      return true
+    } catch (error: unknown) {
+      console.error('사용자-프로젝트 매핑 수정 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+      return false
+    } finally {
+      isUpdatingUserToProject.value = false
     }
   }
 
@@ -193,6 +237,7 @@ export function useMappingManagement() {
     companyRoles,
     systemRoles,
     workTypes,
+    users,
     isLoadingWorkTypes,
     loadWorkTypes,
     // Company-Project
@@ -200,18 +245,22 @@ export function useMappingManagement() {
     isLoadingCompanyToProject,
     isCreatingCompanyToProject,
     isDeletingCompanyToProject,
+    isUpdatingCompanyToProject,
     companyToProjectFilter,
     loadCompanyToProjectList,
     createCompanyToProject,
+    updateCompanyToProject,
     deleteCompanyToProject,
     // User-Project
     userToProjectList,
     isLoadingUserToProject,
     isCreatingUserToProject,
     isDeletingUserToProject,
+    isUpdatingUserToProject,
     userToProjectFilter,
     loadUserToProjectList,
     createUserToProject,
+    updateUserToProject,
     deleteUserToProject,
     // Combined
     loadLookupData,

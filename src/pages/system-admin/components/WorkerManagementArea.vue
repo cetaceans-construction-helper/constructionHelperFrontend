@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -38,6 +38,21 @@ const {
   updateWorker,
   toggleWorkerConfirmed,
 } = useWorkerManagement()
+
+// Pagination
+const PAGE_SIZE = 15
+const currentPage = ref(1)
+
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredWorkers.value.length / PAGE_SIZE)))
+
+const pagedWorkers = computed(() => {
+  const start = (currentPage.value - 1) * PAGE_SIZE
+  return filteredWorkers.value.slice(start, start + PAGE_SIZE)
+})
+
+watch(filterConfirmed, () => {
+  currentPage.value = 1
+})
 
 // Edit Dialog
 const isEditDialogOpen = ref(false)
@@ -124,7 +139,7 @@ onMounted(() => {
               작업자가 없습니다.
             </TableCell>
           </TableRow>
-          <TableRow v-for="worker in filteredWorkers" :key="worker.id">
+          <TableRow v-for="worker in pagedWorkers" :key="worker.id">
             <TableCell class="font-medium">{{ worker.workerName }}</TableCell>
             <TableCell>{{ worker.phoneNumber }}</TableCell>
             <TableCell>{{ worker.registrationNumber }}</TableCell>
@@ -162,6 +177,51 @@ onMounted(() => {
           </TableRow>
         </TableBody>
       </Table>
+    </div>
+
+    <!-- Pagination -->
+    <div v-if="totalPages > 1" class="flex justify-center items-center gap-1 pt-2">
+      <Button
+        variant="outline"
+        size="sm"
+        :disabled="currentPage === 1"
+        @click="currentPage = 1"
+      >
+        «
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        :disabled="currentPage === 1"
+        @click="currentPage--"
+      >
+        ‹
+      </Button>
+      <Button
+        v-for="page in totalPages"
+        :key="page"
+        :variant="page === currentPage ? 'default' : 'outline'"
+        size="sm"
+        @click="currentPage = page"
+      >
+        {{ page }}
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        :disabled="currentPage === totalPages"
+        @click="currentPage++"
+      >
+        ›
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        :disabled="currentPage === totalPages"
+        @click="currentPage = totalPages"
+      >
+        »
+      </Button>
     </div>
 
     <!-- 수정 Dialog -->

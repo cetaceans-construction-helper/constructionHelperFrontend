@@ -1,11 +1,13 @@
 import { ref } from 'vue'
 import { superApi } from '@/api/super'
-import type { Company, CreateCompanyPayload } from '@/types/super'
+import type { Company, CreateCompanyPayload, UpdateCompanyPayload } from '@/types/super'
 
 export function useCompanyManagement() {
   const companies = ref<Company[]>([])
   const isLoading = ref(false)
   const isCreating = ref(false)
+  const isUpdating = ref(false)
+  const isDeleting = ref(false)
 
   const loadCompanies = async () => {
     isLoading.value = true
@@ -35,11 +37,47 @@ export function useCompanyManagement() {
     }
   }
 
+  const updateCompany = async (id: string, payload: UpdateCompanyPayload) => {
+    if (isUpdating.value) return false
+    isUpdating.value = true
+    try {
+      await superApi.updateCompany(id, payload)
+      await loadCompanies()
+      return true
+    } catch (error: unknown) {
+      console.error('회사 수정 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+      return false
+    } finally {
+      isUpdating.value = false
+    }
+  }
+
+  const deleteCompany = async (id: string) => {
+    if (isDeleting.value) return
+    isDeleting.value = true
+    try {
+      await superApi.deleteCompany(id)
+      await loadCompanies()
+    } catch (error: unknown) {
+      console.error('회사 삭제 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+    } finally {
+      isDeleting.value = false
+    }
+  }
+
   return {
     companies,
     isLoading,
     isCreating,
+    isUpdating,
+    isDeleting,
     loadCompanies,
     createCompany,
+    updateCompany,
+    deleteCompany,
   }
 }

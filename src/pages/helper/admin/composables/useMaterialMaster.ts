@@ -116,6 +116,59 @@ export function useMaterialMaster() {
     }
   }
 
+  // 수정 (이름 변경)
+  const updateMaterialTypeName = async (id: number, name: string) => {
+    try {
+      await referenceApi.updateMaterialType({ id, name })
+      const item = materialTypes.value.find((mt) => mt.id === id)
+      if (item) item.name = name
+    } catch (error: unknown) {
+      console.error('MaterialType 이름 수정 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+      await loadMaterialTypes()
+    }
+  }
+
+  const updateMaterialSpecName = async (id: number, name: string) => {
+    try {
+      await referenceApi.updateMaterialSpec({ id, name })
+      const item = materialSpecs.value.find((ms) => ms.id === id)
+      if (item) item.name = name
+    } catch (error: unknown) {
+      console.error('MaterialSpec 이름 수정 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+      if (selectedMaterialTypeId.value) await loadMaterialSpecs(selectedMaterialTypeId.value)
+    }
+  }
+
+  // 정렬 변경
+  const reorderMaterialTypes = async (ids: number[]) => {
+    try {
+      await referenceApi.updateMaterialType({ ids })
+      await loadMaterialTypes()
+    } catch (error: unknown) {
+      console.error('MaterialType 정렬 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+      await loadMaterialTypes()
+    }
+  }
+
+  const reorderMaterialSpecs = async (ids: number[]) => {
+    if (!selectedMaterialTypeId.value) return
+    try {
+      await referenceApi.updateMaterialSpec({ ids, parentId: selectedMaterialTypeId.value })
+      await loadMaterialSpecs(selectedMaterialTypeId.value)
+    } catch (error: unknown) {
+      console.error('MaterialSpec 정렬 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+      if (selectedMaterialTypeId.value) await loadMaterialSpecs(selectedMaterialTypeId.value)
+    }
+  }
+
   // 캐스케이딩 로드
   watch(selectedMaterialTypeId, (id) => {
     materialSpecs.value = []
@@ -137,5 +190,9 @@ export function useMaterialMaster() {
     addMaterialSpec,
     deleteMaterialType,
     deleteMaterialSpec,
+    updateMaterialTypeName,
+    updateMaterialSpecName,
+    reorderMaterialTypes,
+    reorderMaterialSpecs,
   }
 }

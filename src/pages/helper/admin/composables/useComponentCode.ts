@@ -119,6 +119,33 @@ export function useComponentCode() {
     }
   }
 
+  // 수정 (이름 변경)
+  const updateComponentTypeName = async (id: number, name: string) => {
+    try {
+      await referenceApi.updateComponentType({ id, name })
+      const item = componentTypes.value.find((ct) => ct.id === id)
+      if (item) item.name = name
+    } catch (error: unknown) {
+      console.error('ComponentType 이름 수정 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+      await loadComponentTypes()
+    }
+  }
+
+  // 정렬 변경
+  const reorderComponentTypes = async (ids: number[]) => {
+    try {
+      await referenceApi.updateComponentType({ ids })
+      await loadComponentTypes()
+    } catch (error: unknown) {
+      console.error('ComponentType 정렬 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+      await loadComponentTypes()
+    }
+  }
+
   // ========== 부재 코드 관련 ==========
 
   const loadComponentCodes = async (componentTypeId: number) => {
@@ -499,6 +526,8 @@ export function useComponentCode() {
     loadComponentTypes,
     addComponentType,
     deleteComponentType,
+    updateComponentTypeName,
+    reorderComponentTypes,
 
     // 부재 코드
     componentCodes,

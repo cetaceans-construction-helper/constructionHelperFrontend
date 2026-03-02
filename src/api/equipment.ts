@@ -5,7 +5,7 @@ export interface EquipmentDeploymentEntry {
   equipmentSpecId: number
   count: number
   workTime: number
-  companyId: string
+  companyToProjectId: number
 }
 
 // 장비투입 생성 요청
@@ -23,7 +23,9 @@ export interface EquipmentDeploymentByDateItem {
   count: number
   workTime: number
   companyId: string
+  companyName: string
   companyDisplayName: string
+  workTypeName: string | null
 }
 
 export const equipmentApi = {
@@ -39,5 +41,12 @@ export const equipmentApi = {
       { params: { date } },
     )
     return data
+  },
+
+  // 날짜별 장비투입 일괄 삭제
+  async deleteEquipmentDeploymentList(date: string): Promise<void> {
+    await apiClient.delete('/equipment/deleteEquipmentDeploymentList', {
+      params: { date },
+    })
   },
 }

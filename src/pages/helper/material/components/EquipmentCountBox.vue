@@ -17,6 +17,7 @@ interface Props {
   boxId: string
   companyId: string | null
   companyName: string
+  workTypeName: string
   selectedSpecs: EquipmentSpecResponse[]
   allEquipmentSpecs: EquipmentSpecResponse[]
   isLoading: boolean
@@ -76,20 +77,23 @@ function handleWorkTimeInput(specId: number, val: string | number) {
     <!-- 헤더 -->
     <div class="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/50">
       <div v-if="companyId" class="font-medium text-sm">
-        {{ companyName }}
+        {{ workTypeName }} ({{ companyName }})
       </div>
       <div v-else class="flex-1 mr-4">
         <Select @update:model-value="handleCompanyChange">
           <SelectTrigger>
-            <SelectValue placeholder="협력업체 선택" />
+            <SelectValue placeholder="공종 선택" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem
-              v-for="company in contractors"
+              v-for="company in contractors.filter(c => c.eligible)"
               :key="company.companyId"
               :value="company.companyId"
             >
-              {{ company.companyDisplayName }}
+              {{ company.workTypeName }}
+              <span v-if="company.companyDisplayName" class="text-muted-foreground ml-2">
+                ({{ company.companyDisplayName }})
+              </span>
             </SelectItem>
           </SelectContent>
         </Select>
@@ -151,7 +155,7 @@ function handleWorkTimeInput(specId: number, val: string | number) {
                 :model-value="getWorkTime(boxId, spec.id)"
                 min="0"
                 step="0.5"
-                @update:model-value="(val) => handleWorkTimeInput(spec.id, val)"
+                @input="(e: Event) => handleWorkTimeInput(spec.id, (e.target as HTMLInputElement).value)"
               />
               <Button
                 variant="outline"
@@ -196,7 +200,7 @@ function handleWorkTimeInput(specId: number, val: string | number) {
                 class="w-16 text-center h-7 text-sm"
                 :model-value="getCount(boxId, spec.id)"
                 min="0"
-                @update:model-value="(val) => handleCountInput(spec.id, val)"
+                @input="(e: Event) => handleCountInput(spec.id, (e.target as HTMLInputElement).value)"
               />
               <Button
                 variant="outline"

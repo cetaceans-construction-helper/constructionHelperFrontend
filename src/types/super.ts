@@ -98,6 +98,49 @@ export interface CreateUserToProjectPayload {
   systemRoleId: number
 }
 
+// User
+export interface User {
+  id: string
+  userEmail: string
+  userName: string
+  phoneNumber: string
+  companyId: string
+  companyName: string
+  systemRole: string
+  currentStatus: string
+  createdAt: string
+}
+
+// Update payloads
+export interface UpdateCompanyPayload {
+  name: string
+  address?: string
+  registrationNumber?: string
+  phoneNumber?: string
+  bankingAccount?: string
+  displayName?: string
+}
+
+export interface UpdateProjectPayload {
+  name: string
+  address?: string
+  startDate: string
+  completionDate: string
+  weatherNx?: number
+  weatherNy?: number
+}
+
+export interface UpdateCompanyToProjectPayload {
+  roleId: number
+  workTypeId?: number
+}
+
+export interface UpdateUserToProjectPayload {
+  companyToProjectId: number
+  projectRole?: string
+  systemRoleId: number
+}
+
 // Worker
 export interface Worker {
   id: number

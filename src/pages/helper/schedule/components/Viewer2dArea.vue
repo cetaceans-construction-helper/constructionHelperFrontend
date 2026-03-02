@@ -1579,8 +1579,8 @@ onUnmounted(() => {
               <div v-for="(pred, idx) in tooltipPredecessors" :key="`${pred.pathId}-${pred.workId}`" class="space-y-0.5">
                 <p class="text-[11px] text-muted-foreground">
                   선행작업{{ idx + 1 }}:
+                  <span class="inline-block w-2 h-2 rounded-full mr-1 align-middle" :style="{ backgroundColor: pred.pathColor }"></span>
                   <span class="font-medium text-foreground">{{ pred.workId }}. {{ pred.workName }}</span>
-                  <span class="ml-1 text-[10px]">({{ pred.pathName }})</span>
                 </p>
                 <div class="flex items-center gap-1">
                   <Checkbox

@@ -19,19 +19,14 @@ export interface AttendanceByDateItem {
   count: number
 }
 
-// 제출 요청 타입 (company 기준 그룹핑)
-export interface CompanyAttendanceEntry {
-  companyId: string
-  attendances: { laborTypeId: number; count: number }[]
-}
-
 export interface UpdateAttendancePayload {
   date: string
-  entries: CompanyAttendanceEntry[]
+  entries: { laborTypeId: number; count: number }[]
 }
 
 // 출역 가능 업체 (원청 + 협력업체)
 export interface Contractor {
+  companyToProjectId: number
   companyId: string
   companyName: string
   companyDisplayName: string
@@ -62,5 +57,12 @@ export const attendanceApi = {
   // 출역인원 저장
   async updateAttendance(payload: UpdateAttendancePayload): Promise<void> {
     await apiClient.post('/attendance/updateAttendance', payload)
+  },
+
+  // 날짜별 출역인원 일괄 삭제
+  async deleteAttendanceList(date: string): Promise<void> {
+    await apiClient.delete('/attendance/deleteAttendanceList', {
+      params: { date },
+    })
   },
 }

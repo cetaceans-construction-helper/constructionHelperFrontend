@@ -102,6 +102,16 @@ export interface CreateTasksResponse {
   skippedNoCcodeCount: number
 }
 
+export interface UpdateReferenceRequest {
+  id?: number
+  name?: string
+  ids?: number[]
+}
+
+export interface UpdateChildReferenceRequest extends UpdateReferenceRequest {
+  parentId?: number
+}
+
 export const referenceApi = {
   // ========== 공종 분류 (Division → WorkType → SubWorkType) ==========
 
@@ -350,6 +360,70 @@ export const referenceApi = {
       params,
     )
     return data
+  },
+
+  // ========== 수정 (이름 변경 + 정렬 변경) ==========
+
+  // Top-level (9개)
+  async updateDivision(params: UpdateReferenceRequest): Promise<void> {
+    await apiClient.post('/reference/updateDivision', params)
+  },
+
+  async updateMaterialType(params: UpdateReferenceRequest): Promise<void> {
+    await apiClient.post('/reference/updateMaterialType', params)
+  },
+
+  async updateEquipmentType(params: UpdateReferenceRequest): Promise<void> {
+    await apiClient.post('/reference/updateEquipmentType', params)
+  },
+
+  async updateComponentType(params: UpdateReferenceRequest): Promise<void> {
+    await apiClient.post('/reference/updateComponentType', params)
+  },
+
+  async updateLaborType(params: UpdateReferenceRequest): Promise<void> {
+    await apiClient.post('/reference/updateLaborType', params)
+  },
+
+  async updateZone(params: UpdateReferenceRequest): Promise<void> {
+    await apiClient.post('/reference/updateZone', params)
+  },
+
+  async updateFloor(params: UpdateReferenceRequest): Promise<void> {
+    await apiClient.post('/reference/updateFloor', params)
+  },
+
+  async updateSection(params: UpdateReferenceRequest): Promise<void> {
+    await apiClient.post('/reference/updateSection', params)
+  },
+
+  async updateUsage(params: UpdateReferenceRequest): Promise<void> {
+    await apiClient.post('/reference/updateUsage', params)
+  },
+
+  // Child-level (6개)
+  async updateWorkType(params: UpdateChildReferenceRequest): Promise<void> {
+    await apiClient.post('/reference/updateWorkType', params)
+  },
+
+  async updateSubWorkType(params: UpdateChildReferenceRequest): Promise<void> {
+    await apiClient.post('/reference/updateSubWorkType', params)
+  },
+
+  async updateWorkStep(params: UpdateChildReferenceRequest): Promise<void> {
+    await apiClient.post('/reference/updateWorkStep', params)
+  },
+
+  async updateMaterialSpec(params: UpdateChildReferenceRequest): Promise<void> {
+    await apiClient.post('/reference/updateMaterialSpec', params)
+  },
+
+  async updateEquipmentSpec(params: UpdateChildReferenceRequest): Promise<void> {
+    await apiClient.post('/reference/updateEquipmentSpec', params)
+  },
+
+  async updateComponentCode(params: UpdateChildReferenceRequest): Promise<void> {
+    await apiClient.post('/reference/updateComponentCode', params)
   },
 
   // ========== 삭제 ==========

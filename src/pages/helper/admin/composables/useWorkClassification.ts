@@ -233,6 +233,111 @@ export function useWorkClassification() {
     }
   }
 
+  // 수정 (이름 변경)
+  const updateDivisionName = async (id: number, name: string) => {
+    try {
+      await referenceApi.updateDivision({ id, name })
+      const item = divisions.value.find((d) => d.id === id)
+      if (item) item.name = name
+    } catch (error: unknown) {
+      console.error('Division 이름 수정 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+      await loadDivisions()
+    }
+  }
+
+  const updateWorkTypeName = async (id: number, name: string) => {
+    try {
+      await referenceApi.updateWorkType({ id, name })
+      const item = workTypes.value.find((wt) => wt.id === id)
+      if (item) item.name = name
+    } catch (error: unknown) {
+      console.error('WorkType 이름 수정 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+      if (selectedDivisionId.value) await loadWorkTypes(selectedDivisionId.value)
+    }
+  }
+
+  const updateSubWorkTypeName = async (id: number, name: string) => {
+    try {
+      await referenceApi.updateSubWorkType({ id, name })
+      const item = subWorkTypes.value.find((swt) => swt.id === id)
+      if (item) item.name = name
+    } catch (error: unknown) {
+      console.error('SubWorkType 이름 수정 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+      if (selectedWorkTypeId.value) await loadSubWorkTypes(selectedWorkTypeId.value)
+    }
+  }
+
+  const updateWorkStepName = async (id: number, name: string) => {
+    try {
+      await referenceApi.updateWorkStep({ id, name })
+      const item = workSteps.value.find((ws) => ws.id === id)
+      if (item) item.name = name
+    } catch (error: unknown) {
+      console.error('WorkStep 이름 수정 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+      if (selectedSubWorkTypeId.value) await loadWorkSteps(selectedSubWorkTypeId.value)
+    }
+  }
+
+  // 정렬 변경
+  const reorderDivisions = async (ids: number[]) => {
+    try {
+      await referenceApi.updateDivision({ ids })
+      await loadDivisions()
+    } catch (error: unknown) {
+      console.error('Division 정렬 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+      await loadDivisions()
+    }
+  }
+
+  const reorderWorkTypes = async (ids: number[]) => {
+    if (!selectedDivisionId.value) return
+    try {
+      await referenceApi.updateWorkType({ ids, parentId: selectedDivisionId.value })
+      await loadWorkTypes(selectedDivisionId.value)
+    } catch (error: unknown) {
+      console.error('WorkType 정렬 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+      if (selectedDivisionId.value) await loadWorkTypes(selectedDivisionId.value)
+    }
+  }
+
+  const reorderSubWorkTypes = async (ids: number[]) => {
+    if (!selectedWorkTypeId.value) return
+    try {
+      await referenceApi.updateSubWorkType({ ids, parentId: selectedWorkTypeId.value })
+      await loadSubWorkTypes(selectedWorkTypeId.value)
+    } catch (error: unknown) {
+      console.error('SubWorkType 정렬 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+      if (selectedWorkTypeId.value) await loadSubWorkTypes(selectedWorkTypeId.value)
+    }
+  }
+
+  const reorderWorkSteps = async (ids: number[]) => {
+    if (!selectedSubWorkTypeId.value) return
+    try {
+      await referenceApi.updateWorkStep({ ids, parentId: selectedSubWorkTypeId.value })
+      await loadWorkSteps(selectedSubWorkTypeId.value)
+    } catch (error: unknown) {
+      console.error('WorkStep 정렬 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+      if (selectedSubWorkTypeId.value) await loadWorkSteps(selectedSubWorkTypeId.value)
+    }
+  }
+
   // 캐스케이딩 로드
   watch(selectedDivisionId, (id) => {
     workTypes.value = []
@@ -275,5 +380,13 @@ export function useWorkClassification() {
     deleteWorkType,
     deleteSubWorkType,
     deleteWorkStep,
+    updateDivisionName,
+    updateWorkTypeName,
+    updateSubWorkTypeName,
+    updateWorkStepName,
+    reorderDivisions,
+    reorderWorkTypes,
+    reorderSubWorkTypes,
+    reorderWorkSteps,
   }
 }

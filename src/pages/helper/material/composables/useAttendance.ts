@@ -3,7 +3,6 @@ import { referenceApi, type LaborTypeResponse } from '@/api/reference'
 import {
   attendanceApi,
   type AttendanceByDateItem,
-  type CompanyAttendanceEntry,
   type Contractor,
 } from '@/api/attendance'
 
@@ -271,36 +270,22 @@ export function useAttendance() {
       return
     }
 
-    // company 기준으로 그룹핑
-    const companyMap = new Map<string, { laborTypeId: number; count: number }[]>()
+    // flat list로 수집
+    const entries: { laborTypeId: number; count: number }[] = []
 
     for (const box of validBoxes) {
-      if (!box.companyId) continue
-
       for (const lt of box.laborTypes) {
         const count = getCount(box.id, lt.id)
         if (count > 0) {
-          if (!companyMap.has(box.companyId)) {
-            companyMap.set(box.companyId, [])
-          }
-          companyMap.get(box.companyId)!.push({
-            laborTypeId: lt.id,
-            count,
-          })
+          entries.push({ laborTypeId: lt.id, count })
         }
       }
     }
 
-    if (companyMap.size === 0) {
+    if (entries.length === 0) {
       alert('입력된 인원이 없습니다.')
       return
     }
-
-    // CompanyAttendanceEntry 배열로 변환
-    const entries: CompanyAttendanceEntry[] = []
-    companyMap.forEach((attendances, companyId) => {
-      entries.push({ companyId, attendances })
-    })
 
     try {
       isSubmitting.value = true
@@ -319,6 +304,19 @@ export function useAttendance() {
       alert(getErrorMessage(error))
     } finally {
       isSubmitting.value = false
+    }
+  }
+
+  // 출역인원 초기화 (일괄 삭제)
+  async function resetAttendance() {
+    if (!confirm(`${selectedDate.value} 출역인원을 초기화하시겠습니까?`)) return
+
+    try {
+      await attendanceApi.deleteAttendanceList(selectedDate.value)
+      await loadTodayAttendance()
+    } catch (error: unknown) {
+      console.error('출역인원 초기화 실패:', error)
+      alert(getErrorMessage(error))
     }
   }
 
@@ -348,6 +346,7 @@ export function useAttendance() {
     incrementCount,
     decrementCount,
     submitAttendance,
+    resetAttendance,
     init,
   }
 }

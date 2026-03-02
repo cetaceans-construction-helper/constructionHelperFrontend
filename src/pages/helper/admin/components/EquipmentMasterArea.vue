@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { X } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -13,6 +12,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import SortableReferenceList from '@/components/helper/SortableReferenceList.vue'
 import { useEquipmentMaster } from '../composables/useEquipmentMaster'
 
 const {
@@ -29,6 +29,10 @@ const {
   addEquipmentSpec,
   deleteEquipmentType,
   deleteEquipmentSpec,
+  updateEquipmentTypeName,
+  updateEquipmentSpecName,
+  reorderEquipmentTypes,
+  reorderEquipmentSpecs,
 } = useEquipmentMaster()
 
 onMounted(() => {
@@ -79,30 +83,15 @@ async function confirmDelete() {
             추가
           </Button>
         </div>
-        <div class="space-y-1 max-h-48 overflow-y-auto">
-          <div
-            v-for="et in equipmentTypes"
-            :key="et.id"
-            class="flex items-center px-3 py-2 border rounded-md cursor-pointer text-sm transition-colors"
-            :class="{
-              'border-primary bg-primary/10 font-medium': selectedEquipmentTypeId === et.id,
-              'border-border hover:bg-muted/50': selectedEquipmentTypeId !== et.id,
-            }"
-            @click="selectEquipmentType(et.id)"
-          >
-            <span class="flex-1 truncate">{{ et.name }}</span>
-            <button
-              class="ml-1 p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive shrink-0"
-              :disabled="isDeleting"
-              @click.stop="openDeleteDialog(et.id, et.name, deleteEquipmentType)"
-            >
-              <X class="w-3 h-3" />
-            </button>
-          </div>
-          <p v-if="equipmentTypes.length === 0" class="text-xs text-muted-foreground py-2 text-center">
-            항목 없음
-          </p>
-        </div>
+        <SortableReferenceList
+          :items="equipmentTypes"
+          :selected-id="selectedEquipmentTypeId"
+          :disabled="isDeleting"
+          @select="selectEquipmentType"
+          @delete="(id, name) => openDeleteDialog(id, name, deleteEquipmentType)"
+          @update-name="({ id, name }) => updateEquipmentTypeName(id, name)"
+          @reorder="reorderEquipmentTypes"
+        />
       </div>
 
       <!-- EquipmentSpec 컬럼 -->
@@ -125,34 +114,15 @@ async function confirmDelete() {
             추가
           </Button>
         </div>
-        <div class="space-y-1 max-h-48 overflow-y-auto">
-          <div
-            v-for="es in equipmentSpecs"
-            :key="es.id"
-            class="flex items-center px-3 py-2 border rounded-md text-sm border-border"
-          >
-            <span class="flex-1 truncate">{{ es.name }}</span>
-            <button
-              class="ml-1 p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive shrink-0"
-              :disabled="isDeleting"
-              @click.stop="openDeleteDialog(es.id, es.name, deleteEquipmentSpec)"
-            >
-              <X class="w-3 h-3" />
-            </button>
-          </div>
-          <p
-            v-if="selectedEquipmentTypeId && equipmentSpecs.length === 0"
-            class="text-xs text-muted-foreground py-2 text-center"
-          >
-            항목 없음
-          </p>
-          <p
-            v-if="!selectedEquipmentTypeId"
-            class="text-xs text-muted-foreground py-2 text-center"
-          >
-            장비유형을 선택하세요
-          </p>
-        </div>
+        <SortableReferenceList
+          :items="equipmentSpecs"
+          :selectable="false"
+          :disabled="isDeleting"
+          :empty-message="selectedEquipmentTypeId ? '항목 없음' : '장비유형을 선택하세요'"
+          @delete="(id, name) => openDeleteDialog(id, name, deleteEquipmentSpec)"
+          @update-name="({ id, name }) => updateEquipmentSpecName(id, name)"
+          @reorder="reorderEquipmentSpecs"
+        />
       </div>
     </div>
 

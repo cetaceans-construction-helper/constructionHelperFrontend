@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { X } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -13,6 +12,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import SortableReferenceList from '@/components/helper/SortableReferenceList.vue'
 import { useLocationMaster } from '../composables/useLocationMaster'
 
 const {
@@ -35,6 +35,14 @@ const {
   deleteFloor,
   deleteSection,
   deleteUsage,
+  updateZoneName,
+  updateFloorName,
+  updateSectionName,
+  updateUsageName,
+  reorderZones,
+  reorderFloors,
+  reorderSections,
+  reorderUsages,
 } = useLocationMaster()
 
 onMounted(() => {
@@ -42,10 +50,10 @@ onMounted(() => {
 })
 
 const columns = [
-  { label: 'Zone', items: zones, input: newZone, creating: 'zone', deleting: 'zone', add: addZone, deleteFn: deleteZone },
-  { label: 'Floor', items: floors, input: newFloor, creating: 'floor', deleting: 'floor', add: addFloor, deleteFn: deleteFloor },
-  { label: 'Section', items: sections, input: newSection, creating: 'section', deleting: 'section', add: addSection, deleteFn: deleteSection },
-  { label: 'Usage', items: usages, input: newUsage, creating: 'usage', deleting: 'usage', add: addUsage, deleteFn: deleteUsage },
+  { label: 'Zone', items: zones, input: newZone, creating: 'zone', deleting: 'zone', add: addZone, deleteFn: deleteZone, updateName: updateZoneName, reorder: reorderZones },
+  { label: 'Floor', items: floors, input: newFloor, creating: 'floor', deleting: 'floor', add: addFloor, deleteFn: deleteFloor, updateName: updateFloorName, reorder: reorderFloors },
+  { label: 'Section', items: sections, input: newSection, creating: 'section', deleting: 'section', add: addSection, deleteFn: deleteSection, updateName: updateSectionName, reorder: reorderSections },
+  { label: 'Usage', items: usages, input: newUsage, creating: 'usage', deleting: 'usage', add: addUsage, deleteFn: deleteUsage, updateName: updateUsageName, reorder: reorderUsages },
 ]
 
 // 삭제 다이얼로그 상태
@@ -91,28 +99,14 @@ async function confirmDelete() {
             추가
           </Button>
         </div>
-        <div class="space-y-1 max-h-48 overflow-y-auto">
-          <div
-            v-for="item in col.items.value"
-            :key="item.id"
-            class="flex items-center px-3 py-2 border border-border rounded-md text-sm"
-          >
-            <span class="flex-1 truncate">{{ item.name }}</span>
-            <button
-              class="ml-1 p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive shrink-0"
-              :disabled="isDeleting[col.deleting]"
-              @click.stop="openDeleteDialog(item.id, item.name, col.deleteFn)"
-            >
-              <X class="w-3 h-3" />
-            </button>
-          </div>
-          <p
-            v-if="col.items.value.length === 0"
-            class="text-xs text-muted-foreground py-2 text-center"
-          >
-            항목 없음
-          </p>
-        </div>
+        <SortableReferenceList
+          :items="col.items.value"
+          :selectable="false"
+          :disabled="isDeleting[col.deleting]"
+          @delete="(id, name) => openDeleteDialog(id, name, col.deleteFn)"
+          @update-name="({ id, name }) => col.updateName(id, name)"
+          @reorder="col.reorder"
+        />
       </div>
     </div>
 

@@ -201,6 +201,108 @@ export function useLocationMaster() {
     }
   }
 
+  // 수정 (이름 변경)
+  const updateZoneName = async (id: number, name: string) => {
+    try {
+      await referenceApi.updateZone({ id, name })
+      const item = zones.value.find((z) => z.id === id)
+      if (item) item.name = name
+    } catch (error: unknown) {
+      console.error('Zone 이름 수정 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+      await loadZones()
+    }
+  }
+
+  const updateFloorName = async (id: number, name: string) => {
+    try {
+      await referenceApi.updateFloor({ id, name })
+      const item = floors.value.find((f) => f.id === id)
+      if (item) item.name = name
+    } catch (error: unknown) {
+      console.error('Floor 이름 수정 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+      await loadFloors()
+    }
+  }
+
+  const updateSectionName = async (id: number, name: string) => {
+    try {
+      await referenceApi.updateSection({ id, name })
+      const item = sections.value.find((s) => s.id === id)
+      if (item) item.name = name
+    } catch (error: unknown) {
+      console.error('Section 이름 수정 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+      await loadSections()
+    }
+  }
+
+  const updateUsageName = async (id: number, name: string) => {
+    try {
+      await referenceApi.updateUsage({ id, name })
+      const item = usages.value.find((u) => u.id === id)
+      if (item) item.name = name
+    } catch (error: unknown) {
+      console.error('Usage 이름 수정 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+      await loadUsages()
+    }
+  }
+
+  // 정렬 변경
+  const reorderZones = async (ids: number[]) => {
+    try {
+      await referenceApi.updateZone({ ids })
+      await loadZones()
+    } catch (error: unknown) {
+      console.error('Zone 정렬 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+      await loadZones()
+    }
+  }
+
+  const reorderFloors = async (ids: number[]) => {
+    try {
+      await referenceApi.updateFloor({ ids })
+      await loadFloors()
+    } catch (error: unknown) {
+      console.error('Floor 정렬 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+      await loadFloors()
+    }
+  }
+
+  const reorderSections = async (ids: number[]) => {
+    try {
+      await referenceApi.updateSection({ ids })
+      await loadSections()
+    } catch (error: unknown) {
+      console.error('Section 정렬 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+      await loadSections()
+    }
+  }
+
+  const reorderUsages = async (ids: number[]) => {
+    try {
+      await referenceApi.updateUsage({ ids })
+      await loadUsages()
+    } catch (error: unknown) {
+      console.error('Usage 정렬 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+      await loadUsages()
+    }
+  }
+
   return {
     zones,
     floors,
@@ -221,5 +323,13 @@ export function useLocationMaster() {
     deleteFloor,
     deleteSection,
     deleteUsage,
+    updateZoneName,
+    updateFloorName,
+    updateSectionName,
+    updateUsageName,
+    reorderZones,
+    reorderFloors,
+    reorderSections,
+    reorderUsages,
   }
 }

@@ -113,6 +113,59 @@ export function useEquipmentMaster() {
     }
   }
 
+  // 수정 (이름 변경)
+  const updateEquipmentTypeName = async (id: number, name: string) => {
+    try {
+      await referenceApi.updateEquipmentType({ id, name })
+      const item = equipmentTypes.value.find((et) => et.id === id)
+      if (item) item.name = name
+    } catch (error: unknown) {
+      console.error('EquipmentType 이름 수정 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+      await loadEquipmentTypes()
+    }
+  }
+
+  const updateEquipmentSpecName = async (id: number, name: string) => {
+    try {
+      await referenceApi.updateEquipmentSpec({ id, name })
+      const item = equipmentSpecs.value.find((es) => es.id === id)
+      if (item) item.name = name
+    } catch (error: unknown) {
+      console.error('EquipmentSpec 이름 수정 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+      if (selectedEquipmentTypeId.value) await loadEquipmentSpecs(selectedEquipmentTypeId.value)
+    }
+  }
+
+  // 정렬 변경
+  const reorderEquipmentTypes = async (ids: number[]) => {
+    try {
+      await referenceApi.updateEquipmentType({ ids })
+      await loadEquipmentTypes()
+    } catch (error: unknown) {
+      console.error('EquipmentType 정렬 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+      await loadEquipmentTypes()
+    }
+  }
+
+  const reorderEquipmentSpecs = async (ids: number[]) => {
+    if (!selectedEquipmentTypeId.value) return
+    try {
+      await referenceApi.updateEquipmentSpec({ ids, parentId: selectedEquipmentTypeId.value })
+      await loadEquipmentSpecs(selectedEquipmentTypeId.value)
+    } catch (error: unknown) {
+      console.error('EquipmentSpec 정렬 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+      if (selectedEquipmentTypeId.value) await loadEquipmentSpecs(selectedEquipmentTypeId.value)
+    }
+  }
+
   // 캐스케이딩 로드
   watch(selectedEquipmentTypeId, (id) => {
     equipmentSpecs.value = []
@@ -133,5 +186,9 @@ export function useEquipmentMaster() {
     addEquipmentSpec,
     deleteEquipmentType,
     deleteEquipmentSpec,
+    updateEquipmentTypeName,
+    updateEquipmentSpecName,
+    reorderEquipmentTypes,
+    reorderEquipmentSpecs,
   }
 }

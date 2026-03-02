@@ -24,6 +24,7 @@ const {
   decrementCount: decrementLaborCount,
   setCount: setLaborCount,
   submitAttendance,
+  resetAttendance,
   init: initAttendance,
 } = useAttendance()
 
@@ -49,6 +50,7 @@ const {
   setFullDay,
   setHalfDay,
   submitEquipmentDeployment,
+  resetEquipmentDeployment,
   init: initEquipment,
 } = useEquipmentDeployment(selectedDate, contractors)
 
@@ -130,12 +132,17 @@ onMounted(async () => {
           </div>
         </div>
 
-        <!-- 하단: 추가 + 제출 -->
+        <!-- 하단: 추가 + 초기화 + 제출 -->
         <div class="flex items-center justify-between px-4 py-3 border-t border-border">
-          <Button size="sm" @click="addLaborBox">
-            <Plus class="w-4 h-4 mr-2" />
-            추가
-          </Button>
+          <div class="flex items-center gap-2">
+            <Button size="sm" @click="addLaborBox">
+              <Plus class="w-4 h-4 mr-2" />
+              추가
+            </Button>
+            <Button variant="destructive" size="sm" @click="resetAttendance">
+              출역인원 초기화
+            </Button>
+          </div>
           <Button
             size="lg"
             :disabled="workTypeBoxes.length === 0 || isSubmitting"
@@ -165,6 +172,7 @@ onMounted(async () => {
               :box-id="box.id"
               :company-id="box.companyId"
               :company-name="box.companyName"
+              :work-type-name="box.workTypeName"
               :selected-specs="box.selectedSpecs"
               :all-equipment-specs="allEquipmentSpecs"
               :is-loading="box.isLoading"
@@ -187,12 +195,17 @@ onMounted(async () => {
           </div>
         </div>
 
-        <!-- 하단: 추가 + 제출 -->
+        <!-- 하단: 추가 + 초기화 + 제출 -->
         <div class="flex items-center justify-between px-4 py-3 border-t border-border">
-          <Button size="sm" @click="addEquipmentBox">
-            <Plus class="w-4 h-4 mr-2" />
-            추가
-          </Button>
+          <div class="flex items-center gap-2">
+            <Button size="sm" @click="addEquipmentBox">
+              <Plus class="w-4 h-4 mr-2" />
+              추가
+            </Button>
+            <Button variant="destructive" size="sm" @click="resetEquipmentDeployment">
+              출역장비 초기화
+            </Button>
+          </div>
           <Button
             size="lg"
             :disabled="equipmentBoxes.length === 0 || isSubmittingEquipment"

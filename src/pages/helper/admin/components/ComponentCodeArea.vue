@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { ChevronDown, ChevronRight, RefreshCw, X } from 'lucide-vue-next'
+import SortableReferenceList from '@/components/helper/SortableReferenceList.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -41,6 +42,8 @@ const {
   loadComponentTypes,
   addComponentType,
   deleteComponentType,
+  updateComponentTypeName,
+  reorderComponentTypes,
 
   // 부재 코드
   componentCodes,
@@ -202,30 +205,15 @@ async function confirmDelete() {
               추가
             </Button>
           </div>
-          <div class="space-y-1 max-h-48 overflow-y-auto">
-            <div
-              v-for="ct in componentTypes"
-              :key="ct.id"
-              class="flex items-center px-3 py-2 border rounded-md cursor-pointer text-sm transition-colors"
-              :class="{
-                'border-primary bg-primary/10 font-medium': selectedComponentTypeId === ct.id,
-                'border-border hover:bg-muted/50': selectedComponentTypeId !== ct.id,
-              }"
-              @click="selectComponentType(ct.id)"
-            >
-              <span class="flex-1 truncate">{{ ct.name }}</span>
-              <button
-                class="ml-1 p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive shrink-0"
-                :disabled="isDeletingType"
-                @click.stop="openDeleteDialog(ct.id, ct.name, deleteComponentType)"
-              >
-                <X class="w-3 h-3" />
-              </button>
-            </div>
-            <p v-if="componentTypes.length === 0" class="text-xs text-muted-foreground py-2 text-center">
-              항목 없음
-            </p>
-          </div>
+          <SortableReferenceList
+            :items="componentTypes"
+            :selected-id="selectedComponentTypeId"
+            :disabled="isDeletingType"
+            @select="selectComponentType"
+            @delete="(id, name) => openDeleteDialog(id, name, deleteComponentType)"
+            @update-name="({ id, name }) => updateComponentTypeName(id, name)"
+            @reorder="reorderComponentTypes"
+          />
         </div>
 
         <!-- ComponentCode 컬럼 -->

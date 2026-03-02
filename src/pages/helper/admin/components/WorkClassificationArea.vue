@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { X } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -13,6 +12,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import SortableReferenceList from '@/components/helper/SortableReferenceList.vue'
 import { useWorkClassification } from '../composables/useWorkClassification'
 
 const {
@@ -41,6 +41,14 @@ const {
   deleteWorkType,
   deleteSubWorkType,
   deleteWorkStep,
+  updateDivisionName,
+  updateWorkTypeName,
+  updateSubWorkTypeName,
+  updateWorkStepName,
+  reorderDivisions,
+  reorderWorkTypes,
+  reorderSubWorkTypes,
+  reorderWorkSteps,
 } = useWorkClassification()
 
 onMounted(() => {
@@ -91,30 +99,15 @@ async function confirmDelete() {
             추가
           </Button>
         </div>
-        <div class="space-y-1 max-h-48 overflow-y-auto">
-          <div
-            v-for="div in divisions"
-            :key="div.id"
-            class="flex items-center px-3 py-2 border rounded-md cursor-pointer text-sm transition-colors"
-            :class="{
-              'border-primary bg-primary/10 font-medium': selectedDivisionId === div.id,
-              'border-border hover:bg-muted/50': selectedDivisionId !== div.id,
-            }"
-            @click="selectDivision(div.id)"
-          >
-            <span class="flex-1 truncate">{{ div.name }}</span>
-            <button
-              class="ml-1 p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive shrink-0"
-              :disabled="isDeleting"
-              @click.stop="openDeleteDialog(div.id, div.name, deleteDivision)"
-            >
-              <X class="w-3 h-3" />
-            </button>
-          </div>
-          <p v-if="divisions.length === 0" class="text-xs text-muted-foreground py-2 text-center">
-            항목 없음
-          </p>
-        </div>
+        <SortableReferenceList
+          :items="divisions"
+          :selected-id="selectedDivisionId"
+          :disabled="isDeleting"
+          @select="selectDivision"
+          @delete="(id, name) => openDeleteDialog(id, name, deleteDivision)"
+          @update-name="({ id, name }) => updateDivisionName(id, name)"
+          @reorder="reorderDivisions"
+        />
       </div>
 
       <!-- WorkType 컬럼 -->
@@ -137,39 +130,16 @@ async function confirmDelete() {
             추가
           </Button>
         </div>
-        <div class="space-y-1 max-h-48 overflow-y-auto">
-          <div
-            v-for="wt in workTypes"
-            :key="wt.id"
-            class="flex items-center px-3 py-2 border rounded-md cursor-pointer text-sm transition-colors"
-            :class="{
-              'border-primary bg-primary/10 font-medium': selectedWorkTypeId === wt.id,
-              'border-border hover:bg-muted/50': selectedWorkTypeId !== wt.id,
-            }"
-            @click="selectWorkType(wt.id)"
-          >
-            <span class="flex-1 truncate">{{ wt.name }}</span>
-            <button
-              class="ml-1 p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive shrink-0"
-              :disabled="isDeleting"
-              @click.stop="openDeleteDialog(wt.id, wt.name, deleteWorkType)"
-            >
-              <X class="w-3 h-3" />
-            </button>
-          </div>
-          <p
-            v-if="selectedDivisionId && workTypes.length === 0"
-            class="text-xs text-muted-foreground py-2 text-center"
-          >
-            항목 없음
-          </p>
-          <p
-            v-if="!selectedDivisionId"
-            class="text-xs text-muted-foreground py-2 text-center"
-          >
-            분류를 선택하세요
-          </p>
-        </div>
+        <SortableReferenceList
+          :items="workTypes"
+          :selected-id="selectedWorkTypeId"
+          :disabled="isDeleting"
+          :empty-message="selectedDivisionId ? '항목 없음' : '분류를 선택하세요'"
+          @select="selectWorkType"
+          @delete="(id, name) => openDeleteDialog(id, name, deleteWorkType)"
+          @update-name="({ id, name }) => updateWorkTypeName(id, name)"
+          @reorder="reorderWorkTypes"
+        />
       </div>
 
       <!-- SubWorkType 컬럼 -->
@@ -192,39 +162,16 @@ async function confirmDelete() {
             추가
           </Button>
         </div>
-        <div class="space-y-1 max-h-48 overflow-y-auto">
-          <div
-            v-for="swt in subWorkTypes"
-            :key="swt.id"
-            class="flex items-center px-3 py-2 border rounded-md cursor-pointer text-sm transition-colors"
-            :class="{
-              'border-primary bg-primary/10 font-medium': selectedSubWorkTypeId === swt.id,
-              'border-border hover:bg-muted/50': selectedSubWorkTypeId !== swt.id,
-            }"
-            @click="selectSubWorkType(swt.id)"
-          >
-            <span class="flex-1 truncate">{{ swt.name }}</span>
-            <button
-              class="ml-1 p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive shrink-0"
-              :disabled="isDeleting"
-              @click.stop="openDeleteDialog(swt.id, swt.name, deleteSubWorkType)"
-            >
-              <X class="w-3 h-3" />
-            </button>
-          </div>
-          <p
-            v-if="selectedWorkTypeId && subWorkTypes.length === 0"
-            class="text-xs text-muted-foreground py-2 text-center"
-          >
-            항목 없음
-          </p>
-          <p
-            v-if="!selectedWorkTypeId"
-            class="text-xs text-muted-foreground py-2 text-center"
-          >
-            공종을 선택하세요
-          </p>
-        </div>
+        <SortableReferenceList
+          :items="subWorkTypes"
+          :selected-id="selectedSubWorkTypeId"
+          :disabled="isDeleting"
+          :empty-message="selectedWorkTypeId ? '항목 없음' : '공종을 선택하세요'"
+          @select="selectSubWorkType"
+          @delete="(id, name) => openDeleteDialog(id, name, deleteSubWorkType)"
+          @update-name="({ id, name }) => updateSubWorkTypeName(id, name)"
+          @reorder="reorderSubWorkTypes"
+        />
       </div>
 
       <!-- WorkStep 컬럼 -->
@@ -247,34 +194,15 @@ async function confirmDelete() {
             추가
           </Button>
         </div>
-        <div class="space-y-1 max-h-48 overflow-y-auto">
-          <div
-            v-for="ws in workSteps"
-            :key="ws.id"
-            class="flex items-center px-3 py-2 border rounded-md text-sm border-border"
-          >
-            <span class="flex-1 truncate">{{ ws.name }}</span>
-            <button
-              class="ml-1 p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive shrink-0"
-              :disabled="isDeleting"
-              @click.stop="openDeleteDialog(ws.id, ws.name, deleteWorkStep)"
-            >
-              <X class="w-3 h-3" />
-            </button>
-          </div>
-          <p
-            v-if="selectedSubWorkTypeId && workSteps.length === 0"
-            class="text-xs text-muted-foreground py-2 text-center"
-          >
-            항목 없음
-          </p>
-          <p
-            v-if="!selectedSubWorkTypeId"
-            class="text-xs text-muted-foreground py-2 text-center"
-          >
-            세부공종을 선택하세요
-          </p>
-        </div>
+        <SortableReferenceList
+          :items="workSteps"
+          :selectable="false"
+          :disabled="isDeleting"
+          :empty-message="selectedSubWorkTypeId ? '항목 없음' : '세부공종을 선택하세요'"
+          @delete="(id, name) => openDeleteDialog(id, name, deleteWorkStep)"
+          @update-name="({ id, name }) => updateWorkStepName(id, name)"
+          @reorder="reorderWorkSteps"
+        />
       </div>
     </div>
 
