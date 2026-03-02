@@ -88,7 +88,7 @@ export function useEquipmentMaster() {
         selectedEquipmentTypeId.value = null
         equipmentSpecs.value = []
       }
-      await loadEquipmentTypes()
+      equipmentTypes.value = equipmentTypes.value.filter((et) => et.id !== id)
     } catch (error: unknown) {
       console.error('EquipmentType 삭제 실패:', error)
       const err = error as { response?: { data?: { message?: string } }; message?: string }
@@ -103,7 +103,7 @@ export function useEquipmentMaster() {
     isDeleting.value = true
     try {
       await referenceApi.deleteEquipmentSpec(id)
-      if (selectedEquipmentTypeId.value) await loadEquipmentSpecs(selectedEquipmentTypeId.value)
+      equipmentSpecs.value = equipmentSpecs.value.filter((es) => es.id !== id)
     } catch (error: unknown) {
       console.error('EquipmentSpec 삭제 실패:', error)
       const err = error as { response?: { data?: { message?: string } }; message?: string }

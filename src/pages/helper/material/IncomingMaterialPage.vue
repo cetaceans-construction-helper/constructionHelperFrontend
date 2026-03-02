@@ -233,7 +233,24 @@ async function confirmDeleteDelivery() {
   try {
     await materialOrderApi.deleteMaterialDelivery(deleteTargetId.value)
     showDeleteDialog.value = false
-    loadDeliveries()
+    const deletedId = deleteTargetId.value
+    deliveries.value = deliveries.value.filter((d) => d.materialDeliveryId !== deletedId)
+    // 관련 상태 정리
+    delete expandedDeliveries[deletedId]
+    deliveryImageUrls.value[deletedId]?.forEach((url) => URL.revokeObjectURL(url))
+    delete deliveryLinesMap.value[deletedId]
+    delete deliveryEditState.value[deletedId]
+    delete deliveryImageUrls.value[deletedId]
+    delete deliveryImageIndex.value[deletedId]
+    delete isLoadingLines.value[deletedId]
+    delete isUpdatingDelivery.value[deletedId]
+    delete isLoadingDeliveryImages.value[deletedId]
+    delete deliveryImageScale.value[deletedId]
+    delete deliveryImageTranslate[deletedId]
+    delete deliveryImageDragging.value[deletedId]
+    delete deliveryDragStart[deletedId]
+    delete deliveryTranslateStart[deletedId]
+    delete isGeneratingMir.value[deletedId]
   } catch (error: unknown) {
     console.error('반입자재 삭제 실패:', error)
     const err = error as { response?: { data?: { message?: string } }; message?: string }
@@ -259,7 +276,7 @@ async function confirmDeleteMir() {
   try {
     await materialInspectionRequestApi.deleteMaterialInspectionRequest(mirDeleteTargetId.value)
     showMirDeleteDialog.value = false
-    mirList.value = await materialInspectionRequestApi.getMaterialInspectionRequestList()
+    mirList.value = mirList.value.filter((m) => m.id !== mirDeleteTargetId.value)
   } catch (error: unknown) {
     console.error('검수요청서 삭제 실패:', error)
     const err = error as { response?: { data?: { message?: string } }; message?: string }

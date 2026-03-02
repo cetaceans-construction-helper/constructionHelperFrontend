@@ -146,7 +146,7 @@ export function useLocationMaster() {
     isDeleting.value.zone = true
     try {
       await referenceApi.deleteZone(id)
-      await loadZones()
+      zones.value = zones.value.filter((z) => z.id !== id)
     } catch (error: unknown) {
       console.error('Zone 삭제 실패:', error)
       const err = error as { response?: { data?: { message?: string } }; message?: string }
@@ -161,7 +161,7 @@ export function useLocationMaster() {
     isDeleting.value.floor = true
     try {
       await referenceApi.deleteFloor(id)
-      await loadFloors()
+      floors.value = floors.value.filter((f) => f.id !== id)
     } catch (error: unknown) {
       console.error('Floor 삭제 실패:', error)
       const err = error as { response?: { data?: { message?: string } }; message?: string }
@@ -176,7 +176,7 @@ export function useLocationMaster() {
     isDeleting.value.section = true
     try {
       await referenceApi.deleteSection(id)
-      await loadSections()
+      sections.value = sections.value.filter((s) => s.id !== id)
     } catch (error: unknown) {
       console.error('Section 삭제 실패:', error)
       const err = error as { response?: { data?: { message?: string } }; message?: string }
@@ -191,7 +191,7 @@ export function useLocationMaster() {
     isDeleting.value.usage = true
     try {
       await referenceApi.deleteUsage(id)
-      await loadUsages()
+      usages.value = usages.value.filter((u) => u.id !== id)
     } catch (error: unknown) {
       console.error('Usage 삭제 실패:', error)
       const err = error as { response?: { data?: { message?: string } }; message?: string }

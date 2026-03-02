@@ -14,6 +14,14 @@ export function dateToDayIndex(dateStr: string): number {
   return Math.round((target.getTime() - today.getTime()) / (24 * 60 * 60 * 1000))
 }
 
+// dayIndex → YYYY-MM-DD 날짜 문자열 (dateToDayIndex의 역함수)
+export function dayIndexToDate(dayIndex: number): string {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const target = new Date(today.getTime() + dayIndex * 24 * 60 * 60 * 1000)
+  return `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, '0')}-${String(target.getDate()).padStart(2, '0')}`
+}
+
 // startDate → 노드 X 좌표
 export function computeNodeX(startDate: string): number {
   return dateToDayIndex(startDate) * CHART_CONFIG.pixelPerDay + CHART_CONFIG.nodePaddingX

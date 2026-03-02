@@ -1,7 +1,7 @@
 import { ref, computed, type Ref } from 'vue'
 import type { Node, Edge } from '@vue-flow/core'
 import { workPathApi, type PathResponse, type PathEdge } from '@/api/workPath'
-import type { WorkResponse } from '@/api/work'
+import type { WorkResponse, MutationResponse } from '@/api/work'
 
 // 엣지 배열 → 순서 있는 체인 배열
 function edgesToChain(edges: PathEdge[]): number[] {
@@ -47,7 +47,7 @@ export function usePathEditor(
   nodes: Ref<Node[]>,
   edges: Ref<Edge[]>,
   paths: Ref<PathResponse[]>,
-  onPathUpdated: () => Promise<void>
+  onPathUpdated: (mutation: MutationResponse) => void
 ) {
   // 패스 선택 및 수정 상태
   const selectedPathId = ref<number | null>(null)
@@ -191,30 +191,53 @@ export function usePathEditor(
     return [...otherEdges, ...editingEdges]
   })
 
-  // 패스 선택 토글
+  // 패스 선택 (이미 같은 패스면 무시)
+  const selectPath = (pathId: number) => {
+    if (selectedPathId.value === pathId) return
+    selectedPathId.value = pathId
+    const path = paths.value.find(p => p.workPathId === pathId)
+    editingPathEdges.value = path?.edges ? [...path.edges] : []
+  }
+
+  // 패스 선택 토글 (하위 호환)
   const togglePathSelection = (pathId: number) => {
     if (selectedPathId.value === pathId) {
       // 선택 해제
       selectedPathId.value = null
       editingPathEdges.value = []
     } else {
-      // 선택 → 편집 모드 진입
-      selectedPathId.value = pathId
-      const path = paths.value.find(p => p.workPathId === pathId)
-      editingPathEdges.value = path?.edges ? [...path.edges] : []
+      selectPath(pathId)
     }
   }
 
-  // 패스 수정 제출
+  // 패스 수정 제출 (선택 해제 포함)
   const submitPathUpdate = async () => {
     if (!selectedPathId.value) return
 
     isUpdatingPath.value = true
     try {
-      await workPathApi.updateWorkPath(selectedPathId.value, editingPathEdges.value)
-      await onPathUpdated()
+      const mutation = await workPathApi.updateWorkPath(selectedPathId.value, { edges: editingPathEdges.value })
+      onPathUpdated(mutation)
       selectedPathId.value = null
       editingPathEdges.value = []
+    } catch (error: unknown) {
+      console.error('패스 수정 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      const errorMessage = err.response?.data?.message || err.message
+      alert(errorMessage)
+    } finally {
+      isUpdatingPath.value = false
+    }
+  }
+
+  // 패스 수정 즉시 저장 (선택 유지)
+  const savePathEdges = async () => {
+    if (!selectedPathId.value) return
+
+    isUpdatingPath.value = true
+    try {
+      const mutation = await workPathApi.updateWorkPath(selectedPathId.value, { edges: editingPathEdges.value })
+      onPathUpdated(mutation)
     } catch (error: unknown) {
       console.error('패스 수정 실패:', error)
       const err = error as { response?: { data?: { message?: string } }; message?: string }
@@ -232,20 +255,21 @@ export function usePathEditor(
   }
 
   // 노드 연결 이벤트 (패스 편집 모드에서 - 체인 기반 재구성)
-  const onConnect = (params: { source: string; target: string }) => {
-    if (!isPathEditMode.value) return
-
+  // 패스 미선택 시 null 반환 → 호출측에서 createPath 처리
+  const onConnect = (params: { source: string; target: string }): { sourceWorkId: number; targetWorkId: number } | null => {
     const sourceWorkId = parseInt(params.source.replace('work-', ''))
     const targetWorkId = parseInt(params.target.replace('work-', ''))
+    if (sourceWorkId === targetWorkId) return null
 
-    // 자기 자신 연결 방지
-    if (sourceWorkId === targetWorkId) return
+    if (!isPathEditMode.value) {
+      return { sourceWorkId, targetWorkId }
+    }
 
     // 이미 동일한 연결이 있는지 확인
     const alreadyExists = editingPathEdges.value.some(
       e => e.sourceWorkId === sourceWorkId && e.targetWorkId === targetWorkId
     )
-    if (alreadyExists) return
+    if (alreadyExists) return null
 
     // 1. 현재 체인 계산
     const currentChain = edgesToChain(editingPathEdges.value)
@@ -259,7 +283,7 @@ export function usePathEditor(
     if (sourceIndex === -1 && targetIndex === -1) {
       // 둘 다 체인에 없음: 분리된 체인으로 엣지만 추가
       editingPathEdges.value.push({ sourceWorkId, targetWorkId })
-      return
+      return null
     } else if (sourceIndex === -1) {
       // source만 새로움: target 앞에 삽입
       newChain = [...currentChain]
@@ -270,7 +294,7 @@ export function usePathEditor(
       newChain.splice(sourceIndex + 1, 0, targetWorkId)
     } else if (sourceIndex + 1 === targetIndex) {
       // 이미 연결됨: 아무것도 안 함
-      return
+      return null
     } else {
       // 둘 다 체인에 있지만 연결 안 됨: 체인 재구성
       // source 다음에 target이 오도록 재배열
@@ -279,8 +303,20 @@ export function usePathEditor(
       newChain.splice(newSourceIndex + 1, 0, targetWorkId)
     }
 
-    // 3. 체인에서 엣지 재생성
-    editingPathEdges.value = chainToEdges(newChain)
+    // 3. 기존 lagDays 보존용 맵
+    const lagMap = new Map<string, number | null>()
+    editingPathEdges.value.forEach(e => {
+      if (e.lagDays != null) {
+        lagMap.set(`${e.sourceWorkId}-${e.targetWorkId}`, e.lagDays)
+      }
+    })
+
+    // 4. 체인에서 엣지 재생성 + lagDays 복원
+    editingPathEdges.value = chainToEdges(newChain).map(e => {
+      const lag = lagMap.get(`${e.sourceWorkId}-${e.targetWorkId}`)
+      return lag != null ? { ...e, lagDays: lag } : e
+    })
+    return null
   }
 
   // 패스에서 노드 제거 (중간 노드는 앞뒤 자동 연결)
@@ -325,8 +361,10 @@ export function usePathEditor(
     styledEdges,
 
     // Methods
+    selectPath,
     togglePathSelection,
     submitPathUpdate,
+    savePathEdges,
     cancelPathEdit,
     onConnect,
     removeNodeFromPath,

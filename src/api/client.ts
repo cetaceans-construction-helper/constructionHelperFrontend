@@ -1,6 +1,7 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios'
 import router from '@/router'
 import type { FieldErrors, TokenResponse } from '@/types/auth'
+import { appConfig } from '@/config'
 
 // Access Token 저장소 (메모리)
 let accessToken: string | null = null
@@ -23,7 +24,7 @@ export class ValidationError extends Error {
 }
 
 const client = axios.create({
-  baseURL: `${import.meta.env.VITE_API_BASE_URL}/auth`,
+  baseURL: `${appConfig.apiBaseUrl}/auth`,
   timeout: 10000,
   withCredentials: true,
   headers: {

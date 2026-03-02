@@ -5,12 +5,12 @@ import {
   type WorkTypeResponse,
   type SubWorkTypeResponse,
 } from '@/api/reference'
-import { workApi } from '@/api/work'
+import { workApi, type MutationResponse } from '@/api/work'
 import { projectApi } from '@/api/project'
 import type { Project } from '@/types/project'
 
 
-export function useWorkForm(onWorkCreated: () => Promise<void>) {
+export function useWorkForm(onWorkCreated: (mutation: MutationResponse) => void) {
   // 오늘 날짜 (YYYY-MM-DD 형식, 로컬 시간 기준)
   const now = new Date()
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
@@ -21,13 +21,14 @@ export function useWorkForm(onWorkCreated: () => Promise<void>) {
     work_type_id: '',
     sub_work_type_id: '',
     component_type_ids: [] as string[],
-    zone_id: '',
-    floor_id: '',
-    section_id: '',
-    usage_id: '',
+    zone_ids: [] as number[],
+    floor_ids: [] as number[],
+    section_ids: [] as number[],
+    usage_ids: [] as number[],
     start_date: today,
     work_days: 7,
     isWorkingOnHoliday: true,
+    annotation: '',
   })
 
   // 공종 분류 옵션 (id 기반)
@@ -65,18 +66,15 @@ export function useWorkForm(onWorkCreated: () => Promise<void>) {
       work_days,
       sub_work_type_id,
       component_type_ids,
-      zone_id,
-      floor_id,
-      section_id,
-      usage_id,
+      zone_ids,
+      floor_ids,
+      section_ids,
+      usage_ids,
       isWorkingOnHoliday,
+      annotation,
     } = workFormState.value
 
     // 필수 값 검증
-    if (!sub_work_type_id) {
-      alert('공종을 선택해주세요.')
-      return false
-    }
     if (!start_date) {
       alert('시작일을 입력해주세요.')
       return false
@@ -90,14 +88,15 @@ export function useWorkForm(onWorkCreated: () => Promise<void>) {
         startDate: start_date,
         workLeadTime: work_days,
         isWorkingOnHoliday,
-        ...(zone_id && zone_id !== 'none' && { zoneId: Number(zone_id) }),
-        ...(floor_id && floor_id !== 'none' && { floorId: Number(floor_id) }),
-        ...(section_id && section_id !== 'none' && { sectionId: Number(section_id) }),
-        ...(usage_id && usage_id !== 'none' && { usageId: Number(usage_id) }),
+        zoneIds: zone_ids,
+        floorIds: floor_ids,
+        sectionIds: section_ids,
+        usageIds: usage_ids,
+        ...(annotation && { annotation }),
       }
 
-      await workApi.createWork(payload)
-      await onWorkCreated()
+      const mutation = await workApi.createWork(payload)
+      onWorkCreated(mutation)
       return true
     } catch (error: unknown) {
       console.error('작업 생성 실패:', error)

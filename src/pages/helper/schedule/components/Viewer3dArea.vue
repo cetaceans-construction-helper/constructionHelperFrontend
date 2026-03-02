@@ -503,10 +503,10 @@ const groupedDailyWorks = computed<GroupedWorks>(() => {
                     >
                       <p class="font-medium text-foreground truncate">{{ work.workName }}</p>
                       <div class="flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-muted-foreground mt-1">
-                        <span v-if="work.zone">{{ work.zone }}</span>
-                        <span v-if="work.floor">{{ work.floor }}</span>
-                        <span v-if="work.section">{{ work.section }}</span>
-                        <span v-if="work.usage">{{ work.usage }}</span>
+                        <span v-if="work.zoneNames?.length">{{ work.zoneNames.join(', ') }}</span>
+                        <span v-if="work.floorNames?.length">{{ work.floorNames.join(', ') }}</span>
+                        <span v-if="work.sectionNames?.length">{{ work.sectionNames.join(', ') }}</span>
+                        <span v-if="work.usageNames?.length">{{ work.usageNames.join(', ') }}</span>
                       </div>
                       <p class="text-xs text-muted-foreground mt-0.5">
                         {{ work.startDate }} ~ {{ work.completionDate }}

@@ -180,12 +180,29 @@ const handleTabKey = (e: KeyboardEvent) => {
   if (nextMenu) router.push(nextMenu.path)
 }
 
+// ~ 키로 다음 섹션 이동 (Shift+~ 이전 섹션)
+const handleTildeKey = (e: KeyboardEvent) => {
+  if (e.key !== '`' && e.key !== '~' && e.key !== '₩') return
+  const tag = (e.target as HTMLElement)?.tagName
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+
+  e.preventDefault()
+  const idx = sections.findIndex((s) => s.id === currentSection.value)
+  const nextIdx = e.shiftKey
+    ? (idx - 1 + sections.length) % sections.length
+    : (idx + 1) % sections.length
+  const next = sections[nextIdx]
+  if (next) selectSection(next.id)
+}
+
 onMounted(() => {
   window.addEventListener('keydown', handleTabKey)
+  window.addEventListener('keydown', handleTildeKey)
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleTabKey)
+  window.removeEventListener('keydown', handleTildeKey)
 })
 </script>
 

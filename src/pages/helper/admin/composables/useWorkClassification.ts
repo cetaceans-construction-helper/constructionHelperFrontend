@@ -168,7 +168,7 @@ export function useWorkClassification() {
         subWorkTypes.value = []
         workSteps.value = []
       }
-      await loadDivisions()
+      divisions.value = divisions.value.filter((d) => d.id !== id)
     } catch (error: unknown) {
       console.error('Division 삭제 실패:', error)
       const err = error as { response?: { data?: { message?: string } }; message?: string }
@@ -189,7 +189,7 @@ export function useWorkClassification() {
         subWorkTypes.value = []
         workSteps.value = []
       }
-      if (selectedDivisionId.value) await loadWorkTypes(selectedDivisionId.value)
+      workTypes.value = workTypes.value.filter((wt) => wt.id !== id)
     } catch (error: unknown) {
       console.error('WorkType 삭제 실패:', error)
       const err = error as { response?: { data?: { message?: string } }; message?: string }
@@ -208,7 +208,7 @@ export function useWorkClassification() {
         selectedSubWorkTypeId.value = null
         workSteps.value = []
       }
-      if (selectedWorkTypeId.value) await loadSubWorkTypes(selectedWorkTypeId.value)
+      subWorkTypes.value = subWorkTypes.value.filter((swt) => swt.id !== id)
     } catch (error: unknown) {
       console.error('SubWorkType 삭제 실패:', error)
       const err = error as { response?: { data?: { message?: string } }; message?: string }
@@ -223,7 +223,7 @@ export function useWorkClassification() {
     isDeleting.value = true
     try {
       await referenceApi.deleteWorkStep(id)
-      if (selectedSubWorkTypeId.value) await loadWorkSteps(selectedSubWorkTypeId.value)
+      workSteps.value = workSteps.value.filter((ws) => ws.id !== id)
     } catch (error: unknown) {
       console.error('WorkStep 삭제 실패:', error)
       const err = error as { response?: { data?: { message?: string } }; message?: string }

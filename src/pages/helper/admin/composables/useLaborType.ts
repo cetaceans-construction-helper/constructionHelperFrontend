@@ -120,7 +120,7 @@ export function useLaborType() {
     isDeleting.value = true
     try {
       await referenceApi.deleteLaborType(id)
-      await loadLaborTypes()
+      laborTypes.value = laborTypes.value.filter((lt) => lt.id !== id)
     } catch (error: unknown) {
       console.error('LaborType 삭제 실패:', error)
       const err = error as ApiError

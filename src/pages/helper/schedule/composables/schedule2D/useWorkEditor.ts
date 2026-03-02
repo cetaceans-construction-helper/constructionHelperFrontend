@@ -1,10 +1,10 @@
 import { ref, computed, watch, type Ref } from 'vue'
 import type { Node } from '@vue-flow/core'
-import { workApi, type WorkResponse } from '@/api/work'
+import { workApi, type WorkResponse, type MutationResponse } from '@/api/work'
 
 export function useWorkEditor(
   nodes: Ref<Node[]>,
-  onWorkUpdated: () => Promise<void>
+  onWorkUpdated: (mutation: MutationResponse) => void
 ) {
   // 작업 선택 및 수정 상태
   const selectedWorkId = ref<number | null>(null)
@@ -35,12 +35,12 @@ export function useWorkEditor(
 
     isUpdatingWork.value = true
     try {
-      await workApi.updateWork(selectedWorkId.value, {
+      const mutation = await workApi.updateWork(selectedWorkId.value, {
         startDate: workEditForm.value.startDate,
         workLeadTime: workEditForm.value.workLeadTime,
         isWorkingOnHoliday: workEditForm.value.isWorkingOnHoliday
       })
-      await onWorkUpdated()
+      onWorkUpdated(mutation)
       selectedWorkId.value = null
     } catch (error: unknown) {
       console.error('작업 수정 실패:', error)

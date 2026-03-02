@@ -109,7 +109,7 @@ export function useComponentCode() {
         componentCodes.value = []
         selectedComponentCodeIds.value = []
       }
-      await loadComponentTypes()
+      componentTypes.value = componentTypes.value.filter((ct) => ct.id !== id)
     } catch (error: unknown) {
       console.error('ComponentType 삭제 실패:', error)
       const err = error as { response?: { data?: { message?: string } }; message?: string }
@@ -155,9 +155,8 @@ export function useComponentCode() {
     isDeletingCode.value = true
     try {
       await referenceApi.deleteComponentCode(id)
-      const idx = selectedComponentCodeIds.value.indexOf(id)
-      if (idx !== -1) selectedComponentCodeIds.value.splice(idx, 1)
-      if (selectedComponentTypeId.value != null) await loadComponentCodes(selectedComponentTypeId.value)
+      selectedComponentCodeIds.value = selectedComponentCodeIds.value.filter((v) => v !== id)
+      componentCodes.value = componentCodes.value.filter((cc) => cc.id !== id)
     } catch (error: unknown) {
       console.error('ComponentCode 삭제 실패:', error)
       const err = error as { response?: { data?: { message?: string } }; message?: string }
@@ -341,7 +340,8 @@ export function useComponentCode() {
     isDeletingMapping.value = true
     try {
       await referenceApi.deleteCwmMapping(id)
-      await loadAllMappings()
+      allMappings.value = allMappings.value.filter((m) => m.id !== id)
+      selectedMappingIds.value = selectedMappingIds.value.filter((v) => v !== id)
     } catch (error: unknown) {
       console.error('CwmMapping 삭제 실패:', error)
       const err = error as { response?: { data?: { message?: string } }; message?: string }

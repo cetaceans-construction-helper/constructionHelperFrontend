@@ -91,7 +91,7 @@ export function useMaterialMaster() {
         selectedMaterialTypeId.value = null
         materialSpecs.value = []
       }
-      await loadMaterialTypes()
+      materialTypes.value = materialTypes.value.filter((mt) => mt.id !== id)
     } catch (error: unknown) {
       console.error('MaterialType 삭제 실패:', error)
       const err = error as { response?: { data?: { message?: string } }; message?: string }
@@ -106,7 +106,7 @@ export function useMaterialMaster() {
     isDeleting.value = true
     try {
       await referenceApi.deleteMaterialSpec(id)
-      if (selectedMaterialTypeId.value) await loadMaterialSpecs(selectedMaterialTypeId.value)
+      materialSpecs.value = materialSpecs.value.filter((ms) => ms.id !== id)
     } catch (error: unknown) {
       console.error('MaterialSpec 삭제 실패:', error)
       const err = error as { response?: { data?: { message?: string } }; message?: string }
