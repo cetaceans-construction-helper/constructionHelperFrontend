@@ -70,6 +70,20 @@ const selectGroup = (index: number, event: MouseEvent) => {
   selectedGroupIndex.value = index
 }
 
+// 화면 좌표 → flow 좌표 변환 후 그룹박스 히트 테스트 (공통 헬퍼)
+const hitTestGroupBox = (event: MouseEvent): number => {
+  if (!showWorkTypeGroup.value && !showSubWorkTypeGroup.value) return -1
+  const container = containerRef.value
+  if (!container) return -1
+  const rect = container.getBoundingClientRect()
+  const flowX = (event.clientX - rect.left - viewport.value.x) / viewport.value.zoom
+  const flowY = (event.clientY - rect.top - viewport.value.y) / viewport.value.zoom
+  return groupBoxes.value.findIndex((box) => {
+    const visible = (box.level === 'workType' && showWorkTypeGroup.value) || (box.level === 'subWorkType' && showSubWorkTypeGroup.value)
+    return visible && flowX >= box.x && flowX <= box.x + box.width && flowY >= box.y && flowY <= box.y + box.height
+  })
+}
+
 const startGroupDrag = (index: number, event: MouseEvent) => {
   event.preventDefault()
   event.stopPropagation()
@@ -280,39 +294,27 @@ const groupBoxes = computed<GroupBox[]>(() => {
       bySubType.get(key)!.push(n)
     })
 
-    if (bySubType.size >= 2) {
-      // subWorkType 2개 이상 → workType 박스 + subWorkType 박스들
-      const wtPadding = 15
-      const { minX, minY, maxX, maxY } = calcBBox(typeNodes)
-      boxes.push({
-        level: 'workType', label: workType,
-        x: minX - wtPadding, y: minY - wtPadding,
-        width: maxX - minX + wtPadding * 2, height: maxY - minY + wtPadding * 2,
-        fillColor: palette.bg, borderColor: palette.border,
-      })
+    // workType 박스 (항상 생성)
+    const wtPadding = 15
+    const { minX, minY, maxX, maxY } = calcBBox(typeNodes)
+    boxes.push({
+      level: 'workType', label: workType,
+      x: minX - wtPadding, y: minY - wtPadding,
+      width: maxX - minX + wtPadding * 2, height: maxY - minY + wtPadding * 2,
+      fillColor: palette.bg, borderColor: palette.border,
+    })
 
-      const subPadding = 8
-      bySubType.forEach((subNodes, subType) => {
-        const sb = calcBBox(subNodes)
-        boxes.push({
-          level: 'subWorkType', label: subType,
-          x: sb.minX - subPadding, y: sb.minY - subPadding,
-          width: sb.maxX - sb.minX + subPadding * 2, height: sb.maxY - sb.minY + subPadding * 2,
-          fillColor: palette.subBg, borderColor: palette.subBorder,
-        })
-      })
-    } else {
-      // subWorkType 1개 → subWorkType 이름으로 박스 하나만
-      const subName = bySubType.keys().next().value || '미분류'
-      const padding = 12
-      const { minX, minY, maxX, maxY } = calcBBox(typeNodes)
+    // subWorkType 박스들
+    const subPadding = 8
+    bySubType.forEach((subNodes, subType) => {
+      const sb = calcBBox(subNodes)
       boxes.push({
-        level: 'subWorkType', label: subName,
-        x: minX - padding, y: minY - padding,
-        width: maxX - minX + padding * 2, height: maxY - minY + padding * 2,
+        level: 'subWorkType', label: subType,
+        x: sb.minX - subPadding, y: sb.minY - subPadding,
+        width: sb.maxX - sb.minX + subPadding * 2, height: sb.maxY - sb.minY + subPadding * 2,
         fillColor: palette.subBg, borderColor: palette.subBorder,
       })
-    }
+    })
 
     typeIdx++
   })
@@ -935,23 +937,50 @@ const handleWorkEditSubmit = async () => {
   emit('works-loaded', nodes.value.map((n) => n.data.work as WorkResponse))
 }
 
-// 빈 영역 클릭 시 선택 해제
-const onPaneClick = () => {
+// 빈 영역 클릭 시 — 그룹박스 내부면 그룹 선택, 아니면 선택 해제
+const onPaneClick = (event: MouseEvent) => {
   tooltip.value.visible = false
-  selectedGroupIndex.value = null
   if (isPathEditMode.value) {
     cancelPathEdit()
   }
   if (!isInPathMode.value) {
     clearWorkSelection()
   }
+
+  // 그룹박스 표시 중이면 클릭 위치가 그룹박스 내부인지 체크
+  const hitIndex = hitTestGroupBox(event)
+  if (hitIndex >= 0) {
+    selectedGroupIndex.value = hitIndex
+    return
+  }
+  selectedGroupIndex.value = null
 }
 
-// 컨테이너 더블클릭 → 노드 위가 아니면 빠른 생성
+// 컨테이너 mousedown capture → 그룹박스 내부(노드 아닌 영역)에서 드래그 시작
+const onContainerMouseDown = (event: MouseEvent) => {
+  if (event.button !== 0) return
+  const target = event.target as HTMLElement
+  // 노드·컨트롤·말풍선·토글 위 mousedown은 해당 요소가 처리
+  if (target.closest('.vue-flow__node') || target.closest('.vue-flow__panel') || target.closest('[data-tooltip-balloon]') || target.closest('[data-group-toggle]')) return
+  // 헤더 영역 mousedown은 무시
+  const container = containerRef.value
+  if (!container) return
+  const rect = container.getBoundingClientRect()
+  if (event.clientY - rect.top < HEADER_HEIGHT) return
+
+  const hitIndex = hitTestGroupBox(event)
+  if (hitIndex >= 0) {
+    startGroupDrag(hitIndex, event)
+  }
+}
+
+// 컨테이너 더블클릭 → 노드·그룹박스 위가 아니면 빠른 생성
 const onContainerDblClick = (event: MouseEvent) => {
   // 노드 위 더블클릭은 onNodeDoubleClick이 처리, 말풍선/그룹토글 위 더블클릭은 무시
   const target = event.target as HTMLElement
   if (target.closest('.vue-flow__node') || target.closest('[data-tooltip-balloon]') || target.closest('[data-group-toggle]')) return
+  // 그룹박스 내부 더블클릭 → 작업 생성 방지
+  if (hitTestGroupBox(event) >= 0) return
   handlePaneDblClick(event)
 }
 
@@ -1252,6 +1281,7 @@ onUnmounted(() => {
       ref="containerRef"
       class="relative h-full min-w-0 border border-border rounded-lg overflow-hidden"
       @wheel="handleVueFlowWheel"
+      @mousedown.capture="onContainerMouseDown"
       @dblclick="onContainerDblClick"
     >
       <!-- 5단 날짜 헤더 바 -->
@@ -1486,7 +1516,7 @@ onUnmounted(() => {
                 borderRadius: box.level === 'workType' ? '6px' : '4px',
               }"
             >
-              <!-- 테두리 8px 영역 (상/하/좌/우) — 여기서만 클릭/드래그 캡처 -->
+              <!-- 테두리 8px 영역 (상/하/좌/우) — 여기서만 드래그 캡처 -->
               <div class="absolute top-0 left-0 right-0 h-[8px]" style="pointer-events: auto; cursor: grab"
                 @mousedown.stop="startGroupDrag(i, $event)" @click.stop="selectGroup(i, $event)" @dblclick.stop />
               <div class="absolute bottom-0 left-0 right-0 h-[8px]" style="pointer-events: auto; cursor: grab"
@@ -1508,7 +1538,7 @@ onUnmounted(() => {
               <div
                 v-if="selectedGroupIndex === i"
                 class="absolute inset-0"
-                :style="{ pointerEvents: 'none', border: '2px solid rgba(59,130,246,0.8)', borderRadius: box.level === 'workType' ? '6px' : '4px' }"
+                :style="{ pointerEvents: 'none', border: `2px solid ${box.borderColor}`, borderRadius: box.level === 'workType' ? '6px' : '4px' }"
               />
             </div>
           </template>
