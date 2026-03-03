@@ -15,6 +15,13 @@ export interface CreateWorkPayload {
   annotation?: string
 }
 
+// 작업 사진 응답 타입
+export interface WorkPhotoResponse {
+  photoId: number
+  url: string
+  description: string
+}
+
 // 작업 응답 타입
 export interface WorkResponse {
   workId: number
@@ -39,6 +46,7 @@ export interface WorkResponse {
   positionY: number
   componentTypeIds?: number[]
   annotation?: string
+  photos?: WorkPhotoResponse[]
 }
 
 // Mutation 응답 (Work/WorkPath 변경 시 공통 반환)
@@ -93,9 +101,50 @@ export const workApi = {
     return data
   },
 
-  // 특정 날짜의 작업 ID 목록 조회
-  async getWorkListByDate(date: string): Promise<number[]> {
-    const { data } = await apiClient.get<number[]>('/work/getWorkListByDate', { params: { date } })
+  // 특정 날짜의 작업 목록 조회
+  async getWorkListByDate(date: string): Promise<WorkResponse[]> {
+    const { data } = await apiClient.get<WorkResponse[]>('/work/getWorkListByDate', {
+      params: { date },
+    })
     return data
+  },
+
+  // 작업 사진 업로드
+  async createWorkPhoto(
+    workId: number,
+    photoDate: string,
+    photos: File[],
+    descriptions?: string[],
+  ): Promise<void> {
+    const formData = new FormData()
+    formData.append('workId', String(workId))
+    formData.append('photoDate', photoDate)
+    photos.forEach((file) => formData.append('photos', file))
+    if (descriptions) {
+      descriptions.forEach((desc) => formData.append('descriptions', desc))
+    }
+    await apiClient.post('/work/createWorkPhoto', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 60000,
+    })
+  },
+
+  // 작업 사진 설명 수정
+  async updateWorkPhoto(photoId: number, description: string): Promise<void> {
+    await apiClient.put(`/work/updateWorkPhoto/${photoId}`, { description })
+  },
+
+  // 작업 사진 삭제
+  async deleteWorkPhoto(photoId: number): Promise<void> {
+    await apiClient.delete(`/work/deleteWorkPhoto/${photoId}`)
+  },
+
+  // 작업 사진 다운로드 (ObjectURL 반환)
+  async downloadWorkPhoto(url: string): Promise<string> {
+    const { data } = await apiClient.get<Blob>('/materialDelivery/downloadFile', {
+      params: { url },
+      responseType: 'blob',
+    })
+    return URL.createObjectURL(data)
   },
 }
