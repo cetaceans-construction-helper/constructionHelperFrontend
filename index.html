@@ -16,8 +16,6 @@
     window.gtag =
       window.gtag ||
       function () {
-        // Gate 2 디버그: GA 호출 로그를 한 곳(index.html)에서만 관리
-        console.log('[GA][gtag]', ...arguments)
         rawGtag(...arguments)
       }
     window.gtag('js', new Date())

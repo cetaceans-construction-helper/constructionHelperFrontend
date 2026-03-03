@@ -306,25 +306,25 @@
 - [x] [작업] API 클라이언트 인터셉터에 `api_error` 연동
 - [x] [작업] 샘플링 비율 적용(기본 20%, `VITE_GA_API_ERROR_SAMPLE_RATE`로 조정 가능)
 - [x] [작업] 401/403 토큰 갱신 루프는 제외 처리
-- [ ] [검증] 의도적 실패 요청 시 `status_group` 값 정확성 확인 (`4xx`, `5xx`, `network`)
-- [ ] [완료조건] 장애 징후 모니터링 가능
+- [x] [검증] 의도적 실패 요청 시 `status_group` 값 정확성 확인 (`4xx`, `5xx`, `network`)
+- [x] [완료조건] 장애 징후 모니터링 가능
 
 ### 11.8 Gate 8 - 데이터 품질/보안 점검
 
-- [ ] [작업] debug용 console log 정리/clean up
+- [x] [작업] debug용 console log 정리/clean up
 - [ ] [검증] DebugView 실측 로그 샘플 검토 (핵심 이벤트 전체 1회 이상)
 - [ ] [완료조건] 운영 반영 가능 상태
 
 #### 11.8.1 debug log clean up 상세 (`index.html`, `src/router/index.ts`)
 
-- [ ] `index.html` 정리
+- [x] `index.html` 정리
   - `window.gtag` 래퍼 내부 `console.log('[GA][gtag]', ...arguments)` 제거
   - `rawGtag(...arguments)` 호출은 유지 (이벤트 전송 동작 유지)
   - `send_page_view: false` 설정은 유지 (수동 `page_view` 전략 유지)
-- [ ] `src/router/index.ts` 정리
+- [x] `src/router/index.ts` 정리
   - `afterEach` 내부 `console.log('[GA][route_change]', ...)` 제거
   - `isReady` fallback 내부 `console.log('[GA][route_change][initial]', ...)` 제거
   - `analyticsClient.trackRouteView(...)` 호출은 유지 (자동 수집 유지)
 - [ ] 정리 후 확인
-  - 페이지 이동/최초 진입 시 GA 디버그 목적 `console.log`가 더 이상 출력되지 않는지 확인
+  - [x] 코드 기준으로 페이지 이동/최초 진입 GA 디버그 목적 `console.log` 제거 확인
   - DebugView에서 `page_view`/핵심 이벤트 수집은 정상인지 재확인

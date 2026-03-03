@@ -130,12 +130,8 @@ const router = createRouter({
 // Global navigation guard (temporarily disabled)
 router.beforeEach(authGuard)
 
-router.afterEach((to, from, failure) => {
+router.afterEach((to, _from, failure) => {
   if (failure) return
-  console.log('[GA][route_change]', {
-    routeName: typeof to.name === 'string' ? to.name : 'unknown',
-    routePath: to.fullPath,
-  })
   analyticsClient.trackRouteView({
     routeName: to.name,
     routePath: to.fullPath,
@@ -147,10 +143,6 @@ router
   .isReady()
   .then(() => {
     const current = router.currentRoute.value
-    console.log('[GA][route_change][initial]', {
-      routeName: typeof current.name === 'string' ? current.name : 'unknown',
-      routePath: current.fullPath,
-    })
     analyticsClient.trackRouteView({
       routeName: current.name,
       routePath: current.fullPath,
