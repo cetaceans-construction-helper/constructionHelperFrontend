@@ -8,6 +8,7 @@ import {
 import { workApi, type MutationResponse } from '@/api/work'
 import { projectApi } from '@/api/project'
 import type { Project } from '@/types/project'
+import { analyticsClient } from '@/lib/analytics/analyticsClient'
 
 
 export function useWorkForm(onWorkCreated: (mutation: MutationResponse) => void) {
@@ -97,9 +98,11 @@ export function useWorkForm(onWorkCreated: (mutation: MutationResponse) => void)
 
       const mutation = await workApi.createWork(payload)
       onWorkCreated(mutation)
+      analyticsClient.trackAction('schedule_2d', 'create_work', 'success')
       return true
     } catch (error: unknown) {
       console.error('작업 생성 실패:', error)
+      analyticsClient.trackAction('schedule_2d', 'create_work', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       const errorMessage = err.response?.data?.message || err.message
       alert(errorMessage)

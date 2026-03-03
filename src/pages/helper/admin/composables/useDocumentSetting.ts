@@ -6,6 +6,7 @@ import type {
   MirSlotValue,
   ImageCategory,
 } from '@/api/projectDocumentCode'
+import { analyticsClient } from '@/lib/analytics/analyticsClient'
 
 function createDefaultSlots(): SlotConfig[] {
   return (['A', 'B', 'C', 'D', 'E'] as const).map((key) => ({
@@ -264,8 +265,10 @@ export function useDocumentSetting() {
         exists.value = true
       }
       alert('저장되었습니다.')
+      analyticsClient.trackAction('admin_document_setting', 'save_document_setting', 'success')
     } catch (error: unknown) {
       console.error('문서 설정 저장 실패:', error)
+      analyticsClient.trackAction('admin_document_setting', 'save_document_setting', 'fail')
       const e = error as { response?: { data?: { message?: string } }; message?: string }
       alert(e.response?.data?.message || e.message)
     } finally {

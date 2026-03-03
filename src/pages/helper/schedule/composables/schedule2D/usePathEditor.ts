@@ -2,6 +2,7 @@ import { ref, computed, type Ref } from 'vue'
 import type { Node, Edge } from '@vue-flow/core'
 import { workPathApi, type PathResponse, type PathEdge } from '@/api/workPath'
 import type { WorkResponse, MutationResponse } from '@/api/work'
+import { analyticsClient } from '@/lib/analytics/analyticsClient'
 
 // 엣지 배열 → 순서 있는 체인 배열
 function edgesToChain(edges: PathEdge[]): number[] {
@@ -218,10 +219,12 @@ export function usePathEditor(
     try {
       const mutation = await workPathApi.updateWorkPath(selectedPathId.value, { edges: editingPathEdges.value })
       onPathUpdated(mutation)
+      analyticsClient.trackAction('schedule_2d', 'update_path', 'success')
       selectedPathId.value = null
       editingPathEdges.value = []
     } catch (error: unknown) {
       console.error('패스 수정 실패:', error)
+      analyticsClient.trackAction('schedule_2d', 'update_path', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       const errorMessage = err.response?.data?.message || err.message
       alert(errorMessage)
@@ -238,8 +241,10 @@ export function usePathEditor(
     try {
       const mutation = await workPathApi.updateWorkPath(selectedPathId.value, { edges: editingPathEdges.value })
       onPathUpdated(mutation)
+      analyticsClient.trackAction('schedule_2d', 'update_path', 'success')
     } catch (error: unknown) {
       console.error('패스 수정 실패:', error)
+      analyticsClient.trackAction('schedule_2d', 'update_path', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       const errorMessage = err.response?.data?.message || err.message
       alert(errorMessage)

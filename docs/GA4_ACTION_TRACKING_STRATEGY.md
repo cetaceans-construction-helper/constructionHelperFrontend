@@ -65,21 +65,76 @@
 
 ### 5.4 `feature_action` 액션 매핑
 
-| feature               | action                  | 구현 위치                                                           |
-| --------------------- | ----------------------- | ------------------------------------------------------------------- |
-| `schedule_2d`         | `create_work`           | `src/pages/helper/schedule/composables/schedule2D/useWorkForm.ts`   |
-| `schedule_2d`         | `update_work`           | `src/pages/helper/schedule/composables/schedule2D/useWorkEditor.ts` |
-| `schedule_2d`         | `delete_work`           | `src/pages/helper/schedule/components/Viewer2dArea.vue`             |
-| `schedule_2d`         | `create_path`           | `src/pages/helper/schedule/components/Viewer2dArea.vue`             |
-| `schedule_2d`         | `update_path`           | `src/pages/helper/schedule/composables/schedule2D/usePathEditor.ts` |
-| `schedule_2d`         | `delete_path`           | `src/pages/helper/schedule/components/Viewer2dArea.vue`             |
-| `schedule_2d`         | `optimize_path`         | `src/pages/helper/schedule/components/Viewer2dArea.vue`             |
-| `schedule_3d`         | `update_task_quantity`  | `src/pages/helper/schedule/components/Viewer3dArea.vue`             |
-| `schedule_3d`         | `create_material_order` | `src/pages/helper/schedule/components/Viewer3dArea.vue`             |
-| `material_attendance` | `save_attendance`       | `src/pages/helper/material/composables/useAttendance.ts`            |
-| `material_equipment`  | `save_equipment`        | `src/pages/helper/material/composables/useEquipmentDeployment.ts`   |
-| `admin`               | `save_master_data`      | `src/pages/helper/admin/*`                                          |
-| `system_admin`        | `save_system_data`      | `src/pages/system-admin/composables/*`                              |
+| feature                  | action                          | 구현 위치                                                                                                                                                                                              |
+| ------------------------ | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `schedule_2d`            | `create_work`                   | `src/pages/helper/schedule/composables/schedule2D/useWorkForm.ts`, `src/pages/helper/schedule/composables/schedule2D/useWorkTooltipData.ts`                                                            |
+| `schedule_2d`            | `update_work`                   | `src/pages/helper/schedule/components/Viewer2dArea.vue`, `src/pages/helper/schedule/composables/schedule2D/useWorkEditor.ts`, `src/pages/helper/schedule/composables/schedule2D/useWorkTooltipData.ts` |
+| `schedule_2d`            | `delete_work`                   | `src/pages/helper/schedule/components/Viewer2dArea.vue`                                                                                                                                                |
+| `schedule_2d`            | `create_path`                   | `src/pages/helper/schedule/components/Viewer2dArea.vue`                                                                                                                                                |
+| `schedule_2d`            | `update_path`                   | `src/pages/helper/schedule/components/Viewer2dArea.vue`, `src/pages/helper/schedule/composables/schedule2D/usePathEditor.ts`                                                                           |
+| `schedule_2d`            | `delete_path`                   | `src/pages/helper/schedule/components/Viewer2dArea.vue`                                                                                                                                                |
+| `schedule_2d`            | `optimize_current_path`         | `src/pages/helper/schedule/components/Viewer2dArea.vue`                                                                                                                                                |
+| `schedule_2d`            | `optimize_all_paths`            | `src/pages/helper/schedule/components/Viewer2dArea.vue`                                                                                                                                                |
+| `schedule_3d`            | `update_task_quantity`          | `src/pages/helper/schedule/components/Viewer3dArea.vue`                                                                                                                                                |
+| `schedule_3d`            | `create_material_order`         | `src/pages/helper/schedule/components/Viewer3dArea.vue`                                                                                                                                                |
+| `material_attendance`    | `save_attendance`               | `src/pages/helper/material/composables/useAttendance.ts`                                                                                                                                               |
+| `material_attendance`    | `reset_attendance`              | `src/pages/helper/material/composables/useAttendance.ts`                                                                                                                                               |
+| `material_equipment`     | `save_equipment`                | `src/pages/helper/material/composables/useEquipmentDeployment.ts`                                                                                                                                      |
+| `material_equipment`     | `reset_equipment`               | `src/pages/helper/material/composables/useEquipmentDeployment.ts`                                                                                                                                      |
+| `material_delivery`      | `create_delivery`               | `src/pages/helper/material/InvoicePage.vue`, `src/pages/helper/material/IncomingMaterialPage.vue`                                                                                                      |
+| `material_delivery`      | `update_delivery`               | `src/pages/helper/material/IncomingMaterialPage.vue`                                                                                                                                                   |
+| `material_delivery`      | `delete_delivery`               | `src/pages/helper/material/IncomingMaterialPage.vue`                                                                                                                                                   |
+| `material_delivery`      | `create_mir`                    | `src/pages/helper/material/IncomingMaterialPage.vue`                                                                                                                                                   |
+| `material_delivery`      | `delete_mir`                    | `src/pages/helper/material/IncomingMaterialPage.vue`, `src/pages/helper/document/MaterialInspectionPage.vue`                                                                                           |
+| `material_delivery`      | `download_mir`                  | `src/pages/helper/document/MaterialInspectionPage.vue`                                                                                                                                                 |
+| `admin_master_data`      | `create_division`               | `src/pages/helper/admin/composables/useWorkClassification.ts`                                                                                                                                          |
+| `admin_master_data`      | `update_division`               | `src/pages/helper/admin/composables/useWorkClassification.ts`                                                                                                                                          |
+| `admin_master_data`      | `delete_division`               | `src/pages/helper/admin/composables/useWorkClassification.ts`                                                                                                                                          |
+| `admin_master_data`      | `create_work_type`              | `src/pages/helper/admin/composables/useWorkClassification.ts`                                                                                                                                          |
+| `admin_master_data`      | `update_work_type`              | `src/pages/helper/admin/composables/useWorkClassification.ts`                                                                                                                                          |
+| `admin_master_data`      | `delete_work_type`              | `src/pages/helper/admin/composables/useWorkClassification.ts`                                                                                                                                          |
+| `admin_master_data`      | `create_sub_work_type`          | `src/pages/helper/admin/composables/useWorkClassification.ts`                                                                                                                                          |
+| `admin_master_data`      | `update_sub_work_type`          | `src/pages/helper/admin/composables/useWorkClassification.ts`                                                                                                                                          |
+| `admin_master_data`      | `delete_sub_work_type`          | `src/pages/helper/admin/composables/useWorkClassification.ts`                                                                                                                                          |
+| `admin_master_data`      | `create_work_step`              | `src/pages/helper/admin/composables/useWorkClassification.ts`                                                                                                                                          |
+| `admin_master_data`      | `update_work_step`              | `src/pages/helper/admin/composables/useWorkClassification.ts`                                                                                                                                          |
+| `admin_master_data`      | `delete_work_step`              | `src/pages/helper/admin/composables/useWorkClassification.ts`                                                                                                                                          |
+| `admin_master_data`      | `create_material_type`          | `src/pages/helper/admin/composables/useMaterialMaster.ts`                                                                                                                                              |
+| `admin_master_data`      | `update_material_type`          | `src/pages/helper/admin/composables/useMaterialMaster.ts`                                                                                                                                              |
+| `admin_master_data`      | `delete_material_type`          | `src/pages/helper/admin/composables/useMaterialMaster.ts`                                                                                                                                              |
+| `admin_master_data`      | `create_material_spec`          | `src/pages/helper/admin/composables/useMaterialMaster.ts`                                                                                                                                              |
+| `admin_master_data`      | `update_material_spec`          | `src/pages/helper/admin/composables/useMaterialMaster.ts`                                                                                                                                              |
+| `admin_master_data`      | `delete_material_spec`          | `src/pages/helper/admin/composables/useMaterialMaster.ts`                                                                                                                                              |
+| `admin_master_data`      | `create_zone`                   | `src/pages/helper/admin/composables/useLocationMaster.ts`                                                                                                                                              |
+| `admin_master_data`      | `update_zone`                   | `src/pages/helper/admin/composables/useLocationMaster.ts`                                                                                                                                              |
+| `admin_master_data`      | `delete_zone`                   | `src/pages/helper/admin/composables/useLocationMaster.ts`                                                                                                                                              |
+| `admin_master_data`      | `create_floor`                  | `src/pages/helper/admin/composables/useLocationMaster.ts`                                                                                                                                              |
+| `admin_master_data`      | `update_floor`                  | `src/pages/helper/admin/composables/useLocationMaster.ts`                                                                                                                                              |
+| `admin_master_data`      | `delete_floor`                  | `src/pages/helper/admin/composables/useLocationMaster.ts`                                                                                                                                              |
+| `admin_master_data`      | `create_section`                | `src/pages/helper/admin/composables/useLocationMaster.ts`                                                                                                                                              |
+| `admin_master_data`      | `update_section`                | `src/pages/helper/admin/composables/useLocationMaster.ts`                                                                                                                                              |
+| `admin_master_data`      | `delete_section`                | `src/pages/helper/admin/composables/useLocationMaster.ts`                                                                                                                                              |
+| `admin_master_data`      | `create_usage`                  | `src/pages/helper/admin/composables/useLocationMaster.ts`                                                                                                                                              |
+| `admin_master_data`      | `update_usage`                  | `src/pages/helper/admin/composables/useLocationMaster.ts`                                                                                                                                              |
+| `admin_master_data`      | `delete_usage`                  | `src/pages/helper/admin/composables/useLocationMaster.ts`                                                                                                                                              |
+| `admin_master_data`      | `create_component_type`         | `src/pages/helper/admin/composables/useComponentCode.ts`                                                                                                                                               |
+| `admin_master_data`      | `update_component_type`         | `src/pages/helper/admin/composables/useComponentCode.ts`                                                                                                                                               |
+| `admin_master_data`      | `delete_component_type`         | `src/pages/helper/admin/composables/useComponentCode.ts`                                                                                                                                               |
+| `admin_master_data`      | `create_component_code`         | `src/pages/helper/admin/composables/useComponentCode.ts`                                                                                                                                               |
+| `admin_master_data`      | `delete_component_code`         | `src/pages/helper/admin/composables/useComponentCode.ts`                                                                                                                                               |
+| `admin_master_data`      | `create_component_code_mapping` | `src/pages/helper/admin/composables/useComponentCode.ts`                                                                                                                                               |
+| `admin_master_data`      | `update_component_code_mapping` | `src/pages/helper/admin/composables/useComponentCode.ts`                                                                                                                                               |
+| `admin_master_data`      | `delete_component_code_mapping` | `src/pages/helper/admin/composables/useComponentCode.ts`                                                                                                                                               |
+| `admin_resource_data`    | `create_labor_type`             | `src/pages/helper/admin/composables/useLaborType.ts`                                                                                                                                                   |
+| `admin_resource_data`    | `delete_labor_type`             | `src/pages/helper/admin/composables/useLaborType.ts`                                                                                                                                                   |
+| `admin_resource_data`    | `create_equipment_type`         | `src/pages/helper/admin/composables/useEquipmentMaster.ts`                                                                                                                                             |
+| `admin_resource_data`    | `update_equipment_type`         | `src/pages/helper/admin/composables/useEquipmentMaster.ts`                                                                                                                                             |
+| `admin_resource_data`    | `delete_equipment_type`         | `src/pages/helper/admin/composables/useEquipmentMaster.ts`                                                                                                                                             |
+| `admin_resource_data`    | `create_equipment_spec`         | `src/pages/helper/admin/composables/useEquipmentMaster.ts`                                                                                                                                             |
+| `admin_resource_data`    | `update_equipment_spec`         | `src/pages/helper/admin/composables/useEquipmentMaster.ts`                                                                                                                                             |
+| `admin_resource_data`    | `delete_equipment_spec`         | `src/pages/helper/admin/composables/useEquipmentMaster.ts`                                                                                                                                             |
+| `admin_document_setting` | `save_document_setting`         | `src/pages/helper/admin/composables/useDocumentSetting.ts`                                                                                                                                             |
+| `system_admin`           | `save_system_data`              | `src/pages/system-admin/composables/*`                                                                                                                                                                 |
 
 ## 6. 구현 방식
 
@@ -115,9 +170,9 @@
   - `app_open`, `page_view`, 인증 이벤트
 - Phase 2 (1~2일):
   - `project_selected`
-  - `feature_action` (schedule/material 우선)
+  - `feature_action` (schedule/material/admin 우선)
 - Phase 3 (추가 1일):
-  - `admin/system_admin` 액션
+  - `system_admin` 액션
   - `api_error` 샘플링 수집
 
 ## 9. 검증 체크리스트
@@ -191,16 +246,22 @@
 
 ### 11.6 Gate 6 - 핵심 `feature_action` 연동 (우선 기능)
 
-- [ ] [작업] `schedule_2d` 액션 연결 (`create/update/delete work`, `create/update/delete/optimize path`)
-- [ ] [작업] `schedule_3d` 액션 연결 (`update_task_quantity`, `create_material_order`)
-- [ ] [작업] `material` 액션 연결 (`save_attendance`, `save_equipment`)
-- [ ] [검증] 각 액션별 성공 1건/실패 1건 수동 테스트
-- [ ] [완료조건] 핵심 업무 액션 지표 수집 시작
+- [x] [작업] `schedule_2d` 액션 연결 (`create/update/delete work`, `create/update/delete path`, `optimize_current_path`, `optimize_all_paths`)
+- [x] [작업] `schedule_3d` 액션 연결 (`update_task_quantity`, `create_material_order`)
+- [x] [작업] `material_attendance`, `material_equipment` 액션 연결 (`save_attendance`, `reset_attendance`, `save_equipment`, `reset_equipment`)
+- [x] [작업] `material_delivery` 액션 연결 (`create_delivery`, `update_delivery`, `delete_delivery`)
+- [x] [작업] `material_delivery` 액션 연결 (`create_mir`, `delete_mir`, `download_mir`)
+
+- [x] [작업] `admin_master_data` 계층별 C/U/D 액션 연결 (`create_division`, `update_division`, `delete_division`, `create_work_type`, `update_work_type`, `delete_work_type`, `create_sub_work_type`, `update_sub_work_type`, `delete_sub_work_type`, `create_work_step`, `update_work_step`, `delete_work_step`, `create_material_type`, `update_material_type`, `delete_material_type`, `create_material_spec`, `update_material_spec`, `delete_material_spec`, `create_zone`, `update_zone`, `delete_zone`, `create_floor`, `update_floor`, `delete_floor`, `create_section`, `update_section`, `delete_section`, `create_usage`, `update_usage`, `delete_usage`, `create_component_type`, `update_component_type`, `delete_component_type`, `create_component_code`, `delete_component_code`, `create_component_code_mapping`, `update_component_code_mapping`, `delete_component_code_mapping`)
+- [x] [작업] `admin_resource_data` 계층별 C/U/D 액션 연결 (`create_labor_type`, `delete_labor_type`, `create_equipment_type`, `update_equipment_type`, `delete_equipment_type`, `create_equipment_spec`, `update_equipment_spec`, `delete_equipment_spec`)
+- [x] [작업] `admin_document_setting` 저장 액션 연결 (`save_document_setting`)
+- [x] [검증] 각 액션별 성공 1건/실패 1건 수동 테스트
+- [x] [완료조건] 핵심 업무 액션 지표 수집 시작
 
 #### 11.6.1 Gate 6 최소 파라미터 정책 (확정안)
 
 - 공통(모든 `feature_action`):
-  - `feature`: 기능 그룹 (`schedule_2d`, `schedule_3d`, `material_attendance`, `material_equipment`)
+  - `feature`: 기능 그룹 (`schedule_2d`, `schedule_3d`, `material_attendance`, `material_equipment`, `material_delivery`, `admin_master_data`, `admin_resource_data`, `admin_document_setting`)
   - `action`: 작업명 (`create_work`, `update_work`, ...)
   - `result`: `success|fail`
 - 추가 파라미터:
@@ -209,12 +270,36 @@
 
 #### 11.6.2 Gate 6 상세 TODO (계획)
 
-- [ ] `schedule_2d / schedule_3d / material` 액션에 최소 스키마(`feature/action/result`) 적용
-- [ ] `create_*` 액션에서 ID 파라미터 미수집 정책 적용
-- [ ] DebugView 검증 시나리오 정의
+- [x] `schedule_2d / schedule_3d / material_attendance / material_equipment / material_delivery / admin_master_data / admin_resource_data / admin_document_setting` 액션에 최소 스키마(`feature/action/result`) 적용
+- [x] `create_*` 액션에서 ID 파라미터 미수집 정책 적용
+- [x] DebugView 검증 시나리오 정의
   - `create/update/delete work`
-  - `create/update/delete/optimize path`
+  - `create/update/delete path`
+  - `optimize_current_path`, `optimize_all_paths`
+  - `update_task_quantity`, `create_material_order`
+  - `save_attendance`, `reset_attendance`, `save_equipment`, `reset_equipment`
+  - `create/update/delete_delivery`
+  - `create/delete/download_mir`
+  - `create_division`, `create_work_type`, `create_sub_work_type`, `create_work_step`
+  - `update_division`, `delete_division`, `update_work_type`, `delete_work_type`, `update_sub_work_type`, `delete_sub_work_type`, `update_work_step`, `delete_work_step`
+  - `create_material_type`, `update_material_type`, `delete_material_type`, `create_material_spec`, `update_material_spec`, `delete_material_spec`
+  - `create_zone`, `update_zone`, `delete_zone`, `create_floor`, `update_floor`, `delete_floor`, `create_section`, `update_section`, `delete_section`, `create_usage`, `update_usage`, `delete_usage`
+  - `create_component_type`, `update_component_type`, `delete_component_type`, `create_component_code`, `delete_component_code`, `create_component_code_mapping`, `update_component_code_mapping`, `delete_component_code_mapping`
+  - `create_labor_type`, `delete_labor_type`, `create_equipment_type`, `update_equipment_type`, `delete_equipment_type`, `create_equipment_spec`, `update_equipment_spec`, `delete_equipment_spec`
+  - `save_document_setting`
   - 각 시나리오 성공/실패 1회씩
+
+#### 11.6.3 Gate 6 리팩토링 반영 업데이트 (2026-03-03)
+
+- 추가:
+  - `material_delivery` (`create_delivery`, `update_delivery`, `delete_delivery`, `create_mir`, `delete_mir`, `download_mir`)
+  - `admin_master_data` 계층별 C/U/D 액션
+  - `admin_resource_data` 계층별 C/U/D 액션
+  - `admin_document_setting` 저장 액션
+- 유지:
+  - `schedule_2d`, `schedule_3d`, `material_attendance`, `material_equipment`
+- Gate 6 제외(보류):
+  - `system_admin` 계열 액션은 Phase 3 범위 유지
 
 ### 11.7 Gate 7 - 오류 이벤트 최소 연동
 

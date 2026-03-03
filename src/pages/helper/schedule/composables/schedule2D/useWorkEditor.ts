@@ -1,6 +1,7 @@
 import { ref, computed, watch, type Ref } from 'vue'
 import type { Node } from '@vue-flow/core'
 import { workApi, type WorkResponse, type MutationResponse } from '@/api/work'
+import { analyticsClient } from '@/lib/analytics/analyticsClient'
 
 export function useWorkEditor(
   nodes: Ref<Node[]>,
@@ -42,9 +43,11 @@ export function useWorkEditor(
       if (work && workEditForm.value.isWorkingOnHoliday !== work.isWorkingOnHoliday) payload.isWorkingOnHoliday = workEditForm.value.isWorkingOnHoliday
       const mutation = await workApi.updateWork(selectedWorkId.value, payload)
       onWorkUpdated(mutation)
+      analyticsClient.trackAction('schedule_2d', 'update_work', 'success')
       selectedWorkId.value = null
     } catch (error: unknown) {
       console.error('작업 수정 실패:', error)
+      analyticsClient.trackAction('schedule_2d', 'update_work', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       const errorMessage = err.response?.data?.message || err.message
       alert(errorMessage)
