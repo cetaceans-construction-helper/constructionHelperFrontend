@@ -1,0 +1,290 @@
+# GA4 액션 중심 트래킹 전략 (초기 버전)
+
+## 1. 목적
+
+- 전체 프로젝트에 GA4를 도입해 사용자 행동의 큰 흐름을 본다.
+- 스크롤/세부 클릭은 제외하고, 업무 액션 중심으로 측정한다.
+- 최소 이벤트로 빠르게 시작하고 이후 확장한다.
+
+## 2. 이번 범위
+
+- 포함:
+  - 인증 흐름
+  - 화면/라우트 진입
+  - 핵심 저장/생성/수정/삭제 액션
+  - 주요 실패 이벤트
+- 제외:
+  - 스크롤 깊이, 버튼 단건 클릭 로그
+  - 자유 텍스트 원문
+  - 마우스/터치 좌표
+
+## 3. 측정 질문
+
+- 사용자는 로그인 후 어떤 라우트를 가장 많이 보는가?
+- 실제로 업무 데이터를 저장하는가?
+- 어떤 기능에서 실패가 자주 나는가?
+- 프로젝트 선택 이후 행동이 이어지는가?
+
+## 4. KPI (초기)
+
+- `활성 사용자`: DAU, WAU
+- `로그인 전환`: `login_result(success) / login_attempt`
+- `활성화율`: 로그인 후 24시간 내 `feature_action(success)` 발생 비율
+- `기능 사용량`: 라우트별 조회수, 핵심 액션 건수
+- `실패율`: 기능별 `feature_action(fail)` 비율
+
+## 5. 이벤트 모델
+
+### 5.1 이벤트 네이밍
+
+- 규칙: `snake_case`
+- 원칙: 행동 중심(`create_*`, `update_*`, `delete_*`, `save_*`)
+
+### 5.2 공통 파라미터
+
+- `user_id`: 로그인 사용자 고유 ID (비식별 내부 ID)
+
+### 5.2.1 이벤트별 추가 파라미터 (필요 시)
+
+- `page_view`: `route_name`, `route_path`
+
+### 5.3 초기 이벤트 목록 (P0)
+
+| event_name         | 설명                | 핵심 파라미터                 | 구현 위치                                                                            |
+| ------------------ | ------------------- | ----------------------------- | ------------------------------------------------------------------------------------ |
+| `app_open`         | 앱 시작             | 공통 파라미터                 | `src/main.ts`                                                                        |
+| `page_view`        | 라우트 진입         | `route_name`, `route_path`    | `src/router/index.ts` (`afterEach`)                                                  |
+| `login_attempt`    | 로그인 제출         | `route_name`                  | `src/pages/LoginPage.vue`                                                            |
+| `login_result`     | 로그인 결과         | `result`, `error_type`        | `src/stores/auth.ts`                                                                 |
+| `signup_attempt`   | 회원가입 제출       | `route_name`                  | `src/pages/SignupPage.vue`                                                           |
+| `signup_result`    | 회원가입 결과       | `result`, `error_type`        | `src/stores/auth.ts`                                                                 |
+| `logout`           | 로그아웃            | `user_id`                     | `src/pages/ConstructionHelperPage.vue`, `src/pages/system-admin/SystemAdminPage.vue` |
+| `project_selected` | 프로젝트 변경       | `selection_state`             | `src/pages/ConstructionHelperPage.vue`                                               |
+| `feature_action`   | 핵심 업무 액션 결과 | `feature`, `action`, `result` | 아래 표 참조                                                                         |
+| `api_error`        | 주요 API 실패       | `feature`, `status_group`     | `src/api/client.ts`, `src/api/apiClient.ts`                                          |
+
+### 5.4 `feature_action` 액션 매핑
+
+| feature               | action                  | 구현 위치                                                           |
+| --------------------- | ----------------------- | ------------------------------------------------------------------- |
+| `schedule_2d`         | `create_work`           | `src/pages/helper/schedule/composables/schedule2D/useWorkForm.ts`   |
+| `schedule_2d`         | `update_work`           | `src/pages/helper/schedule/composables/schedule2D/useWorkEditor.ts` |
+| `schedule_2d`         | `delete_work`           | `src/pages/helper/schedule/components/Viewer2dArea.vue`             |
+| `schedule_2d`         | `create_path`           | `src/pages/helper/schedule/components/Viewer2dArea.vue`             |
+| `schedule_2d`         | `update_path`           | `src/pages/helper/schedule/composables/schedule2D/usePathEditor.ts` |
+| `schedule_2d`         | `delete_path`           | `src/pages/helper/schedule/components/Viewer2dArea.vue`             |
+| `schedule_2d`         | `optimize_path`         | `src/pages/helper/schedule/components/Viewer2dArea.vue`             |
+| `schedule_3d`         | `update_task_quantity`  | `src/pages/helper/schedule/components/Viewer3dArea.vue`             |
+| `schedule_3d`         | `create_material_order` | `src/pages/helper/schedule/components/Viewer3dArea.vue`             |
+| `material_attendance` | `save_attendance`       | `src/pages/helper/material/composables/useAttendance.ts`            |
+| `material_equipment`  | `save_equipment`        | `src/pages/helper/material/composables/useEquipmentDeployment.ts`   |
+| `admin`               | `save_master_data`      | `src/pages/helper/admin/*`                                          |
+| `system_admin`        | `save_system_data`      | `src/pages/system-admin/composables/*`                              |
+
+## 6. 구현 방식
+
+1. 공통 래퍼 생성
+   - 파일: `src/lib/analytics/analyticsClient.ts`
+   - 함수: `trackPageView`, `trackAuth`, `trackAction`, `trackApiError`, `setUserId`
+   - `VITE_GA_MEASUREMENT_ID` 미설정 시 no-op
+2. 자동 수집
+   - 라우터 `afterEach`에서 `page_view`
+3. 수동 수집
+   - 핵심 액션 성공 시 `feature_action` + `result=success`
+   - `catch`에서 `feature_action` + `result=fail`
+4. 오류 수집
+   - API 에러는 샘플링(예: 20%) 적용
+   - 401/403 토큰 갱신 경로는 제외
+5. 사용자 ID 연동 (GA4 User-ID)
+   - 로그인 성공 시 `user_id` 설정 (예: `gtag('config', 'G-61RZ9ZS0MN', { user_id: String(user.id) })`)
+   - 로그아웃 시 `user_id` 해제 (예: `gtag('config', 'G-61RZ9ZS0MN', { user_id: null })`)
+   - 주의: 이메일/전화번호 대신 내부 비식별 ID만 사용
+
+## 7. 개인정보/데이터 품질 가이드
+
+- 금지:
+  - 이메일, 전화번호, 이름, 주민번호, 메모 원문
+- 허용:
+  - 라우트명, 기능명, 성공/실패 여부
+- 에러 정보:
+  - `error_type`은 짧은 분류값만 사용 (`validation`, `network`, `server`)
+
+## 8. 도입 순서
+
+- Phase 1 (당일):
+  - `app_open`, `page_view`, 인증 이벤트
+- Phase 2 (1~2일):
+  - `project_selected`
+  - `feature_action` (schedule/material 우선)
+- Phase 3 (추가 1일):
+  - `admin/system_admin` 액션
+  - `api_error` 샘플링 수집
+
+## 9. 검증 체크리스트
+
+- DebugView에서 페이지 이동당 `page_view` 1회
+- 로그인 성공/실패가 `login_result.result`로 분리
+- 핵심 저장 액션이 성공/실패 모두 들어옴
+- 파라미터에 PII가 없는지 확인
+- 이벤트 이름/파라미터가 snake_case인지 확인
+
+## 10. 확장 기준 (운영 2~4주 후)
+
+- 확장 조건:
+  - 특정 기능 사용량이 높고 전환 개선 여지가 큼
+  - 실패율이 높은 기능의 원인 분해가 필요함
+- 확장 후보:
+  - 액션별 세부 단계 이벤트
+  - 기능별 퍼널 분리
+  - role/project 기준 세그먼트 대시보드
+
+## 11. GA 연동 세부 TODO (검증 게이트 방식)
+
+### 11.0 Gate 0 - 사전 상태 확인 (현재 상태 반영)
+
+- [ ] [작업] GA4 속성 생성 완료
+- [ ] [작업] Web 데이터 스트림 생성 및 측정 ID 확보 (`G-61RZ9ZS0MN`)
+- [ ] [작업] Google 안내 스니펫 수신 완료
+- [ ] [검증] 작업 브랜치에서만 연동 작업 진행 중인지 확인
+- [ ] [완료조건] Gate 1부터 코드 변경 시작 가능
+
+### 11.1 Gate 1 - 태그 로더 삽입 (기본 연동)
+
+- [ ] [작업] `index.html`에 `gtag.js` 로더와 `gtag('config', 'G-61RZ9ZS0MN')` 삽입
+- [ ] [작업] dev/prod 환경에서 중복 로딩이 발생하지 않도록 1회만 실행되게 구성
+- [ ] [검증] 브라우저 네트워크 탭에서 `https://www.googletagmanager.com/gtag/js?id=G-61RZ9ZS0MN` 호출 확인
+- [ ] [검증] 콘솔 에러 없이 앱 정상 부팅 확인
+- [ ] [완료조건] 기본 gtag 로딩 성공
+
+### 11.2 Gate 2 - 분석 래퍼 유틸 생성
+
+- [ ] [작업] `src/lib/analytics/analyticsClient.ts` 생성 (`trackEvent`, `trackPageView`, `trackAction`, `trackAuth`, `trackError`)
+- [ ] [작업] `window.gtag` 미존재 시 no-op 처리
+- [ ] [작업] 공통 파라미터 빌더(`user_id`) 추가
+- [ ] [검증] 로컬에서 수동 호출 시 런타임 에러가 없는지 확인
+- [ ] [완료조건] 앱 어디서든 안전하게 호출 가능한 상태
+
+### 11.3 Gate 3 - 페이지 자동 수집
+
+- [ ] [작업] `src/router/index.ts`의 `afterEach`에서 `page_view` 전송
+- [ ] [작업] 최초 진입 시 누락 방지 처리
+- [ ] [검증] GA4 DebugView에서 라우트 이동 1회당 `page_view` 1건 확인
+- [ ] [완료조건] 자동 수집 안정화 (중복/누락 없음)
+
+### 11.4 Gate 4 - 인증 이벤트 연동
+
+- [ ] [작업] `login_attempt`, `login_result` 연결
+- [ ] [작업] `signup_attempt`, `signup_result` 연결
+- [ ] [작업] `logout` 이벤트 연결
+- [ ] [작업] 로그인 성공 시 GA4 `user_id` 설정, 로그아웃 시 해제 로직 연결
+- [ ] [검증] 성공/실패 각각 테스트하고 `result=success|fail` 분리 확인
+- [ ] [검증] 로그인 전/후 이벤트에서 `user_id` 반영 상태가 의도와 일치하는지 확인
+- [ ] [완료조건] 인증 퍼널 데이터 수집 가능
+
+### 11.5 Gate 5 - 프로젝트 선택 이벤트 연동
+
+- [ ] [작업] `project_selected` 이벤트 연결
+- [ ] [작업] 초기 자동 선택과 사용자 직접 변경을 구분할지 결정 후 반영
+- [ ] [검증] 프로젝트 변경 시 이벤트 1회 전송 확인
+- [ ] [완료조건] 프로젝트 맥락 분석 가능
+
+### 11.6 Gate 6 - 핵심 `feature_action` 연동 (우선 기능)
+
+- [ ] [작업] `schedule_2d` 액션 연결 (`create/update/delete work`, `create/update/delete/optimize path`)
+- [ ] [작업] `schedule_3d` 액션 연결 (`update_task_quantity`, `create_material_order`)
+- [ ] [작업] `material` 액션 연결 (`save_attendance`, `save_equipment`)
+- [ ] [검증] 각 액션별 성공 1건/실패 1건 수동 테스트
+- [ ] [완료조건] 핵심 업무 액션 지표 수집 시작
+
+#### 11.6.1 Gate 6 최소 파라미터 정책 (확정안)
+
+- 공통(모든 `feature_action`):
+  - `feature`: 기능 그룹 (`schedule_2d`, `schedule_3d`, `material_attendance`, `material_equipment`)
+  - `action`: 작업명 (`create_work`, `update_work`, ...)
+  - `result`: `success|fail`
+- 추가 파라미터:
+  - Gate 6에서는 수집하지 않음 (ID 포함 전부 제외)
+  - `create_*`에서 생성 ID를 못 받는 경우를 고려해, 성공/실패만 기록
+
+#### 11.6.2 Gate 6 상세 TODO (계획)
+
+- [ ] `schedule_2d / schedule_3d / material` 액션에 최소 스키마(`feature/action/result`) 적용
+- [ ] `create_*` 액션에서 ID 파라미터 미수집 정책 적용
+- [ ] DebugView 검증 시나리오 정의
+  - `create/update/delete work`
+  - `create/update/delete/optimize path`
+  - 각 시나리오 성공/실패 1회씩
+
+### 11.7 Gate 7 - 오류 이벤트 최소 연동
+
+- [ ] [작업] API 클라이언트 인터셉터에 `api_error` 연동
+- [ ] [작업] 샘플링 비율 적용(기본 20%, `VITE_GA_API_ERROR_SAMPLE_RATE`로 조정 가능)
+- [ ] [작업] 401/403 토큰 갱신 루프는 제외 처리
+- [ ] [검증] 의도적 실패 요청 시 `status_group` 값 정확성 확인 (`4xx`, `5xx`, `network`)
+- [ ] [완료조건] 장애 징후 모니터링 가능
+
+### 11.8 Gate 8 - 데이터 품질/보안 점검
+
+- [ ] [작업] 이벤트/파라미터 네이밍 최종 점검 (snake_case)
+- [ ] [작업] debug용 console log 정리/clean up
+- [ ] [작업] PII 미전송 점검 (이메일, 전화번호, 이름, 주민번호, 자유 텍스트)
+- [ ] [작업] 커스텀 차원 등록 필요 목록 정리 (GA4 관리 화면 반영)
+- [ ] [검증] DebugView 실측 로그 샘플 검토 (핵심 이벤트 전체 1회 이상)
+- [ ] [완료조건] 운영 반영 가능 상태
+
+### 11.9 Gate 9 - 동료 변경분 트래킹 재점검 (코드 변경 전 문서 업데이트)
+
+#### 11.9.1 현재 연동 유지 항목 (코드 스캔 기준)
+
+- [ ] `page_view` 자동 수집 유지 (`src/router/index.ts`)
+- [ ] 인증 이벤트 유지 (`login_attempt`, `login_result`, `signup_attempt`, `signup_result`, `logout`)
+- [ ] `project_selected` 유지 (`src/pages/ConstructionHelperPage.vue`)
+- [ ] `schedule_3d` 액션 유지 (`update_task_quantity`, `create_material_order`)
+- [ ] `material_attendance.save_attendance`, `material_equipment.save_equipment` 유지
+- [ ] `api_error` 인터셉터 연동 유지 (`src/api/client.ts`, `src/api/apiClient.ts`)
+
+#### 11.9.2 변경 필요 항목 (동료 리팩터링 반영)
+
+- [ ] `schedule_2d.create_work` 재연결
+  - 기존 트래킹 위치(`useWorkForm.ts`)가 실제 호출 경로에서 이탈
+  - 현재 생성 경로(`useWorkTooltipData.submitCreate`, `Viewer2dArea.handleWorkEditSubmit`)에 연결 필요
+- [ ] `schedule_2d.update_work` 재연결
+  - 기존 트래킹 위치(`useWorkEditor.ts`)가 실제 호출 경로에서 이탈
+  - 현재 수정 경로(`useWorkTooltipData.submitEdit`, `Viewer2dArea` 인라인 수정 흐름)에 연결 필요
+- [ ] `schedule_2d.create_path / update_path` 정합성 수정
+  - `Viewer2dArea.savePathChanges`에서 `create_path`를 보내고 있어 액션명 불일치
+  - `usePathEditor.submitPathUpdate`의 `update_path`는 현재 호출되지 않는 경로라 사실상 미수집
+  - 현재 실제 저장 경로(`handleConnect`, `savePathEdges`, `savePathChanges`) 기준으로 재배치 필요
+- [ ] `schedule_2d.delete_work / delete_path` 중복 전송 정리
+  - `Viewer2dArea.executeDelete`에서 성공 이벤트 중복 가능성 점검 및 1회 보장 필요
+- [ ] `app_open` 이벤트 정책 정합화
+  - 전략 문서 초기 이벤트 목록에는 있으나 현재 코드에는 발화 지점 없음 (`src/main.ts`)
+  - 유지/삭제 중 하나로 정책 확정 필요
+
+#### 11.9.3 신규 화면/버튼 기준 추가 트래킹 후보 
+
+- [ ] 자재 발주/반입 플로우 (`material` 섹션)
+  - `InvoicePage.saveDelivery` (송장 입력)
+  - `IncomingMaterialPage.saveDirectDelivery`, `updateDelivery`, `confirmDeleteDelivery`
+  - `IncomingMaterialPage.generateMir`, `confirmDeleteMir`
+  - `MaterialInspectionPage.confirmDelete` (검수요청서 삭제)
+- [ ] 출역 입력 보조 액션
+  - `useAttendance.resetAttendance`
+  - `useEquipmentDeployment.resetEquipmentDeployment`
+- [ ] 관리자/시스템관리 CRUD 액션
+  - `src/pages/helper/admin/composables/*`
+  - `src/pages/system-admin/composables/*`
+  - 생성/수정/삭제 액션 기준으로 `feature_action` 매핑 필요
+
+#### 11.9.4 리네이밍/대시보드 영향 점검
+
+- [ ] 라우트명 변경 영향 확인
+  - 기존: `material-invoice`, `material-list`
+  - 현재: `material-order`, `material-incoming`, `material-outgoing`, `material-remaining`
+- [ ] 대시보드/탐색 보고서에서 기존 필터/세그먼트(route_name 기반) 업데이트
+
+#### 11.9.5 Gate 9 완료 조건
+
+- [ ] 실제 호출 경로 기준으로 이벤트 재연결 설계 확정
+- [ ] 신규 화면 액션의 추적 범위(필수/선택) 확정
+- [ ] DebugView 검증 시나리오(성공/실패)를 액션별로 문서화
