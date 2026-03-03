@@ -158,11 +158,12 @@
 
 ### 11.2 Gate 2 - 분석 래퍼 유틸 생성
 
-- [ ] [작업] `src/lib/analytics/analyticsClient.ts` 생성 (`trackEvent`, `trackPageView`, `trackAction`, `trackAuth`, `trackError`)
-- [ ] [작업] `window.gtag` 미존재 시 no-op 처리
-- [ ] [작업] 공통 파라미터 빌더(`user_id`) 추가
-- [ ] [검증] 로컬에서 수동 호출 시 런타임 에러가 없는지 확인
-- [ ] [완료조건] 앱 어디서든 안전하게 호출 가능한 상태
+- [x] [작업] `src/lib/analytics/analyticsClient.ts` 생성 (`trackEvent`, `trackPageView`, `trackAction`, `trackAuth`, `trackError`)
+- [x] [작업] `window.gtag` 미존재 시 no-op 처리
+- [x] [작업] 공통 파라미터 빌더(`user_id`) 추가
+- [x] [작업] 모든 이벤트 전송 시 디버그 `console.log` 출력 추가
+- [x] [검증] 로컬에서 수동 호출 시 런타임 에러가 없는지 확인
+- [x] [완료조건] 앱 어디서든 안전하게 호출 가능한 상태
 
 ### 11.3 Gate 3 - 페이지 자동 수집
 
@@ -260,6 +261,9 @@
 - [ ] `app_open` 이벤트 정책 정합화
   - 전략 문서 초기 이벤트 목록에는 있으나 현재 코드에는 발화 지점 없음 (`src/main.ts`)
   - 유지/삭제 중 하나로 정책 확정 필요
+- [ ] Gate 2 디버그 로그 제거
+  - `index.html`의 `window.gtag` 디버그 `console.log` 정리
+  - 운영 반영 전 로그 레벨 정리(필요 시 dev 전용으로 축소)
 
 #### 11.9.3 신규 화면/버튼 기준 추가 트래킹 후보 
 
