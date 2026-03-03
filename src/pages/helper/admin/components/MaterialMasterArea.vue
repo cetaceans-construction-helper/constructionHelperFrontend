@@ -30,7 +30,7 @@ const {
   addMaterialSpec,
   deleteMaterialType,
   deleteMaterialSpec,
-  updateMaterialTypeName,
+  updateMaterialType,
   updateMaterialSpecName,
   reorderMaterialTypes,
   reorderMaterialSpecs,
@@ -95,9 +95,10 @@ async function confirmDelete() {
           :selected-id="selectedMaterialTypeId"
           :disabled="isDeleting"
           :display-suffix="(mt: any) => mt.unit ? `(${mt.unit})` : ''"
+          unit-editable
           @select="selectMaterialType"
           @delete="(id, name) => openDeleteDialog(id, name, deleteMaterialType)"
-          @update-name="({ id, name }) => updateMaterialTypeName(id, name)"
+          @update-name="({ id, name, unit }) => updateMaterialType(id, name, unit)"
           @reorder="reorderMaterialTypes"
         />
       </div>

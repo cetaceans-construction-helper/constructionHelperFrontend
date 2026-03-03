@@ -4,6 +4,7 @@ export interface CalendarDateInfo {
   dayOfWeek: number               // 0=일, 1=월, ... 6=토
   weekNumber: number              // 프로젝트 기준 주차
   isHoliday: boolean              // 휴일 여부
+  isHolManual: boolean            // 수동 휴일 변경 여부
   holidayName: string | null      // "설날", "대체공휴일(설날)" 등
   isActivated: boolean            // 활성화 여부 (false면 비활성일)
   deactivatedReason: string | null // 비활성일 사유

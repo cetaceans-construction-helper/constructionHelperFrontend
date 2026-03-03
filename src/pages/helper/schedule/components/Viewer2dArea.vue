@@ -72,6 +72,7 @@ const selectGroup = (index: number, event: MouseEvent) => {
 
 // 화면 좌표 → flow 좌표 변환 후 그룹박스 히트 테스트 (공통 헬퍼)
 const hitTestGroupBox = (event: MouseEvent): number => {
+  if (isInPathMode.value) return -1
   if (!showWorkTypeGroup.value && !showSubWorkTypeGroup.value) return -1
   const container = containerRef.value
   if (!container) return -1
@@ -82,6 +83,30 @@ const hitTestGroupBox = (event: MouseEvent): number => {
     const visible = (box.level === 'workType' && showWorkTypeGroup.value) || (box.level === 'subWorkType' && showSubWorkTypeGroup.value)
     return visible && flowX >= box.x && flowX <= box.x + box.width && flowY >= box.y && flowY <= box.y + box.height
   })
+}
+
+const getGroupLabelOffset = (box: { x: number; y: number; width: number; height: number }): { top: string; left: string } => {
+  const zoom = viewport.value.zoom
+  const overlayLeft = box.x * zoom + viewport.value.x
+  const overlayTop = (box.y - HEADER_HEIGHT / zoom) * zoom + viewport.value.y + HEADER_HEIGHT
+  const overlayWidth = box.width * zoom
+  const overlayHeight = box.height * zoom
+
+  let labelLeft = 4
+  if (overlayLeft < 0) {
+    labelLeft = Math.max(4, -overlayLeft + 4)
+  }
+
+  let labelTop = 2
+  if (overlayTop < HEADER_HEIGHT) {
+    labelTop = Math.max(2, HEADER_HEIGHT - overlayTop + 2)
+  }
+
+  // 라벨이 박스 밖으로 넘어가지 않도록 clamp
+  labelLeft = Math.min(labelLeft, Math.max(0, overlayWidth - 80))
+  labelTop = Math.min(labelTop, Math.max(0, overlayHeight - 16))
+
+  return { top: `${labelTop}px`, left: `${labelLeft}px` }
 }
 
 const startGroupDrag = (index: number, event: MouseEvent) => {
@@ -145,8 +170,8 @@ const startGroupDrag = (index: number, event: MouseEvent) => {
           positionY: snappedY,
         }).then(() => {
           node.data.work = { ...work, positionY: snappedY }
-        }).catch((error: any) => {
-          console.error('그룹 이동 저장 실패:', error)
+        }).catch((err: unknown) => {
+          console.error('그룹 이동 저장 실패:', err)
           node.position.y = origY
         })
       )
@@ -177,10 +202,10 @@ const executeOptimize = async () => {
     applyMutation(mutation)
     showOptimizeDialog.value = false
     showPathDialog.value = false
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('경로 최적화 실패:', error)
-    const errorMessage = error.response?.data?.message || error.message
-    alert(errorMessage)
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    alert(err.response?.data?.message || err.message)
   } finally {
     isOptimizing.value = false
   }
@@ -349,9 +374,11 @@ const updateEdgeOverlap = async (pathId: number, sourceWorkId: number, targetWor
   try {
     const mutation = await workPathApi.updateWorkPath(pathId, { edges: updatedEdges })
     applyMutation(mutation)
-  } catch (error: any) {
+    tooltip.value.visible = false
+  } catch (error: unknown) {
     console.error('lagDays 수정 실패:', error)
-    alert(error.response?.data?.message || error.message)
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    alert(err.response?.data?.message || err.message)
   }
 }
 
@@ -555,7 +582,6 @@ const {
   deleteButtonNodes,
   styledEdges,
   selectPath,
-  togglePathSelection,
   cancelPathEdit,
   onConnect,
   removeNodeFromPath,
@@ -619,7 +645,6 @@ watch(
 const {
   selectedWorkId,
   workEditForm,
-  selectedWork,
   clearSelection: clearWorkSelection,
   selectWork
 } = useWorkEditor(nodes, applyMutation)
@@ -657,10 +682,10 @@ const savePathChanges = async () => {
     })
     applyMutation(mutation)
     cancelPathEdit()
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('패스 수정 실패:', error)
-    const errorMessage = error.response?.data?.message || error.message
-    alert(errorMessage)
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    alert(err.response?.data?.message || err.message)
   } finally {
     isSavingPath.value = false
   }
@@ -745,39 +770,36 @@ const updateTooltipWork = async (patch: { startDate?: string, workLeadTime?: num
     workEditForm.value.startDate = tooltip.value.startDate
     workEditForm.value.workLeadTime = tooltip.value.workLeadTime
     workEditForm.value.isWorkingOnHoliday = tooltip.value.isWorkingOnHoliday
-    applyMutation(mutation)
-  } catch (error: any) {
+
+    // 대상 노드 명시적 갱신 (applyMutation이 처리 못할 경우 대비)
+    const directWork = mutation.updatedWorks.find(w => w.workId === tooltip.value.workId)
+    if (directWork) {
+      const updated = workToNode(directWork)
+      nodes.value = nodes.value.map(n =>
+        n.id === `work-${directWork.workId}`
+          ? { ...updated, position: { ...updated.position, y: n.position.y } }
+          : n
+      )
+    }
+
+    // cascade 및 path 갱신
+    const cascadeMutation = {
+      updatedWorks: mutation.updatedWorks.filter(w => w.workId !== tooltip.value.workId),
+      updatedWorkPaths: mutation.updatedWorkPaths,
+    }
+    if (cascadeMutation.updatedWorks.length > 0 || cascadeMutation.updatedWorkPaths.length > 0) {
+      applyMutation(cascadeMutation)
+    }
+
+    emit('works-loaded', nodes.value.map(n => n.data.work as WorkResponse))
+  } catch (error: unknown) {
     console.error('작업 수정 실패:', error)
-    const errorMessage = error.response?.data?.message || error.message
-    alert(errorMessage)
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    alert(err.response?.data?.message || err.message)
     // 롤백
     tooltip.value.startDate = prev.startDate
     tooltip.value.workLeadTime = prev.workLeadTime
     tooltip.value.isWorkingOnHoliday = prev.isWorkingOnHoliday
-  }
-}
-
-// 말풍선 시작일 조절
-const adjustTooltipStartDate = (days: number) => {
-  const date = new Date(tooltip.value.startDate)
-  date.setDate(date.getDate() + days)
-  updateTooltipWork({ startDate: formatLocalDate(date) })
-}
-
-// 말풍선 작업일수 조절
-const adjustTooltipLeadTime = (delta: number) => {
-  const newVal = tooltip.value.workLeadTime + delta
-  if (newVal < 1) return
-  updateTooltipWork({ workLeadTime: newVal })
-}
-
-// 패스 선택 토글 래퍼 (작업 선택 해제 포함)
-const handlePathToggle = (pathId: number) => {
-  togglePathSelection(pathId)
-  // 패스 선택 시 작업 선택 해제
-  if (selectedPathId.value === pathId) {
-    clearWorkSelection()
-    tooltip.value.visible = false
   }
 }
 
@@ -824,10 +846,10 @@ const handleConnect = async (params: { source: string; target: string }) => {
     applyMutation(mutation)
     // 생성된 패스를 자동 선택
     selectPath(newPath.workPathId)
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('패스 생성 실패:', error)
-    const errorMessage = error.response?.data?.message || error.message
-    alert(errorMessage)
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    alert(err.response?.data?.message || err.message)
   }
 }
 
@@ -889,10 +911,11 @@ const handleWorkEditSubmit = async () => {
     }
   } else {
     // 수정 모드
+    const editingId = td.editingWorkId
     const result = await td.submitEdit()
     if (!result) return
 
-    const response = result.updatedWorks.find(w => w.workId === td.editingWorkId)!
+    const response = result.updatedWorks.find(w => w.workId === editingId)!
     const updatedNode = workToNode(response)
     nodes.value = nodes.value.map((n) => {
       if (n.id !== `work-${response.workId}`) return n
@@ -1063,10 +1086,10 @@ const onNodeDragStop = async (event: { node: Node }) => {
       event.node.data.work = { ...work, positionY: snappedY }
     }
     applyMutation(mutation)
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('위치 저장 실패:', error)
-    const errorMessage = error.response?.data?.message || error.message
-    alert(errorMessage)
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    alert(err.response?.data?.message || err.message)
     // 실패 시 원위치 복구
     const origX = computeNodeX(work.startDate)
     event.node.position.x = origX
@@ -1163,17 +1186,17 @@ const onResizeEnd = async () => {
   }
 
   try {
-    const payload: Record<string, any> = {}
+    const payload: UpdateWorkPayload = {}
     if (newStartDate !== r.origStartDate) payload.startDate = newStartDate
     if (newLeadTime !== r.origLeadTime) payload.workLeadTime = newLeadTime
     const mutation = await workApi.updateWork(r.workId, payload)
     workEditForm.value.startDate = newStartDate
     workEditForm.value.workLeadTime = newLeadTime
     applyMutation(mutation)
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('리사이즈 실패:', error)
-    const errorMessage = error.response?.data?.message || error.message
-    alert(errorMessage)
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    alert(err.response?.data?.message || err.message)
     node.position.x = r.origNodeX
     node.style = { ...node.style, width: `${r.origNodeWidth}px` }
     node.data.computedWidth = r.origNodeWidth
@@ -1520,7 +1543,7 @@ onUnmounted(() => {
               <span
                 class="absolute text-[11px] font-semibold px-1 select-none"
                 style="pointer-events: auto; cursor: grab"
-                :style="{ color: box.borderColor, top: '2px', left: '4px' }"
+                :style="{ color: box.borderColor, ...getGroupLabelOffset(box) }"
                 @mousedown.stop="startGroupDrag(i, $event)"
                 @click.stop="selectGroup(i, $event)"
                 @dblclick.stop

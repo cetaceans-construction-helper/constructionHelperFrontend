@@ -239,10 +239,10 @@ export function useWorkTooltipData() {
       const response = await workApi.createWork(payload)
       closeDialog()
       return response
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('작업 생성 실패:', error)
-      const errorMessage = error.response?.data?.message || error.message
-      alert(errorMessage)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
       return null
     } finally {
       isSavingDetails.value = false
@@ -272,10 +272,10 @@ export function useWorkTooltipData() {
       const response = await workApi.updateWork(editingWorkId.value, payload)
       closeDialog()
       return response
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('작업 수정 실패:', error)
-      const errorMessage = error.response?.data?.message || error.message
-      alert(errorMessage)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
       return null
     } finally {
       isSavingDetails.value = false

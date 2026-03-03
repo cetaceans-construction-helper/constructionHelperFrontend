@@ -115,6 +115,11 @@ const router = createRouter({
           name: 'admin-document',
           component: () => import('@/pages/helper/admin/DocumentSettingPage.vue'),
         },
+        {
+          path: 'admin/holiday',
+          name: 'admin-holiday',
+          component: () => import('@/pages/helper/admin/HolidayManagementPage.vue'),
+        },
       ],
     },
     {

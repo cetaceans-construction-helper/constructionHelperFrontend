@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import PageContainer from '@/components/helper/PageContainer.vue'
 import AreaCard from '@/components/helper/AreaCard.vue'
 import { Button } from '@/components/ui/button'
@@ -56,6 +57,7 @@ import type {
   WorkTypeResponse,
 } from '@/api/reference'
 
+const router = useRouter()
 const { orders, loadOrders } = useMaterialOrder()
 
 // 발주서 없이 송장입력 다이얼로그 상태
@@ -211,6 +213,8 @@ async function saveDirectDelivery() {
       usageIds: directSelectedUsageIds.value,
     })
     directDeliveryDialogOpen.value = false
+    materialSpecs.value = []
+    loadOrders()
     loadDeliveries()
   } catch (error: unknown) {
     console.error('송장입력 실패:', error)
@@ -290,7 +294,7 @@ async function generateMir(deliveryId: number) {
   isGeneratingMir.value[deliveryId] = true
   try {
     await materialInspectionRequestApi.createMaterialInspectionRequest(deliveryId)
-    mirList.value = await materialInspectionRequestApi.getMaterialInspectionRequestList()
+    router.push('/helper/document/material-inspection')
   } catch (error: unknown) {
     console.error('자재반입검수요청서 생성 실패:', error)
     const err = error as { response?: { data?: { message?: string } }; message?: string }
@@ -358,16 +362,16 @@ async function toggleDelivery(delivery: MaterialDeliverySummary) {
     deliveryDragStart[id] = { x: 0, y: 0 }
     deliveryTranslateStart[id] = { x: 0, y: 0 }
 
-    // materialSpecs 로드 (한번만)
-    if (materialSpecs.value.length === 0) {
-      const order = orders.value.find((o) => o.id === delivery.materialOrderId)
-      if (order?.materialTypeId) {
-        try {
-          materialSpecs.value = await referenceApi.getMaterialSpecList(order.materialTypeId)
-        } catch {
-          materialSpecs.value = []
-        }
+    // materialSpecs 로드 (매번 해당 delivery의 materialType에 맞게)
+    const order = orders.value.find((o) => o.id === delivery.materialOrderId)
+    if (order?.materialTypeId) {
+      try {
+        materialSpecs.value = await referenceApi.getMaterialSpecList(order.materialTypeId)
+      } catch {
+        materialSpecs.value = []
       }
+    } else {
+      materialSpecs.value = []
     }
 
     // noteFiles + photoFiles 기반 이미지 로드

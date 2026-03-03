@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import PageContainer from '@/components/helper/PageContainer.vue'
 import AreaCard from '@/components/helper/AreaCard.vue'
 import { Button } from '@/components/ui/button'
@@ -21,11 +22,11 @@ import {
 } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
 import { useMaterialOrder } from './composables/useMaterialOrder'
 import { materialOrderApi } from '@/api/materialOrder'
 import type { MaterialOrderResponse } from '@/api/materialOrder'
 
+const router = useRouter()
 const { orders, isLoading, loadOrders } = useMaterialOrder()
 const expandedOrders = reactive<Record<number, boolean>>({})
 
@@ -139,7 +140,7 @@ async function saveDelivery() {
       usageIds: selectedUsageIds.value,
     })
     deliveryDialogOpen.value = false
-    loadOrders()
+    router.push('/helper/material/incoming')
   } catch (error: unknown) {
     console.error('송장입력 실패:', error)
     const err = error as { response?: { data?: { message?: string } }; message?: string }
