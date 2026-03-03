@@ -11,6 +11,7 @@ import {
   type MaterialSpecResponse,
   type CreateTasksResponse,
 } from '@/api/reference'
+import { analyticsClient } from '@/lib/analytics/analyticsClient'
 
 export function useComponentCode() {
   // 부재 타입 관리
@@ -90,8 +91,10 @@ export function useComponentCode() {
       await referenceApi.createComponentType(name)
       newComponentTypeName.value = ''
       await loadComponentTypes()
+      analyticsClient.trackAction('admin_master_data', 'create_component_type', 'success')
     } catch (error: unknown) {
       console.error('ComponentType 추가 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'create_component_type', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -110,8 +113,10 @@ export function useComponentCode() {
         selectedComponentCodeIds.value = []
       }
       componentTypes.value = componentTypes.value.filter((ct) => ct.id !== id)
+      analyticsClient.trackAction('admin_master_data', 'delete_component_type', 'success')
     } catch (error: unknown) {
       console.error('ComponentType 삭제 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'delete_component_type', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -125,8 +130,10 @@ export function useComponentCode() {
       await referenceApi.updateComponentType({ id, name })
       const item = componentTypes.value.find((ct) => ct.id === id)
       if (item) item.name = name
+      analyticsClient.trackAction('admin_master_data', 'update_component_type', 'success')
     } catch (error: unknown) {
       console.error('ComponentType 이름 수정 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'update_component_type', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
       await loadComponentTypes()
@@ -168,8 +175,10 @@ export function useComponentCode() {
       await referenceApi.createComponentCode(selectedComponentTypeId.value, code)
       newComponentCode.value = ''
       await loadComponentCodes(selectedComponentTypeId.value)
+      analyticsClient.trackAction('admin_master_data', 'create_component_code', 'success')
     } catch (error: unknown) {
       console.error('ComponentCode 추가 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'create_component_code', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -184,8 +193,10 @@ export function useComponentCode() {
       await referenceApi.deleteComponentCode(id)
       selectedComponentCodeIds.value = selectedComponentCodeIds.value.filter((v) => v !== id)
       componentCodes.value = componentCodes.value.filter((cc) => cc.id !== id)
+      analyticsClient.trackAction('admin_master_data', 'delete_component_code', 'success')
     } catch (error: unknown) {
       console.error('ComponentCode 삭제 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'delete_component_code', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -353,8 +364,10 @@ export function useComponentCode() {
       alert(messages.join(', ') || '매핑 완료')
 
       await loadAllMappings()
+      analyticsClient.trackAction('admin_master_data', 'create_component_code_mapping', 'success')
     } catch (error: unknown) {
       console.error('매핑 추가 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'create_component_code_mapping', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -369,8 +382,10 @@ export function useComponentCode() {
       await referenceApi.deleteCwmMapping(id)
       allMappings.value = allMappings.value.filter((m) => m.id !== id)
       selectedMappingIds.value = selectedMappingIds.value.filter((v) => v !== id)
+      analyticsClient.trackAction('admin_master_data', 'delete_component_code_mapping', 'success')
     } catch (error: unknown) {
       console.error('CwmMapping 삭제 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'delete_component_code_mapping', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -396,8 +411,10 @@ export function useComponentCode() {
       // 자재 적용 폼 초기화
       materialApplyForm.value.materialTypeId = ''
       materialApplyForm.value.materialSpecId = ''
+      analyticsClient.trackAction('admin_master_data', 'update_component_code_mapping', 'success')
     } catch (error: unknown) {
       console.error('자재 적용 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'update_component_code_mapping', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {

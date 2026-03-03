@@ -5,6 +5,7 @@ import {
   type AttendanceByDateItem,
   type Contractor,
 } from '@/api/attendance'
+import { analyticsClient } from '@/lib/analytics/analyticsClient'
 
 export interface WorkTypeBox {
   id: string
@@ -296,11 +297,13 @@ export function useAttendance() {
       })
 
       alert('출역인원이 저장되었습니다.')
+      analyticsClient.trackAction('material_attendance', 'save_attendance', 'success')
 
       // 저장 후 출역인원 다시 조회 (입력 카드도 자동 재생성)
       await loadTodayAttendance()
     } catch (error: unknown) {
       console.error('출역인원 저장 실패:', error)
+      analyticsClient.trackAction('material_attendance', 'save_attendance', 'fail')
       alert(getErrorMessage(error))
     } finally {
       isSubmitting.value = false
@@ -314,8 +317,10 @@ export function useAttendance() {
     try {
       await attendanceApi.deleteAttendanceList(selectedDate.value)
       await loadTodayAttendance()
+      analyticsClient.trackAction('material_attendance', 'reset_attendance', 'success')
     } catch (error: unknown) {
       console.error('출역인원 초기화 실패:', error)
+      analyticsClient.trackAction('material_attendance', 'reset_attendance', 'fail')
       alert(getErrorMessage(error))
     }
   }

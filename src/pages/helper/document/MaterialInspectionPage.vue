@@ -27,6 +27,7 @@ import {
   type MaterialInspectionRequestResponse,
 } from '@/api/projectDocumentCode'
 import { materialOrderApi } from '@/api/materialOrder'
+import { analyticsClient } from '@/lib/analytics/analyticsClient'
 
 const isLoading = ref(false)
 const mirList = ref<MaterialInspectionRequestResponse[]>([])
@@ -63,9 +64,11 @@ async function confirmDelete() {
   try {
     await materialInspectionRequestApi.deleteMaterialInspectionRequest(deleteTargetId.value)
     showDeleteDialog.value = false
+    analyticsClient.trackAction('material_delivery', 'delete_mir', 'success')
     loadList()
   } catch (error: unknown) {
     console.error('MIR 삭제 실패:', error)
+    analyticsClient.trackAction('material_delivery', 'delete_mir', 'fail')
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     alert(err.response?.data?.message || err.message)
   } finally {
@@ -83,8 +86,10 @@ async function downloadMir(mir: MaterialInspectionRequestResponse) {
     a.download = `${mir.documentNumber}.xlsx`
     a.click()
     URL.revokeObjectURL(blobUrl)
+    analyticsClient.trackAction('material_delivery', 'download_mir', 'success')
   } catch (error: unknown) {
     console.error('MIR 다운로드 실패:', error)
+    analyticsClient.trackAction('material_delivery', 'download_mir', 'fail')
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     alert(err.response?.data?.message || err.message)
   } finally {
