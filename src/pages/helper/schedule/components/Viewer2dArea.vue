@@ -28,7 +28,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
-import { workApi, type WorkResponse, type MutationResponse } from '@/api/work'
+import { workApi, type WorkResponse, type MutationResponse, type UpdateWorkPayload } from '@/api/work'
 import { workPathApi, type PathResponse } from '@/api/workPath'
 import { useProjectStore } from '@/stores/project'
 import { useCalendarStore } from '@/stores/calendarStore'
@@ -1008,71 +1008,69 @@ const handlePaneDblClick = (event: MouseEvent) => {
   td.openCreateDialog(startDate, snappedY)
 }
 
-// 노드 드래그 종료 시 위치 저장
+// 노드 드래그 종료 시 위치 저장 (X/Y 변경분을 하나의 API 호출로 전송)
 const onNodeDragStop = async (event: { node: Node }) => {
   const work = event.node.data.work as WorkResponse | undefined
   if (!work) return
 
-  const isSelectedWork = selectedWorkId.value === work.workId
+  const cfg = chartConfigStore.config
+  const originalX = event.node.data.originalX as number
 
-  // 선택된 작업: X→startDate 계산
-  if (isSelectedWork) {
-    const cfg = chartConfigStore.config
-    const originalX = event.node.data.originalX as number
-    const daysDelta = Math.round((event.node.position.x - originalX) / cfg.pixelPerDay)
-
-    if (daysDelta === 0) {
-      event.node.position.x = originalX
-      return
-    }
-
+  // X축 변경 계산
+  const daysDelta = Math.round((event.node.position.x - originalX) / cfg.pixelPerDay)
+  let newStartDate: string | undefined
+  if (daysDelta !== 0) {
     const base = new Date(work.startDate)
     base.setHours(0, 0, 0, 0)
     base.setDate(base.getDate() + daysDelta)
-    const newStartDate = formatLocalDate(base)
-
-    // 노드 좌표 재계산 (정위치 스냅)
-    const newX = computeNodeX(newStartDate)
-    event.node.position.x = newX
-    event.node.data.originalX = newX
-
-    try {
-      const mutation = await workApi.updateWork(work.workId, {
-        startDate: newStartDate,
-      })
-
-      workEditForm.value.startDate = newStartDate
-      // 연관 작업들의 위치도 갱신
-      applyMutation(mutation)
-    } catch (error: any) {
-      console.error('위치 저장 실패:', error)
-      const errorMessage = error.response?.data?.message || error.message
-      alert(errorMessage)
-      // 실패 시 원래 위치로 복구
-      const origX = computeNodeX(work.startDate)
-      event.node.position.x = origX
-      event.node.data.originalX = origX
-    }
-    return
+    newStartDate = formatLocalDate(base)
   }
 
-  // 미선택 작업: Y축 위치 저장
-  const cfg = chartConfigStore.config
+  // Y축 변경 계산
   const rowUnit = cfg.nodeHeight + 2 * cfg.nodePaddingY
   const snappedY = Math.floor(event.node.position.y / rowUnit) * rowUnit
   event.node.position.y = snappedY
+  const yChanged = snappedY !== work.positionY
 
-  if (snappedY === work.positionY) return
+  // 변경 없으면 원위치 복구 후 종료
+  if (daysDelta === 0 && !yChanged) {
+    event.node.position.x = originalX
+    return
+  }
+
+  // X 스냅 위치 반영
+  if (newStartDate) {
+    const newX = computeNodeX(newStartDate)
+    event.node.position.x = newX
+    event.node.data.originalX = newX
+  } else {
+    event.node.position.x = originalX
+  }
+
+  // payload 구성: 변경된 필드만 포함
+  const payload: UpdateWorkPayload = {}
+  if (newStartDate) payload.startDate = newStartDate
+  if (yChanged) payload.positionY = snappedY
 
   try {
-    await workApi.updateWork(work.workId, {
-      positionY: snappedY,
-    })
-    event.node.data.work = { ...work, positionY: snappedY }
+    const mutation = await workApi.updateWork(work.workId, payload)
+
+    // 선택된 작업 폼 동기화
+    if (newStartDate && selectedWorkId.value === work.workId) {
+      workEditForm.value.startDate = newStartDate
+    }
+    if (yChanged) {
+      event.node.data.work = { ...work, positionY: snappedY }
+    }
+    applyMutation(mutation)
   } catch (error: any) {
     console.error('위치 저장 실패:', error)
     const errorMessage = error.response?.data?.message || error.message
     alert(errorMessage)
+    // 실패 시 원위치 복구
+    const origX = computeNodeX(work.startDate)
+    event.node.position.x = origX
+    event.node.data.originalX = origX
     event.node.position.y = work.positionY
   }
 }
@@ -1183,7 +1181,7 @@ const onResizeEnd = async () => {
   }
 }
 
-// 노드 드래그 핸들러 (선택된 작업: X축만 이동, 미선택: Y축만 이동)
+// 노드 드래그 핸들러 (X축 날짜 스냅 + Y축 그리드 스냅 동시 적용)
 const onNodeDrag = (event: { node: Node }) => {
   // 리사이즈 중이면 노드 드래그 차단
   if (resizing.value) {
@@ -1194,32 +1192,25 @@ const onNodeDrag = (event: { node: Node }) => {
 
   const originalX = event.node.data.originalX
   const work = event.node.data.work as WorkResponse | undefined
-  const isSelectedWork = work && selectedWorkId.value === work.workId
 
-  // 패스관리모드: 모든 노드 Y축 이동 차단
+  // 패스관리모드: 모든 노드 이동 차단
   if (isInPathMode.value) {
     if (work) event.node.position.y = work.positionY
     if (originalX !== undefined) event.node.position.x = originalX
     return
   }
 
-  if (isSelectedWork) {
-    // 선택된 작업: Y축 고정, X축 날짜 단위 실시간 스냅
-    event.node.position.y = work.positionY
-    const cfg = chartConfigStore.config
-    const originalX = event.node.data.originalX as number
-    const daysDelta = Math.round((event.node.position.x - originalX) / cfg.pixelPerDay)
-    event.node.position.x = originalX + daysDelta * cfg.pixelPerDay
-  } else {
-    // 미선택 작업: X축 잠금 (기존 동작)
-    if (originalX !== undefined && event.node.position.x !== originalX) {
-      event.node.position.x = originalX
-    }
-    // Y축 그리드 스냅
-    const cfg = chartConfigStore.config
-    const rowUnit = cfg.nodeHeight + 2 * cfg.nodePaddingY
-    event.node.position.y = Math.floor(event.node.position.y / rowUnit) * rowUnit
+  const cfg = chartConfigStore.config
+
+  // X축: 날짜 단위 스냅
+  if (originalX !== undefined) {
+    const daysDelta = Math.round((event.node.position.x - (originalX as number)) / cfg.pixelPerDay)
+    event.node.position.x = (originalX as number) + daysDelta * cfg.pixelPerDay
   }
+
+  // Y축: 행 그리드 스냅
+  const rowUnit = cfg.nodeHeight + 2 * cfg.nodePaddingY
+  event.node.position.y = Math.floor(event.node.position.y / rowUnit) * rowUnit
 
   // 드래그 중인 노드에 말풍선이 열려있으면 위치 갱신
   if (work && tooltip.value.visible && tooltip.value.workId === work.workId) {
