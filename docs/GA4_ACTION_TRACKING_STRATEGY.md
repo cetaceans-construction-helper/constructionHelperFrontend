@@ -61,7 +61,7 @@
 | `logout`           | 로그아웃            | `user_id`                     | `src/pages/ConstructionHelperPage.vue`, `src/pages/system-admin/SystemAdminPage.vue` |
 | `project_selected` | 프로젝트 변경       | `selection_state`             | `src/pages/ConstructionHelperPage.vue`                                               |
 | `feature_action`   | 핵심 업무 액션 결과 | `feature`, `action`, `result` | 아래 표 참조                                                                         |
-| `api_error`        | 주요 API 실패       | `feature`, `status_group`     | `src/api/client.ts`, `src/api/apiClient.ts`                                          |
+| `api_error`        | 주요 API 실패       | `feature`, `status_group`, `route_path`     | `src/api/client.ts`, `src/api/apiClient.ts`                                          |
 
 ### 5.4 `feature_action` 액션 매핑
 
@@ -303,18 +303,15 @@
 
 ### 11.7 Gate 7 - 오류 이벤트 최소 연동
 
-- [ ] [작업] API 클라이언트 인터셉터에 `api_error` 연동
-- [ ] [작업] 샘플링 비율 적용(기본 20%, `VITE_GA_API_ERROR_SAMPLE_RATE`로 조정 가능)
-- [ ] [작업] 401/403 토큰 갱신 루프는 제외 처리
+- [x] [작업] API 클라이언트 인터셉터에 `api_error` 연동
+- [x] [작업] 샘플링 비율 적용(기본 20%, `VITE_GA_API_ERROR_SAMPLE_RATE`로 조정 가능)
+- [x] [작업] 401/403 토큰 갱신 루프는 제외 처리
 - [ ] [검증] 의도적 실패 요청 시 `status_group` 값 정확성 확인 (`4xx`, `5xx`, `network`)
 - [ ] [완료조건] 장애 징후 모니터링 가능
 
 ### 11.8 Gate 8 - 데이터 품질/보안 점검
 
-- [ ] [작업] 이벤트/파라미터 네이밍 최종 점검 (snake_case)
 - [ ] [작업] debug용 console log 정리/clean up
-- [ ] [작업] PII 미전송 점검 (이메일, 전화번호, 이름, 주민번호, 자유 텍스트)
-- [ ] [작업] 커스텀 차원 등록 필요 목록 정리 (GA4 관리 화면 반영)
 - [ ] [검증] DebugView 실측 로그 샘플 검토 (핵심 이벤트 전체 1회 이상)
 - [ ] [완료조건] 운영 반영 가능 상태
 
