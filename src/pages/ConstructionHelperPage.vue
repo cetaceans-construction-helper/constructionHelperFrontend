@@ -26,6 +26,7 @@ import { useThemeStore } from '@/stores/theme'
 import { useAuthStore } from '@/stores/auth'
 import { useProjectStore } from '@/stores/project'
 import { projectApi } from '@/api/project'
+import { analyticsClient } from '@/lib/analytics/analyticsClient'
 import type { Project } from '@/types/project'
 
 const router = useRouter()
@@ -33,6 +34,7 @@ const route = useRoute()
 const themeStore = useThemeStore()
 const authStore = useAuthStore()
 const projectStore = useProjectStore()
+type ProjectSelectionState = 'manual' | 'auto_initial' | 'auto_recovery'
 
 // Section 정의 (1단계 구조)
 const sections = [
@@ -96,9 +98,24 @@ const currentSection = computed(() => {
 
 // 프로젝트 목록
 const projects = ref<Project[]>([])
+
+const selectProject = (projectId: string, selectionState: ProjectSelectionState) => {
+  const previousProjectId = projectStore.selectedProjectId
+  if (previousProjectId === projectId) return
+
+  projectStore.setProject(projectId)
+  analyticsClient.trackProjectSelected({
+    projectId,
+    previousProjectId,
+    selectionState,
+    routeName: route.name,
+    routePath: route.fullPath,
+  })
+}
+
 const selectedProject = computed({
   get: () => projectStore.selectedProjectId,
-  set: (val) => val && projectStore.setProject(val)
+  set: (val) => val && selectProject(val, 'manual')
 })
 const isLoadingProjects = ref(false)
 
@@ -113,7 +130,7 @@ onMounted(async () => {
     if (!savedProjectId || !isValidProject) {
       const firstProject = projects.value[0]
       if (firstProject) {
-        projectStore.setProject(firstProject.id)
+        selectProject(firstProject.id, savedProjectId ? 'auto_recovery' : 'auto_initial')
       }
     }
   } catch (e) {

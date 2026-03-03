@@ -26,17 +26,23 @@ interface ProjectSelectedInput {
 }
 
 class AnalyticsClient {
-  private readonly measurementId = import.meta.env.VITE_GA_MEASUREMENT_ID?.trim()
-
   private currentUserId: string | null = null
   private lastRouteKey: string | null = null
 
   private canTrack() {
-    return (
-      typeof window !== 'undefined' &&
-      typeof window.gtag === 'function' &&
-      Boolean(this.measurementId)
-    )
+    return typeof window !== 'undefined' && typeof window.gtag === 'function'
+  }
+
+  private getMeasurementId() {
+    const envMeasurementId = import.meta.env.VITE_GA_MEASUREMENT_ID?.trim()
+    if (envMeasurementId) return envMeasurementId
+
+    if (typeof window !== 'undefined' && typeof window.__gaMeasurementId === 'string') {
+      const runtimeMeasurementId = window.__gaMeasurementId.trim()
+      if (runtimeMeasurementId) return runtimeMeasurementId
+    }
+
+    return null
   }
 
   private normalizeRouteName(routeNameRaw: unknown) {
@@ -125,8 +131,12 @@ class AnalyticsClient {
   setUserId(userId: string | null) {
     this.currentUserId = userId
 
-    if (!this.canTrack() || !this.measurementId) return
-    window.gtag?.('config', this.measurementId, { user_id: userId ?? null })
+    if (!this.canTrack()) return
+
+    const measurementId = this.getMeasurementId()
+    if (!measurementId) return
+
+    window.gtag?.('config', measurementId, { user_id: userId ?? null })
   }
 }
 

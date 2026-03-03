@@ -14,6 +14,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { companyApi } from '@/api/company'
 import type { Company } from '@/types/auth'
+import { analyticsClient } from '@/lib/analytics/analyticsClient'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -46,6 +47,10 @@ onMounted(async () => {
 })
 
 const handleSignup = async () => {
+  analyticsClient.trackAuth('signup_attempt', undefined, {
+    route_name: 'signup',
+  })
+
   try {
     await authStore.signup({
       userEmail: userEmail.value,
