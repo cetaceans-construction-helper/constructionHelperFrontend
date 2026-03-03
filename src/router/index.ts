@@ -133,10 +133,8 @@ router.beforeEach(authGuard)
 router.afterEach((to, from, failure) => {
   if (failure) return
   console.log('[GA][route_change]', {
-    from_name: typeof from.name === 'string' ? from.name : 'unknown',
-    from_path: from.fullPath,
-    to_name: typeof to.name === 'string' ? to.name : 'unknown',
-    to_path: to.fullPath,
+    routeName: typeof to.name === 'string' ? to.name : 'unknown',
+    routePath: to.fullPath,
   })
   analyticsClient.trackRouteView({
     routeName: to.name,
