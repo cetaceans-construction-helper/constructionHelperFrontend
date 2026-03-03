@@ -1,5 +1,6 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { authGuard } from './guards'
+import { analyticsClient } from '@/lib/analytics/analyticsClient'
 
 const router = createRouter({
   history: createWebHashHistory(import.meta.env.BASE_URL),
@@ -128,5 +129,35 @@ const router = createRouter({
 
 // Global navigation guard (temporarily disabled)
 router.beforeEach(authGuard)
+
+router.afterEach((to, from, failure) => {
+  if (failure) return
+  console.log('[GA][route_change]', {
+    from_name: typeof from.name === 'string' ? from.name : 'unknown',
+    from_path: from.fullPath,
+    to_name: typeof to.name === 'string' ? to.name : 'unknown',
+    to_path: to.fullPath,
+  })
+  analyticsClient.trackRouteView({
+    routeName: to.name,
+    routePath: to.fullPath,
+  })
+})
+
+// 최초 진입이 afterEach에서 누락되는 경우를 대비한 fallback
+router
+  .isReady()
+  .then(() => {
+    const current = router.currentRoute.value
+    console.log('[GA][route_change][initial]', {
+      routeName: typeof current.name === 'string' ? current.name : 'unknown',
+      routePath: current.fullPath,
+    })
+    analyticsClient.trackRouteView({
+      routeName: current.name,
+      routePath: current.fullPath,
+    })
+  })
+  .catch(() => {})
 
 export default router

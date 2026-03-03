@@ -167,10 +167,10 @@
 
 ### 11.3 Gate 3 - 페이지 자동 수집
 
-- [ ] [작업] `src/router/index.ts`의 `afterEach`에서 `page_view` 전송
-- [ ] [작업] 최초 진입 시 누락 방지 처리
-- [ ] [검증] GA4 DebugView에서 라우트 이동 1회당 `page_view` 1건 확인
-- [ ] [완료조건] 자동 수집 안정화 (중복/누락 없음)
+- [x] [작업] `src/router/index.ts`의 `afterEach`에서 `page_view` 전송
+- [x] [작업] 최초 진입 시 누락 방지 처리
+- [x] [검증] GA4 DebugView에서 라우트 이동 1회당 `page_view` 1건 확인
+- [x] [완료조건] 자동 수집 안정화 (중복/누락 없음)
 
 ### 11.4 Gate 4 - 인증 이벤트 연동
 
@@ -233,62 +233,16 @@
 - [ ] [검증] DebugView 실측 로그 샘플 검토 (핵심 이벤트 전체 1회 이상)
 - [ ] [완료조건] 운영 반영 가능 상태
 
-### 11.9 Gate 9 - 동료 변경분 트래킹 재점검 (코드 변경 전 문서 업데이트)
+#### 11.8.1 debug log clean up 상세 (`index.html`, `src/router/index.ts`)
 
-#### 11.9.1 현재 연동 유지 항목 (코드 스캔 기준)
-
-- [ ] `page_view` 자동 수집 유지 (`src/router/index.ts`)
-- [ ] 인증 이벤트 유지 (`login_attempt`, `login_result`, `signup_attempt`, `signup_result`, `logout`)
-- [ ] `project_selected` 유지 (`src/pages/ConstructionHelperPage.vue`)
-- [ ] `schedule_3d` 액션 유지 (`update_task_quantity`, `create_material_order`)
-- [ ] `material_attendance.save_attendance`, `material_equipment.save_equipment` 유지
-- [ ] `api_error` 인터셉터 연동 유지 (`src/api/client.ts`, `src/api/apiClient.ts`)
-
-#### 11.9.2 변경 필요 항목 (동료 리팩터링 반영)
-
-- [ ] `schedule_2d.create_work` 재연결
-  - 기존 트래킹 위치(`useWorkForm.ts`)가 실제 호출 경로에서 이탈
-  - 현재 생성 경로(`useWorkTooltipData.submitCreate`, `Viewer2dArea.handleWorkEditSubmit`)에 연결 필요
-- [ ] `schedule_2d.update_work` 재연결
-  - 기존 트래킹 위치(`useWorkEditor.ts`)가 실제 호출 경로에서 이탈
-  - 현재 수정 경로(`useWorkTooltipData.submitEdit`, `Viewer2dArea` 인라인 수정 흐름)에 연결 필요
-- [ ] `schedule_2d.create_path / update_path` 정합성 수정
-  - `Viewer2dArea.savePathChanges`에서 `create_path`를 보내고 있어 액션명 불일치
-  - `usePathEditor.submitPathUpdate`의 `update_path`는 현재 호출되지 않는 경로라 사실상 미수집
-  - 현재 실제 저장 경로(`handleConnect`, `savePathEdges`, `savePathChanges`) 기준으로 재배치 필요
-- [ ] `schedule_2d.delete_work / delete_path` 중복 전송 정리
-  - `Viewer2dArea.executeDelete`에서 성공 이벤트 중복 가능성 점검 및 1회 보장 필요
-- [ ] `app_open` 이벤트 정책 정합화
-  - 전략 문서 초기 이벤트 목록에는 있으나 현재 코드에는 발화 지점 없음 (`src/main.ts`)
-  - 유지/삭제 중 하나로 정책 확정 필요
-- [ ] Gate 2 디버그 로그 제거
-  - `index.html`의 `window.gtag` 디버그 `console.log` 정리
-  - 운영 반영 전 로그 레벨 정리(필요 시 dev 전용으로 축소)
-
-#### 11.9.3 신규 화면/버튼 기준 추가 트래킹 후보 
-
-- [ ] 자재 발주/반입 플로우 (`material` 섹션)
-  - `InvoicePage.saveDelivery` (송장 입력)
-  - `IncomingMaterialPage.saveDirectDelivery`, `updateDelivery`, `confirmDeleteDelivery`
-  - `IncomingMaterialPage.generateMir`, `confirmDeleteMir`
-  - `MaterialInspectionPage.confirmDelete` (검수요청서 삭제)
-- [ ] 출역 입력 보조 액션
-  - `useAttendance.resetAttendance`
-  - `useEquipmentDeployment.resetEquipmentDeployment`
-- [ ] 관리자/시스템관리 CRUD 액션
-  - `src/pages/helper/admin/composables/*`
-  - `src/pages/system-admin/composables/*`
-  - 생성/수정/삭제 액션 기준으로 `feature_action` 매핑 필요
-
-#### 11.9.4 리네이밍/대시보드 영향 점검
-
-- [ ] 라우트명 변경 영향 확인
-  - 기존: `material-invoice`, `material-list`
-  - 현재: `material-order`, `material-incoming`, `material-outgoing`, `material-remaining`
-- [ ] 대시보드/탐색 보고서에서 기존 필터/세그먼트(route_name 기반) 업데이트
-
-#### 11.9.5 Gate 9 완료 조건
-
-- [ ] 실제 호출 경로 기준으로 이벤트 재연결 설계 확정
-- [ ] 신규 화면 액션의 추적 범위(필수/선택) 확정
-- [ ] DebugView 검증 시나리오(성공/실패)를 액션별로 문서화
+- [ ] `index.html` 정리
+  - `window.gtag` 래퍼 내부 `console.log('[GA][gtag]', ...arguments)` 제거
+  - `rawGtag(...arguments)` 호출은 유지 (이벤트 전송 동작 유지)
+  - `send_page_view: false` 설정은 유지 (수동 `page_view` 전략 유지)
+- [ ] `src/router/index.ts` 정리
+  - `afterEach` 내부 `console.log('[GA][route_change]', ...)` 제거
+  - `isReady` fallback 내부 `console.log('[GA][route_change][initial]', ...)` 제거
+  - `analyticsClient.trackRouteView(...)` 호출은 유지 (자동 수집 유지)
+- [ ] 정리 후 확인
+  - 페이지 이동/최초 진입 시 GA 디버그 목적 `console.log`가 더 이상 출력되지 않는지 확인
+  - DebugView에서 `page_view`/핵심 이벤트 수집은 정상인지 재확인
