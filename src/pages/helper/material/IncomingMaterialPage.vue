@@ -43,10 +43,7 @@ import {
 import { X } from 'lucide-vue-next'
 import { useMaterialOrder } from './composables/useMaterialOrder'
 import { materialOrderApi } from '@/api/materialOrder'
-import type {
-  MaterialDeliverySummary,
-  DeliveryLineResponse,
-} from '@/api/materialOrder'
+import type { MaterialDeliverySummary, DeliveryLineResponse } from '@/api/materialOrder'
 import { materialInspectionRequestApi } from '@/api/projectDocumentCode'
 import type { MaterialInspectionRequestResponse } from '@/api/projectDocumentCode'
 import { referenceApi } from '@/api/reference'
@@ -56,6 +53,7 @@ import type {
   IdNameResponse,
   WorkTypeResponse,
 } from '@/api/reference'
+import { analyticsClient } from '@/lib/analytics/analyticsClient'
 
 const router = useRouter()
 const { orders, loadOrders } = useMaterialOrder()
@@ -95,13 +93,18 @@ const isLoadingDeliveries = ref(false)
 // 반입자재 펼치기/접기 + 인라인 수정 상태
 const expandedDeliveries = reactive<Record<number, boolean>>({})
 const deliveryLinesMap = ref<Record<number, DeliveryLineResponse[]>>({})
-const deliveryEditState = ref<Record<number, {
-  supplier: string
-  deliveryDate: string
-  location: string
-  noteDescriptions: { noteId: number; description: string }[]
-  photoDescriptions: { photoId: number; description: string }[]
-}>>({})
+const deliveryEditState = ref<
+  Record<
+    number,
+    {
+      supplier: string
+      deliveryDate: string
+      location: string
+      noteDescriptions: { noteId: number; description: string }[]
+      photoDescriptions: { photoId: number; description: string }[]
+    }
+  >
+>({})
 const isLoadingLines = ref<Record<number, boolean>>({})
 const isUpdatingDelivery = ref<Record<number, boolean>>({})
 const materialSpecs = ref<MaterialSpecResponse[]>([])
@@ -177,7 +180,9 @@ async function handleDirectDivisionChange(divisionId: any) {
 
   isLoadingDirectWorkTypes.value = true
   try {
-    directWorkTypes.value = await referenceApi.getWorkTypeList(Number(directSelectedDivisionId.value))
+    directWorkTypes.value = await referenceApi.getWorkTypeList(
+      Number(directSelectedDivisionId.value),
+    )
   } catch (error: unknown) {
     console.error('공종 목록 로드 실패:', error)
   } finally {
@@ -204,7 +209,9 @@ async function saveDirectDelivery() {
   try {
     await materialOrderApi.createMaterialDelivery({
       materialTypeId: Number(directSelectedMaterialTypeId.value),
-      workTypeId: directSelectedWorkTypeId.value ? Number(directSelectedWorkTypeId.value) : undefined,
+      workTypeId: directSelectedWorkTypeId.value
+        ? Number(directSelectedWorkTypeId.value)
+        : undefined,
       deliveryNotes: directDeliveryNotes.value,
       deliveryPhotos: directDeliveryPhotos.value,
       zoneIds: directSelectedZoneIds.value,
@@ -215,9 +222,11 @@ async function saveDirectDelivery() {
     directDeliveryDialogOpen.value = false
     materialSpecs.value = []
     loadOrders()
+    analyticsClient.trackAction('material_delivery', 'create_delivery', 'success')
     loadDeliveries()
   } catch (error: unknown) {
     console.error('송장입력 실패:', error)
+    analyticsClient.trackAction('material_delivery', 'create_delivery', 'fail')
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     alert(err.response?.data?.message || err.message)
   } finally {
@@ -255,8 +264,10 @@ async function confirmDeleteDelivery() {
     delete deliveryDragStart[deletedId]
     delete deliveryTranslateStart[deletedId]
     delete isGeneratingMir.value[deletedId]
+    analyticsClient.trackAction('material_delivery', 'delete_delivery', 'success')
   } catch (error: unknown) {
     console.error('반입자재 삭제 실패:', error)
+    analyticsClient.trackAction('material_delivery', 'delete_delivery', 'fail')
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     alert(err.response?.data?.message || err.message)
   } finally {
@@ -281,8 +292,10 @@ async function confirmDeleteMir() {
     await materialInspectionRequestApi.deleteMaterialInspectionRequest(mirDeleteTargetId.value)
     showMirDeleteDialog.value = false
     mirList.value = mirList.value.filter((m) => m.id !== mirDeleteTargetId.value)
+    analyticsClient.trackAction('material_delivery', 'delete_mir', 'success')
   } catch (error: unknown) {
     console.error('검수요청서 삭제 실패:', error)
+    analyticsClient.trackAction('material_delivery', 'delete_mir', 'fail')
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     alert(err.response?.data?.message || err.message)
   } finally {
@@ -293,10 +306,12 @@ async function confirmDeleteMir() {
 async function generateMir(deliveryId: number) {
   isGeneratingMir.value[deliveryId] = true
   try {
-    await materialInspectionRequestApi.createMaterialInspectionRequest(deliveryId)
+    mirList.value = await materialInspectionRequestApi.getMaterialInspectionRequestList()
     router.push('/helper/document/material-inspection')
+    analyticsClient.trackAction('material_delivery', 'create_mir', 'success')
   } catch (error: unknown) {
     console.error('자재반입검수요청서 생성 실패:', error)
+    analyticsClient.trackAction('material_delivery', 'create_mir', 'fail')
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     alert(err.response?.data?.message || err.message)
   } finally {
@@ -352,8 +367,14 @@ async function toggleDelivery(delivery: MaterialDeliverySummary) {
       supplier: delivery.supplier,
       deliveryDate: delivery.deliveryDate,
       location: delivery.location ?? '',
-      noteDescriptions: delivery.noteFiles.map((f) => ({ noteId: f.noteId!, description: f.description })),
-      photoDescriptions: delivery.photoFiles.map((f) => ({ photoId: f.photoId!, description: f.description })),
+      noteDescriptions: delivery.noteFiles.map((f) => ({
+        noteId: f.noteId!,
+        description: f.description,
+      })),
+      photoDescriptions: delivery.photoFiles.map((f) => ({
+        photoId: f.photoId!,
+        description: f.description,
+      })),
     }
     deliveryImageIndex.value[id] = 0
     deliveryImageScale.value[id] = 1
@@ -488,9 +509,11 @@ async function updateDelivery(delivery: MaterialDeliverySummary) {
     delete deliveryImageIndex.value[id]
     delete deliveryImageScale.value[id]
     delete deliveryImageTranslate[id]
+    analyticsClient.trackAction('material_delivery', 'update_delivery', 'success')
     loadDeliveries()
   } catch (error: unknown) {
     console.error('반입자재 수정 실패:', error)
+    analyticsClient.trackAction('material_delivery', 'update_delivery', 'fail')
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     alert(err.response?.data?.message || err.message)
   } finally {
@@ -563,11 +586,15 @@ onUnmounted(() => {
             class="flex items-center gap-3 px-4 py-3 bg-muted/30 cursor-pointer select-none"
             @click="toggleDelivery(delivery)"
           >
-            <span class="text-xs text-muted-foreground">{{ expandedDeliveries[delivery.materialDeliveryId] ? '▲' : '▼' }}</span>
+            <span class="text-xs text-muted-foreground">{{
+              expandedDeliveries[delivery.materialDeliveryId] ? '▲' : '▼'
+            }}</span>
             <span class="text-sm font-medium">{{ delivery.materialOrderNumber }}</span>
             <span class="text-sm text-muted-foreground">{{ delivery.supplier }}</span>
             <span class="text-sm text-muted-foreground">{{ delivery.deliveryDate }}</span>
-            <span v-if="delivery.location" class="text-sm text-muted-foreground">{{ delivery.location }}</span>
+            <span v-if="delivery.location" class="text-sm text-muted-foreground">{{
+              delivery.location
+            }}</span>
             <div class="flex items-center gap-1 ml-auto" @click.stop>
               <Button
                 v-if="!mirDeliveryIds.has(delivery.materialDeliveryId)"
@@ -576,7 +603,9 @@ onUnmounted(() => {
                 :disabled="isGeneratingMir[delivery.materialDeliveryId]"
                 @click="generateMir(delivery.materialDeliveryId)"
               >
-                {{ isGeneratingMir[delivery.materialDeliveryId] ? '생성 중...' : '자재반입검수요청서' }}
+                {{
+                  isGeneratingMir[delivery.materialDeliveryId] ? '생성 중...' : '자재반입검수요청서'
+                }}
               </Button>
               <template v-else>
                 <Badge variant="secondary">검수요청 완료</Badge>
@@ -584,7 +613,12 @@ onUnmounted(() => {
                   variant="ghost"
                   size="sm"
                   class="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
-                  @click="openMirDeleteDialog(getMirForDelivery(delivery.materialDeliveryId)!.id, delivery.materialOrderNumber)"
+                  @click="
+                    openMirDeleteDialog(
+                      getMirForDelivery(delivery.materialDeliveryId)!.id,
+                      delivery.materialOrderNumber,
+                    )
+                  "
                 >
                   <X class="h-3 w-3" />
                 </Button>
@@ -604,7 +638,10 @@ onUnmounted(() => {
           <!-- 펼친 영역 -->
           <div v-if="expandedDeliveries[delivery.materialDeliveryId]" class="p-4">
             <!-- 로딩 -->
-            <div v-if="isLoadingLines[delivery.materialDeliveryId]" class="text-sm text-muted-foreground text-center py-8">
+            <div
+              v-if="isLoadingLines[delivery.materialDeliveryId]"
+              class="text-sm text-muted-foreground text-center py-8"
+            >
               라인 정보 로딩 중...
             </div>
 
@@ -612,13 +649,21 @@ onUnmounted(() => {
               <div class="flex gap-4">
                 <!-- 좌측: 이미지 뷰어 (고정 높이) -->
                 <div class="w-1/2 flex flex-col gap-2">
-                  <div v-if="isLoadingDeliveryImages[delivery.materialDeliveryId]" class="h-[720px] flex items-center justify-center border border-border rounded-lg bg-muted/20">
+                  <div
+                    v-if="isLoadingDeliveryImages[delivery.materialDeliveryId]"
+                    class="h-[720px] flex items-center justify-center border border-border rounded-lg bg-muted/20"
+                  >
                     <p class="text-sm text-muted-foreground">이미지 로딩 중...</p>
                   </div>
-                  <template v-else-if="(deliveryImageUrls[delivery.materialDeliveryId] ?? []).length > 0">
+                  <template
+                    v-else-if="(deliveryImageUrls[delivery.materialDeliveryId] ?? []).length > 0"
+                  >
                     <div
                       class="h-[720px] border border-border rounded-lg overflow-hidden bg-muted/20 relative"
-                      :class="{ 'cursor-grab': (deliveryImageScale[delivery.materialDeliveryId] ?? 1) > 1, 'cursor-grabbing': deliveryImageDragging[delivery.materialDeliveryId] }"
+                      :class="{
+                        'cursor-grab': (deliveryImageScale[delivery.materialDeliveryId] ?? 1) > 1,
+                        'cursor-grabbing': deliveryImageDragging[delivery.materialDeliveryId],
+                      }"
                       @wheel.prevent="onDeliveryImageWheel(delivery.materialDeliveryId, $event)"
                       @pointerdown="onDeliveryImagePointerDown(delivery.materialDeliveryId, $event)"
                       @pointermove="onDeliveryImagePointerMove(delivery.materialDeliveryId, $event)"
@@ -626,54 +671,126 @@ onUnmounted(() => {
                       @pointercancel="onDeliveryImagePointerUp(delivery.materialDeliveryId)"
                     >
                       <img
-                        :src="deliveryImageUrls[delivery.materialDeliveryId]?.[deliveryImageIndex[delivery.materialDeliveryId] ?? 0]"
+                        :src="
+                          deliveryImageUrls[delivery.materialDeliveryId]?.[
+                            deliveryImageIndex[delivery.materialDeliveryId] ?? 0
+                          ]
+                        "
                         alt="송장 이미지"
                         class="w-full h-full object-contain select-none"
                         draggable="false"
                         :style="{
                           transform: `translate(${deliveryImageTranslate[delivery.materialDeliveryId]?.x ?? 0}px, ${deliveryImageTranslate[delivery.materialDeliveryId]?.y ?? 0}px) scale(${deliveryImageScale[delivery.materialDeliveryId] ?? 1})`,
                           transformOrigin: 'center center',
-                          transition: deliveryImageDragging[delivery.materialDeliveryId] ? 'none' : 'transform 0.15s ease',
+                          transition: deliveryImageDragging[delivery.materialDeliveryId]
+                            ? 'none'
+                            : 'transform 0.15s ease',
                         }"
                       />
-                      <div class="absolute bottom-2 right-2 flex items-center gap-1 bg-background/80 rounded-md border border-border px-1.5 py-0.5">
-                        <Button variant="ghost" size="sm" class="h-6 w-6 p-0" @click="deliveryImageScale[delivery.materialDeliveryId] = Math.max(0.5, (deliveryImageScale[delivery.materialDeliveryId] ?? 1) - 0.25)">−</Button>
-                        <span class="text-xs text-muted-foreground min-w-[3ch] text-center">{{ Math.round((deliveryImageScale[delivery.materialDeliveryId] ?? 1) * 100) }}%</span>
-                        <Button variant="ghost" size="sm" class="h-6 w-6 p-0" @click="deliveryImageScale[delivery.materialDeliveryId] = Math.min(5, (deliveryImageScale[delivery.materialDeliveryId] ?? 1) + 0.25)">+</Button>
-                        <Button v-if="(deliveryImageScale[delivery.materialDeliveryId] ?? 1) !== 1" variant="ghost" size="sm" class="h-6 px-1 text-xs" @click="resetDeliveryImageTransform(delivery.materialDeliveryId)">초기화</Button>
+                      <div
+                        class="absolute bottom-2 right-2 flex items-center gap-1 bg-background/80 rounded-md border border-border px-1.5 py-0.5"
+                      >
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          class="h-6 w-6 p-0"
+                          @click="
+                            deliveryImageScale[delivery.materialDeliveryId] = Math.max(
+                              0.5,
+                              (deliveryImageScale[delivery.materialDeliveryId] ?? 1) - 0.25,
+                            )
+                          "
+                          >−</Button
+                        >
+                        <span class="text-xs text-muted-foreground min-w-[3ch] text-center"
+                          >{{
+                            Math.round(
+                              (deliveryImageScale[delivery.materialDeliveryId] ?? 1) * 100,
+                            )
+                          }}%</span
+                        >
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          class="h-6 w-6 p-0"
+                          @click="
+                            deliveryImageScale[delivery.materialDeliveryId] = Math.min(
+                              5,
+                              (deliveryImageScale[delivery.materialDeliveryId] ?? 1) + 0.25,
+                            )
+                          "
+                          >+</Button
+                        >
+                        <Button
+                          v-if="(deliveryImageScale[delivery.materialDeliveryId] ?? 1) !== 1"
+                          variant="ghost"
+                          size="sm"
+                          class="h-6 px-1 text-xs"
+                          @click="resetDeliveryImageTransform(delivery.materialDeliveryId)"
+                          >초기화</Button
+                        >
                       </div>
                     </div>
                     <!-- 현재 이미지의 설명 -->
                     <div v-if="deliveryEditState[delivery.materialDeliveryId]" class="shrink-0">
-                      <template v-if="(deliveryImageIndex[delivery.materialDeliveryId] ?? 0) < delivery.noteFiles.length">
+                      <template
+                        v-if="
+                          (deliveryImageIndex[delivery.materialDeliveryId] ?? 0) <
+                          delivery.noteFiles.length
+                        "
+                      >
                         <Input
-                          v-model="deliveryEditState[delivery.materialDeliveryId]!.noteDescriptions[(deliveryImageIndex[delivery.materialDeliveryId] ?? 0)]!.description"
+                          v-model="
+                            deliveryEditState[delivery.materialDeliveryId]!.noteDescriptions[
+                              deliveryImageIndex[delivery.materialDeliveryId] ?? 0
+                            ]!.description
+                          "
                           class="h-8 text-sm"
                           placeholder="송장 설명"
                         />
                       </template>
                       <template v-else>
                         <Input
-                          v-model="deliveryEditState[delivery.materialDeliveryId]!.photoDescriptions[(deliveryImageIndex[delivery.materialDeliveryId] ?? 0) - delivery.noteFiles.length]!.description"
+                          v-model="
+                            deliveryEditState[delivery.materialDeliveryId]!.photoDescriptions[
+                              (deliveryImageIndex[delivery.materialDeliveryId] ?? 0) -
+                                delivery.noteFiles.length
+                            ]!.description
+                          "
                           class="h-8 text-sm"
                           placeholder="사진 설명"
                         />
                       </template>
                     </div>
                     <!-- 페이지 넘기기 -->
-                    <div v-if="(deliveryImageUrls[delivery.materialDeliveryId] ?? []).length > 1" class="flex items-center justify-center gap-3 shrink-0">
-                      <Button variant="outline" size="sm" @click="prevDeliveryImage(delivery.materialDeliveryId)">
+                    <div
+                      v-if="(deliveryImageUrls[delivery.materialDeliveryId] ?? []).length > 1"
+                      class="flex items-center justify-center gap-3 shrink-0"
+                    >
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        @click="prevDeliveryImage(delivery.materialDeliveryId)"
+                      >
                         ← 이전
                       </Button>
                       <span class="text-sm text-muted-foreground">
-                        {{ (deliveryImageIndex[delivery.materialDeliveryId] ?? 0) + 1 }} / {{ (deliveryImageUrls[delivery.materialDeliveryId] ?? []).length }}
+                        {{ (deliveryImageIndex[delivery.materialDeliveryId] ?? 0) + 1 }} /
+                        {{ (deliveryImageUrls[delivery.materialDeliveryId] ?? []).length }}
                       </span>
-                      <Button variant="outline" size="sm" @click="nextDeliveryImage(delivery.materialDeliveryId)">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        @click="nextDeliveryImage(delivery.materialDeliveryId)"
+                      >
                         다음 →
                       </Button>
                     </div>
                   </template>
-                  <div v-else class="h-[720px] flex items-center justify-center border border-border rounded-lg bg-muted/20">
+                  <div
+                    v-else
+                    class="h-[720px] flex items-center justify-center border border-border rounded-lg bg-muted/20"
+                  >
                     <p class="text-sm text-muted-foreground">이미지가 없습니다</p>
                   </div>
                 </div>
@@ -688,11 +805,17 @@ onUnmounted(() => {
                     </div>
                     <div class="space-y-1.5">
                       <Label>납품일</Label>
-                      <Input v-model="deliveryEditState[delivery.materialDeliveryId]!.deliveryDate" type="date" />
+                      <Input
+                        v-model="deliveryEditState[delivery.materialDeliveryId]!.deliveryDate"
+                        type="date"
+                      />
                     </div>
                     <div class="space-y-1.5">
                       <Label>위치</Label>
-                      <Input v-model="deliveryEditState[delivery.materialDeliveryId]!.location" placeholder="예: A동 3층" />
+                      <Input
+                        v-model="deliveryEditState[delivery.materialDeliveryId]!.location"
+                        placeholder="예: A동 3층"
+                      />
                     </div>
                   </div>
 
@@ -722,12 +845,16 @@ onUnmounted(() => {
                           <TableCell>
                             <div class="flex items-center gap-1.5">
                               <Select
-                                :model-value="line.materialSpecId != null ? String(line.materialSpecId) : ''"
-                                @update:model-value="(val) => {
-                                  const spec = materialSpecs.find(s => s.id === Number(val))
-                                  line.materialSpecId = spec ? spec.id : null
-                                  line.materialSpecName = spec ? spec.name : null
-                                }"
+                                :model-value="
+                                  line.materialSpecId != null ? String(line.materialSpecId) : ''
+                                "
+                                @update:model-value="
+                                  (val) => {
+                                    const spec = materialSpecs.find((s) => s.id === Number(val))
+                                    line.materialSpecId = spec ? spec.id : null
+                                    line.materialSpecName = spec ? spec.name : null
+                                  }
+                                "
                               >
                                 <SelectTrigger class="h-8 text-sm">
                                   <SelectValue placeholder="규격 선택" />
@@ -778,10 +905,15 @@ onUnmounted(() => {
                   <!-- 수정하기 버튼 -->
                   <div class="flex justify-end">
                     <Button
-                      :disabled="isUpdatingDelivery[delivery.materialDeliveryId] || mirDeliveryIds.has(delivery.materialDeliveryId)"
+                      :disabled="
+                        isUpdatingDelivery[delivery.materialDeliveryId] ||
+                        mirDeliveryIds.has(delivery.materialDeliveryId)
+                      "
                       @click="updateDelivery(delivery)"
                     >
-                      {{ isUpdatingDelivery[delivery.materialDeliveryId] ? '저장 중...' : '수정하기' }}
+                      {{
+                        isUpdatingDelivery[delivery.materialDeliveryId] ? '저장 중...' : '수정하기'
+                      }}
                     </Button>
                   </div>
                 </div>
@@ -808,11 +940,7 @@ onUnmounted(() => {
                 <SelectValue placeholder="자재유형 선택" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem
-                  v-for="mt in directMaterialTypes"
-                  :key="mt.id"
-                  :value="String(mt.id)"
-                >
+                <SelectItem v-for="mt in directMaterialTypes" :key="mt.id" :value="String(mt.id)">
                   {{ mt.name }}
                 </SelectItem>
               </SelectContent>
@@ -830,11 +958,7 @@ onUnmounted(() => {
                 <SelectValue placeholder="분류 선택" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem
-                  v-for="div in directDivisions"
-                  :key="div.id"
-                  :value="String(div.id)"
-                >
+                <SelectItem v-for="div in directDivisions" :key="div.id" :value="String(div.id)">
                   {{ div.name }}
                 </SelectItem>
               </SelectContent>
@@ -852,11 +976,7 @@ onUnmounted(() => {
                 <SelectValue :placeholder="isLoadingDirectWorkTypes ? '로딩중...' : '공종 선택'" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem
-                  v-for="wt in directWorkTypes"
-                  :key="wt.id"
-                  :value="String(wt.id)"
-                >
+                <SelectItem v-for="wt in directWorkTypes" :key="wt.id" :value="String(wt.id)">
                   {{ wt.name }}
                 </SelectItem>
               </SelectContent>
@@ -895,9 +1015,13 @@ onUnmounted(() => {
                 <Checkbox
                   :id="`direct-zone-${zone.id}`"
                   :model-value="directSelectedZoneIds.includes(zone.id)"
-                  @update:model-value="directSelectedZoneIds = toggleId(directSelectedZoneIds, zone.id)"
+                  @update:model-value="
+                    directSelectedZoneIds = toggleId(directSelectedZoneIds, zone.id)
+                  "
                 />
-                <label :for="`direct-zone-${zone.id}`" class="text-sm cursor-pointer">{{ zone.name }}</label>
+                <label :for="`direct-zone-${zone.id}`" class="text-sm cursor-pointer">{{
+                  zone.name
+                }}</label>
               </div>
             </div>
           </div>
@@ -909,9 +1033,13 @@ onUnmounted(() => {
                 <Checkbox
                   :id="`direct-floor-${floor.id}`"
                   :model-value="directSelectedFloorIds.includes(floor.id)"
-                  @update:model-value="directSelectedFloorIds = toggleId(directSelectedFloorIds, floor.id)"
+                  @update:model-value="
+                    directSelectedFloorIds = toggleId(directSelectedFloorIds, floor.id)
+                  "
                 />
-                <label :for="`direct-floor-${floor.id}`" class="text-sm cursor-pointer">{{ floor.name }}</label>
+                <label :for="`direct-floor-${floor.id}`" class="text-sm cursor-pointer">{{
+                  floor.name
+                }}</label>
               </div>
             </div>
           </div>
@@ -919,13 +1047,21 @@ onUnmounted(() => {
           <div v-if="directSections.length > 0" class="space-y-2">
             <Label>구역</Label>
             <div class="flex flex-wrap gap-3">
-              <div v-for="section in directSections" :key="section.id" class="flex items-center gap-1.5">
+              <div
+                v-for="section in directSections"
+                :key="section.id"
+                class="flex items-center gap-1.5"
+              >
                 <Checkbox
                   :id="`direct-section-${section.id}`"
                   :model-value="directSelectedSectionIds.includes(section.id)"
-                  @update:model-value="directSelectedSectionIds = toggleId(directSelectedSectionIds, section.id)"
+                  @update:model-value="
+                    directSelectedSectionIds = toggleId(directSelectedSectionIds, section.id)
+                  "
                 />
-                <label :for="`direct-section-${section.id}`" class="text-sm cursor-pointer">{{ section.name }}</label>
+                <label :for="`direct-section-${section.id}`" class="text-sm cursor-pointer">{{
+                  section.name
+                }}</label>
               </div>
             </div>
           </div>
@@ -937,9 +1073,13 @@ onUnmounted(() => {
                 <Checkbox
                   :id="`direct-usage-${usage.id}`"
                   :model-value="directSelectedUsageIds.includes(usage.id)"
-                  @update:model-value="directSelectedUsageIds = toggleId(directSelectedUsageIds, usage.id)"
+                  @update:model-value="
+                    directSelectedUsageIds = toggleId(directSelectedUsageIds, usage.id)
+                  "
                 />
-                <label :for="`direct-usage-${usage.id}`" class="text-sm cursor-pointer">{{ usage.name }}</label>
+                <label :for="`direct-usage-${usage.id}`" class="text-sm cursor-pointer">{{
+                  usage.name
+                }}</label>
               </div>
             </div>
           </div>

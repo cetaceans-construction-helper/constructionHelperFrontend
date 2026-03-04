@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { referenceApi, type IdNameResponse } from '@/api/reference'
+import { analyticsClient } from '@/lib/analytics/analyticsClient'
 
 export function useLocationMaster() {
   const zones = ref<IdNameResponse[]>([])
@@ -74,8 +75,10 @@ export function useLocationMaster() {
       await referenceApi.createZone(name)
       newZone.value = ''
       await loadZones()
+      analyticsClient.trackAction('admin_master_data', 'create_zone', 'success')
     } catch (error: unknown) {
       console.error('Zone 추가 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'create_zone', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -93,8 +96,10 @@ export function useLocationMaster() {
       await referenceApi.createFloor(name)
       newFloor.value = ''
       await loadFloors()
+      analyticsClient.trackAction('admin_master_data', 'create_floor', 'success')
     } catch (error: unknown) {
       console.error('Floor 추가 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'create_floor', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -112,8 +117,10 @@ export function useLocationMaster() {
       await referenceApi.createSection(name)
       newSection.value = ''
       await loadSections()
+      analyticsClient.trackAction('admin_master_data', 'create_section', 'success')
     } catch (error: unknown) {
       console.error('Section 추가 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'create_section', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -131,8 +138,10 @@ export function useLocationMaster() {
       await referenceApi.createUsage(name)
       newUsage.value = ''
       await loadUsages()
+      analyticsClient.trackAction('admin_master_data', 'create_usage', 'success')
     } catch (error: unknown) {
       console.error('Usage 추가 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'create_usage', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -147,8 +156,10 @@ export function useLocationMaster() {
     try {
       await referenceApi.deleteZone(id)
       zones.value = zones.value.filter((z) => z.id !== id)
+      analyticsClient.trackAction('admin_master_data', 'delete_zone', 'success')
     } catch (error: unknown) {
       console.error('Zone 삭제 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'delete_zone', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -162,8 +173,10 @@ export function useLocationMaster() {
     try {
       await referenceApi.deleteFloor(id)
       floors.value = floors.value.filter((f) => f.id !== id)
+      analyticsClient.trackAction('admin_master_data', 'delete_floor', 'success')
     } catch (error: unknown) {
       console.error('Floor 삭제 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'delete_floor', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -177,8 +190,10 @@ export function useLocationMaster() {
     try {
       await referenceApi.deleteSection(id)
       sections.value = sections.value.filter((s) => s.id !== id)
+      analyticsClient.trackAction('admin_master_data', 'delete_section', 'success')
     } catch (error: unknown) {
       console.error('Section 삭제 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'delete_section', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -192,8 +207,10 @@ export function useLocationMaster() {
     try {
       await referenceApi.deleteUsage(id)
       usages.value = usages.value.filter((u) => u.id !== id)
+      analyticsClient.trackAction('admin_master_data', 'delete_usage', 'success')
     } catch (error: unknown) {
       console.error('Usage 삭제 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'delete_usage', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -207,8 +224,10 @@ export function useLocationMaster() {
       await referenceApi.updateZone({ id, name })
       const item = zones.value.find((z) => z.id === id)
       if (item) item.name = name
+      analyticsClient.trackAction('admin_master_data', 'update_zone', 'success')
     } catch (error: unknown) {
       console.error('Zone 이름 수정 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'update_zone', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
       await loadZones()
@@ -220,8 +239,10 @@ export function useLocationMaster() {
       await referenceApi.updateFloor({ id, name })
       const item = floors.value.find((f) => f.id === id)
       if (item) item.name = name
+      analyticsClient.trackAction('admin_master_data', 'update_floor', 'success')
     } catch (error: unknown) {
       console.error('Floor 이름 수정 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'update_floor', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
       await loadFloors()
@@ -233,8 +254,10 @@ export function useLocationMaster() {
       await referenceApi.updateSection({ id, name })
       const item = sections.value.find((s) => s.id === id)
       if (item) item.name = name
+      analyticsClient.trackAction('admin_master_data', 'update_section', 'success')
     } catch (error: unknown) {
       console.error('Section 이름 수정 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'update_section', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
       await loadSections()
@@ -246,8 +269,10 @@ export function useLocationMaster() {
       await referenceApi.updateUsage({ id, name })
       const item = usages.value.find((u) => u.id === id)
       if (item) item.name = name
+      analyticsClient.trackAction('admin_master_data', 'update_usage', 'success')
     } catch (error: unknown) {
       console.error('Usage 이름 수정 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'update_usage', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
       await loadUsages()

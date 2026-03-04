@@ -3,7 +3,7 @@ type Env = 'development' | 'production'
 const env = (import.meta.env.MODE || 'development') as Env
 
 const apiBaseUrls: Record<Env, string> = {
-  development: 'http://localhost:8080/api',
+  development: 'https://api.conhelp.kr/api',
   production: 'https://api.conhelp.kr/api',
 }
 

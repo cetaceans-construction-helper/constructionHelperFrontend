@@ -6,6 +6,7 @@ import {
   type SubWorkTypeResponse,
   type WorkStepResponse,
 } from '@/api/reference'
+import { analyticsClient } from '@/lib/analytics/analyticsClient'
 
 export function useWorkClassification() {
   const divisions = ref<IdNameResponse[]>([])
@@ -88,8 +89,10 @@ export function useWorkClassification() {
       await referenceApi.createDivision(name)
       newDivisionName.value = ''
       await loadDivisions()
+      analyticsClient.trackAction('admin_master_data', 'create_division', 'success')
     } catch (error: unknown) {
       console.error('Division 추가 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'create_division', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -107,8 +110,10 @@ export function useWorkClassification() {
       await referenceApi.createWorkType(selectedDivisionId.value, name)
       newWorkTypeName.value = ''
       await loadWorkTypes(selectedDivisionId.value)
+      analyticsClient.trackAction('admin_master_data', 'create_work_type', 'success')
     } catch (error: unknown) {
       console.error('WorkType 추가 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'create_work_type', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -126,8 +131,10 @@ export function useWorkClassification() {
       await referenceApi.createSubWorkType(selectedWorkTypeId.value, name)
       newSubWorkTypeName.value = ''
       await loadSubWorkTypes(selectedWorkTypeId.value)
+      analyticsClient.trackAction('admin_master_data', 'create_sub_work_type', 'success')
     } catch (error: unknown) {
       console.error('SubWorkType 추가 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'create_sub_work_type', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -145,8 +152,10 @@ export function useWorkClassification() {
       await referenceApi.createWorkStep(selectedSubWorkTypeId.value, name)
       newWorkStepName.value = ''
       await loadWorkSteps(selectedSubWorkTypeId.value)
+      analyticsClient.trackAction('admin_master_data', 'create_work_step', 'success')
     } catch (error: unknown) {
       console.error('WorkStep 추가 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'create_work_step', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -169,8 +178,10 @@ export function useWorkClassification() {
         workSteps.value = []
       }
       divisions.value = divisions.value.filter((d) => d.id !== id)
+      analyticsClient.trackAction('admin_master_data', 'delete_division', 'success')
     } catch (error: unknown) {
       console.error('Division 삭제 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'delete_division', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -190,8 +201,10 @@ export function useWorkClassification() {
         workSteps.value = []
       }
       workTypes.value = workTypes.value.filter((wt) => wt.id !== id)
+      analyticsClient.trackAction('admin_master_data', 'delete_work_type', 'success')
     } catch (error: unknown) {
       console.error('WorkType 삭제 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'delete_work_type', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -209,8 +222,10 @@ export function useWorkClassification() {
         workSteps.value = []
       }
       subWorkTypes.value = subWorkTypes.value.filter((swt) => swt.id !== id)
+      analyticsClient.trackAction('admin_master_data', 'delete_sub_work_type', 'success')
     } catch (error: unknown) {
       console.error('SubWorkType 삭제 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'delete_sub_work_type', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -224,8 +239,10 @@ export function useWorkClassification() {
     try {
       await referenceApi.deleteWorkStep(id)
       workSteps.value = workSteps.value.filter((ws) => ws.id !== id)
+      analyticsClient.trackAction('admin_master_data', 'delete_work_step', 'success')
     } catch (error: unknown) {
       console.error('WorkStep 삭제 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'delete_work_step', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -239,8 +256,10 @@ export function useWorkClassification() {
       await referenceApi.updateDivision({ id, name })
       const item = divisions.value.find((d) => d.id === id)
       if (item) item.name = name
+      analyticsClient.trackAction('admin_master_data', 'update_division', 'success')
     } catch (error: unknown) {
       console.error('Division 이름 수정 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'update_division', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
       await loadDivisions()
@@ -252,8 +271,10 @@ export function useWorkClassification() {
       await referenceApi.updateWorkType({ id, name })
       const item = workTypes.value.find((wt) => wt.id === id)
       if (item) item.name = name
+      analyticsClient.trackAction('admin_master_data', 'update_work_type', 'success')
     } catch (error: unknown) {
       console.error('WorkType 이름 수정 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'update_work_type', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
       if (selectedDivisionId.value) await loadWorkTypes(selectedDivisionId.value)
@@ -265,8 +286,10 @@ export function useWorkClassification() {
       await referenceApi.updateSubWorkType({ id, name })
       const item = subWorkTypes.value.find((swt) => swt.id === id)
       if (item) item.name = name
+      analyticsClient.trackAction('admin_master_data', 'update_sub_work_type', 'success')
     } catch (error: unknown) {
       console.error('SubWorkType 이름 수정 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'update_sub_work_type', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
       if (selectedWorkTypeId.value) await loadSubWorkTypes(selectedWorkTypeId.value)
@@ -278,8 +301,10 @@ export function useWorkClassification() {
       await referenceApi.updateWorkStep({ id, name })
       const item = workSteps.value.find((ws) => ws.id === id)
       if (item) item.name = name
+      analyticsClient.trackAction('admin_master_data', 'update_work_step', 'success')
     } catch (error: unknown) {
       console.error('WorkStep 이름 수정 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'update_work_step', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
       if (selectedSubWorkTypeId.value) await loadWorkSteps(selectedSubWorkTypeId.value)

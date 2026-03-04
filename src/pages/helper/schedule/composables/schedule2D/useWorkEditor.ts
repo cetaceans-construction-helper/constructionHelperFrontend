@@ -1,10 +1,16 @@
 import { ref, computed, watch, type Ref } from 'vue'
 import type { Node } from '@vue-flow/core'
-import { workApi, type WorkResponse, type MutationResponse, type UpdateWorkPayload } from '@/api/work'
+import {
+  workApi,
+  type WorkResponse,
+  type MutationResponse,
+  type UpdateWorkPayload,
+} from '@/api/work'
+import { analyticsClient } from '@/lib/analytics/analyticsClient'
 
 export function useWorkEditor(
   nodes: Ref<Node[]>,
-  onWorkUpdated: (mutation: MutationResponse) => void
+  onWorkUpdated: (mutation: MutationResponse) => void,
 ) {
   // 작업 선택 및 수정 상태
   const selectedWorkId = ref<number | null>(null)
@@ -14,7 +20,7 @@ export function useWorkEditor(
   // 선택된 작업 데이터
   const selectedWork = computed(() => {
     if (!selectedWorkId.value) return null
-    const node = nodes.value.find(n => n.id === `work-${selectedWorkId.value}`)
+    const node = nodes.value.find((n) => n.id === `work-${selectedWorkId.value}`)
     return node?.data.work as WorkResponse | undefined
   })
 
@@ -24,7 +30,7 @@ export function useWorkEditor(
       workEditForm.value = {
         startDate: work.startDate,
         workLeadTime: work.workLeadTime,
-        isWorkingOnHoliday: work.isWorkingOnHoliday
+        isWorkingOnHoliday: work.isWorkingOnHoliday,
       }
     }
   })
@@ -37,14 +43,19 @@ export function useWorkEditor(
     try {
       const work = selectedWork.value
       const payload: UpdateWorkPayload = {}
-      if (work && workEditForm.value.startDate !== work.startDate) payload.startDate = workEditForm.value.startDate
-      if (work && workEditForm.value.workLeadTime !== work.workLeadTime) payload.workLeadTime = workEditForm.value.workLeadTime
-      if (work && workEditForm.value.isWorkingOnHoliday !== work.isWorkingOnHoliday) payload.isWorkingOnHoliday = workEditForm.value.isWorkingOnHoliday
+      if (work && workEditForm.value.startDate !== work.startDate)
+        payload.startDate = workEditForm.value.startDate
+      if (work && workEditForm.value.workLeadTime !== work.workLeadTime)
+        payload.workLeadTime = workEditForm.value.workLeadTime
+      if (work && workEditForm.value.isWorkingOnHoliday !== work.isWorkingOnHoliday)
+        payload.isWorkingOnHoliday = workEditForm.value.isWorkingOnHoliday
       const mutation = await workApi.updateWork(selectedWorkId.value, payload)
       onWorkUpdated(mutation)
+      analyticsClient.trackAction('schedule_2d', 'update_work', 'success')
       selectedWorkId.value = null
     } catch (error: unknown) {
       console.error('작업 수정 실패:', error)
+      analyticsClient.trackAction('schedule_2d', 'update_work', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       const errorMessage = err.response?.data?.message || err.message
       alert(errorMessage)
@@ -75,6 +86,6 @@ export function useWorkEditor(
     // Methods
     submitWorkUpdate,
     clearSelection,
-    selectWork
+    selectWork,
   }
 }

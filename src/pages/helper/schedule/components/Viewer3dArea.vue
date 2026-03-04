@@ -31,6 +31,7 @@ import { materialOrderApi } from '@/api/materialOrder'
 import { taskApi } from '@/api/task'
 import type { Object3d, Task } from '@/types/object3d'
 import type { WorkResponse } from '@/api/work'
+import { analyticsClient } from '@/lib/analytics/analyticsClient'
 
 const router = useRouter()
 
@@ -97,8 +98,10 @@ async function handleUpdateQuantity() {
     )
     emit('tasks-updated', updates)
     showQuantityDialog.value = false
+    analyticsClient.trackAction('schedule_3d', 'update_task_quantity', 'success')
   } catch (error: unknown) {
     console.error('물량 업데이트 실패:', error)
+    analyticsClient.trackAction('schedule_3d', 'update_task_quantity', 'fail')
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     alert(err.response?.data?.message || err.message)
   } finally {
@@ -176,9 +179,11 @@ async function handleCreateOrder() {
       Number(selectedWorkTypeId.value),
     )
     showOrderDialog.value = false
+    analyticsClient.trackAction('schedule_3d', 'create_material_order', 'success')
     router.push('/helper/material/invoice')
   } catch (error: unknown) {
     console.error('발주서 생성 실패:', error)
+    analyticsClient.trackAction('schedule_3d', 'create_material_order', 'fail')
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     alert(err.response?.data?.message || err.message)
   } finally {

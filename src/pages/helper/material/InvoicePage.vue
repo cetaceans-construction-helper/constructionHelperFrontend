@@ -25,6 +25,7 @@ import { Label } from '@/components/ui/label'
 import { useMaterialOrder } from './composables/useMaterialOrder'
 import { materialOrderApi } from '@/api/materialOrder'
 import type { MaterialOrderResponse } from '@/api/materialOrder'
+import { analyticsClient } from '@/lib/analytics/analyticsClient'
 
 const router = useRouter()
 const { orders, isLoading, loadOrders } = useMaterialOrder()
@@ -141,8 +142,10 @@ async function saveDelivery() {
     })
     deliveryDialogOpen.value = false
     router.push('/helper/material/incoming')
+    analyticsClient.trackAction('material_delivery', 'create_delivery', 'success')
   } catch (error: unknown) {
     console.error('송장입력 실패:', error)
+    analyticsClient.trackAction('material_delivery', 'create_delivery', 'fail')
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     alert(err.response?.data?.message || err.message)
   } finally {
@@ -216,13 +219,17 @@ function formatLocation(line: MaterialOrderResponse['orderLines'][number]): stri
             class="flex items-center gap-3 px-4 py-3 bg-muted/30 cursor-pointer select-none"
             @click="toggleOrder(order.id)"
           >
-            <span class="text-xs text-muted-foreground">{{ expandedOrders[order.id] ? '▲' : '▼' }}</span>
+            <span class="text-xs text-muted-foreground">{{
+              expandedOrders[order.id] ? '▲' : '▼'
+            }}</span>
             <Badge :class="['text-sm px-3 py-1', getStatusColor(order.orderStatus)]">
               {{ getStatusLabel(order.orderStatus) }}
             </Badge>
             <span class="text-sm font-medium">{{ order.orderNo }}</span>
             <span class="text-xs text-muted-foreground">{{ order.workTypeName }}</span>
-            <span class="text-sm font-medium bg-muted/30 border border-foreground px-2 py-0.5 rounded">
+            <span
+              class="text-sm font-medium bg-muted/30 border border-foreground px-2 py-0.5 rounded"
+            >
               {{ order.totalQuantity }} {{ order.unit }}
             </span>
             <div v-if="order.specSummary?.length > 0" class="flex items-center gap-2 flex-wrap">
@@ -241,7 +248,10 @@ function formatLocation(line: MaterialOrderResponse['orderLines'][number]): stri
               <Button
                 variant="outline"
                 size="sm"
-                :disabled="order.orderStatus === 'ORDER_COMPLETED' || order.orderStatus === 'RECEIPT_COMPLETED'"
+                :disabled="
+                  order.orderStatus === 'ORDER_COMPLETED' ||
+                  order.orderStatus === 'RECEIPT_COMPLETED'
+                "
               >
                 발주하기
               </Button>
@@ -327,7 +337,9 @@ function formatLocation(line: MaterialOrderResponse['orderLines'][number]): stri
                   :model-value="selectedZoneIds.includes(zone.id)"
                   @update:model-value="selectedZoneIds = toggleId(selectedZoneIds, zone.id)"
                 />
-                <label :for="`zone-${zone.id}`" class="text-sm cursor-pointer">{{ zone.name }}</label>
+                <label :for="`zone-${zone.id}`" class="text-sm cursor-pointer">{{
+                  zone.name
+                }}</label>
               </div>
             </div>
           </div>
@@ -341,7 +353,9 @@ function formatLocation(line: MaterialOrderResponse['orderLines'][number]): stri
                   :model-value="selectedFloorIds.includes(floor.id)"
                   @update:model-value="selectedFloorIds = toggleId(selectedFloorIds, floor.id)"
                 />
-                <label :for="`floor-${floor.id}`" class="text-sm cursor-pointer">{{ floor.name }}</label>
+                <label :for="`floor-${floor.id}`" class="text-sm cursor-pointer">{{
+                  floor.name
+                }}</label>
               </div>
             </div>
           </div>
@@ -349,13 +363,21 @@ function formatLocation(line: MaterialOrderResponse['orderLines'][number]): stri
           <div v-if="uniqueSections.length > 0" class="space-y-2">
             <Label>구역</Label>
             <div class="flex flex-wrap gap-3">
-              <div v-for="section in uniqueSections" :key="section.id" class="flex items-center gap-1.5">
+              <div
+                v-for="section in uniqueSections"
+                :key="section.id"
+                class="flex items-center gap-1.5"
+              >
                 <Checkbox
                   :id="`section-${section.id}`"
                   :model-value="selectedSectionIds.includes(section.id)"
-                  @update:model-value="selectedSectionIds = toggleId(selectedSectionIds, section.id)"
+                  @update:model-value="
+                    selectedSectionIds = toggleId(selectedSectionIds, section.id)
+                  "
                 />
-                <label :for="`section-${section.id}`" class="text-sm cursor-pointer">{{ section.name }}</label>
+                <label :for="`section-${section.id}`" class="text-sm cursor-pointer">{{
+                  section.name
+                }}</label>
               </div>
             </div>
           </div>
@@ -369,7 +391,9 @@ function formatLocation(line: MaterialOrderResponse['orderLines'][number]): stri
                   :model-value="selectedUsageIds.includes(usage.id)"
                   @update:model-value="selectedUsageIds = toggleId(selectedUsageIds, usage.id)"
                 />
-                <label :for="`usage-${usage.id}`" class="text-sm cursor-pointer">{{ usage.name }}</label>
+                <label :for="`usage-${usage.id}`" class="text-sm cursor-pointer">{{
+                  usage.name
+                }}</label>
               </div>
             </div>
           </div>

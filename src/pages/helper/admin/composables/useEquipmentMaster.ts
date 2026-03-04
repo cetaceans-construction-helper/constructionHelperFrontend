@@ -4,6 +4,7 @@ import {
   type EquipmentTypeResponse,
   type EquipmentSpecResponse,
 } from '@/api/reference'
+import { analyticsClient } from '@/lib/analytics/analyticsClient'
 
 export function useEquipmentMaster() {
   const equipmentTypes = ref<EquipmentTypeResponse[]>([])
@@ -50,8 +51,10 @@ export function useEquipmentMaster() {
       await referenceApi.createEquipmentType(name)
       newEquipmentTypeName.value = ''
       await loadEquipmentTypes()
+      analyticsClient.trackAction('admin_resource_data', 'create_equipment_type', 'success')
     } catch (error: unknown) {
       console.error('EquipmentType 추가 실패:', error)
+      analyticsClient.trackAction('admin_resource_data', 'create_equipment_type', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -69,8 +72,10 @@ export function useEquipmentMaster() {
       await referenceApi.createEquipmentSpec(selectedEquipmentTypeId.value, name)
       newEquipmentSpecName.value = ''
       await loadEquipmentSpecs(selectedEquipmentTypeId.value)
+      analyticsClient.trackAction('admin_resource_data', 'create_equipment_spec', 'success')
     } catch (error: unknown) {
       console.error('EquipmentSpec 추가 실패:', error)
+      analyticsClient.trackAction('admin_resource_data', 'create_equipment_spec', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -89,8 +94,10 @@ export function useEquipmentMaster() {
         equipmentSpecs.value = []
       }
       equipmentTypes.value = equipmentTypes.value.filter((et) => et.id !== id)
+      analyticsClient.trackAction('admin_resource_data', 'delete_equipment_type', 'success')
     } catch (error: unknown) {
       console.error('EquipmentType 삭제 실패:', error)
+      analyticsClient.trackAction('admin_resource_data', 'delete_equipment_type', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -104,8 +111,10 @@ export function useEquipmentMaster() {
     try {
       await referenceApi.deleteEquipmentSpec(id)
       equipmentSpecs.value = equipmentSpecs.value.filter((es) => es.id !== id)
+      analyticsClient.trackAction('admin_resource_data', 'delete_equipment_spec', 'success')
     } catch (error: unknown) {
       console.error('EquipmentSpec 삭제 실패:', error)
+      analyticsClient.trackAction('admin_resource_data', 'delete_equipment_spec', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -119,8 +128,10 @@ export function useEquipmentMaster() {
       await referenceApi.updateEquipmentType({ id, name })
       const item = equipmentTypes.value.find((et) => et.id === id)
       if (item) item.name = name
+      analyticsClient.trackAction('admin_resource_data', 'update_equipment_type', 'success')
     } catch (error: unknown) {
       console.error('EquipmentType 이름 수정 실패:', error)
+      analyticsClient.trackAction('admin_resource_data', 'update_equipment_type', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
       await loadEquipmentTypes()
@@ -132,8 +143,10 @@ export function useEquipmentMaster() {
       await referenceApi.updateEquipmentSpec({ id, name })
       const item = equipmentSpecs.value.find((es) => es.id === id)
       if (item) item.name = name
+      analyticsClient.trackAction('admin_resource_data', 'update_equipment_spec', 'success')
     } catch (error: unknown) {
       console.error('EquipmentSpec 이름 수정 실패:', error)
+      analyticsClient.trackAction('admin_resource_data', 'update_equipment_spec', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
       if (selectedEquipmentTypeId.value) await loadEquipmentSpecs(selectedEquipmentTypeId.value)

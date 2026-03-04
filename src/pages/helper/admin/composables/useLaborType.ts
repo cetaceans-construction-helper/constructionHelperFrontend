@@ -6,6 +6,7 @@ import {
   type SubWorkTypeResponse,
   type LaborTypeResponse,
 } from '@/api/reference'
+import { analyticsClient } from '@/lib/analytics/analyticsClient'
 
 interface ApiError {
   response?: { data?: { message?: string } }
@@ -105,8 +106,10 @@ export function useLaborType() {
       newLaborTypeName.value = ''
       // 생성 후 전체 목록 갱신
       await loadLaborTypes()
+      analyticsClient.trackAction('admin_resource_data', 'create_labor_type', 'success')
     } catch (error: unknown) {
       console.error('LaborType 추가 실패:', error)
+      analyticsClient.trackAction('admin_resource_data', 'create_labor_type', 'fail')
       const err = error as ApiError
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -121,8 +124,10 @@ export function useLaborType() {
     try {
       await referenceApi.deleteLaborType(id)
       laborTypes.value = laborTypes.value.filter((lt) => lt.id !== id)
+      analyticsClient.trackAction('admin_resource_data', 'delete_labor_type', 'success')
     } catch (error: unknown) {
       console.error('LaborType 삭제 실패:', error)
+      analyticsClient.trackAction('admin_resource_data', 'delete_labor_type', 'fail')
       const err = error as ApiError
       alert(err.response?.data?.message || err.message)
     } finally {
