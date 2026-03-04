@@ -125,15 +125,18 @@ export function useMaterialMaster() {
     }
   }
 
-  // 수정 (이름 변경)
-  const updateMaterialTypeName = async (id: number, name: string) => {
+  // 수정 (이름 + 단위 변경)
+  const updateMaterialType = async (id: number, name: string, unit?: string) => {
     try {
-      await referenceApi.updateMaterialType({ id, name })
+      await referenceApi.updateMaterialType({ id, name, unit })
       const item = materialTypes.value.find((mt) => mt.id === id)
-      if (item) item.name = name
+      if (item) {
+        item.name = name
+        if (unit !== undefined) item.unit = unit
+      }
       analyticsClient.trackAction('admin_master_data', 'update_material_type', 'success')
     } catch (error: unknown) {
-      console.error('MaterialType 이름 수정 실패:', error)
+      console.error('MaterialType 수정 실패:', error)
       analyticsClient.trackAction('admin_master_data', 'update_material_type', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
@@ -203,7 +206,7 @@ export function useMaterialMaster() {
     addMaterialSpec,
     deleteMaterialType,
     deleteMaterialSpec,
-    updateMaterialTypeName,
+    updateMaterialType,
     updateMaterialSpecName,
     reorderMaterialTypes,
     reorderMaterialSpecs,

@@ -78,7 +78,8 @@ const menusBySection: Record<string, { id: string; label: string; path: string }
   admin: [
     { id: 'master-data', label: '기준정보 관리', path: '/helper/admin' },
     { id: 'resource-info', label: '자원정보 관리', path: '/helper/admin/resource' },
-    { id: 'document-setting', label: '문서 설정', path: '/helper/admin/document' },
+    { id: 'document-setting', label: '자재검수요청서', path: '/helper/admin/document' },
+    { id: 'holiday', label: '휴일관리', path: '/helper/admin/holiday' },
   ],
 }
 

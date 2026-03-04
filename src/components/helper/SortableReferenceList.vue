@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 
 interface ListItem {
   id: number
-  [key: string]: any
+  [key: string]: unknown
 }
 
 const props = withDefaults(
@@ -14,10 +14,11 @@ const props = withDefaults(
     items: ListItem[]
     selectedId?: number | null
     displayKey?: string
-    displaySuffix?: (item: any) => string
+    displaySuffix?: (item: ListItem) => string
     disabled?: boolean
     emptyMessage?: string
     selectable?: boolean
+    unitEditable?: boolean
   }>(),
   {
     selectedId: null,
@@ -26,20 +27,23 @@ const props = withDefaults(
     disabled: false,
     emptyMessage: '항목 없음',
     selectable: true,
+    unitEditable: false,
   },
 )
 
 const emit = defineEmits<{
   select: [id: number]
   delete: [id: number, name: string]
-  'update-name': [payload: { id: number; name: string }]
+  'update-name': [payload: { id: number; name: string; unit?: string }]
   reorder: [ids: number[]]
 }>()
 
 const localItems = ref<ListItem[]>([])
 const editingId = ref<number | null>(null)
 const editingName = ref('')
+const editingUnit = ref('')
 const editInputRef = ref<InstanceType<typeof Input> | null>(null)
+const editUnitInputRef = ref<InstanceType<typeof Input> | null>(null)
 
 watch(
   () => props.items,
@@ -62,7 +66,10 @@ function onItemClick(id: number) {
 
 function startEditing(item: ListItem) {
   editingId.value = item.id
-  editingName.value = item[props.displayKey]
+  editingName.value = String(item[props.displayKey] ?? '')
+  if (props.unitEditable) {
+    editingUnit.value = String(item.unit ?? '')
+  }
   nextTick(() => {
     const inputEl = editInputRef.value?.$el?.querySelector('input') as HTMLInputElement | undefined
     inputEl?.focus()
@@ -74,15 +81,21 @@ function confirmEdit() {
   if (editingId.value == null) return
   const trimmed = editingName.value.trim()
   if (trimmed) {
-    emit('update-name', { id: editingId.value, name: trimmed })
+    const payload: { id: number; name: string; unit?: string } = { id: editingId.value, name: trimmed }
+    if (props.unitEditable) {
+      payload.unit = editingUnit.value.trim()
+    }
+    emit('update-name', payload)
   }
   editingId.value = null
   editingName.value = ''
+  editingUnit.value = ''
 }
 
 function cancelEdit() {
   editingId.value = null
   editingName.value = ''
+  editingUnit.value = ''
 }
 
 function onEditKeydown(e: KeyboardEvent) {
@@ -128,6 +141,15 @@ function onEditKeydown(e: KeyboardEvent) {
               ref="editInputRef"
               v-model="editingName"
               class="h-6 text-sm flex-1"
+              @keydown="onEditKeydown"
+              @click.stop
+            />
+            <Input
+              v-if="unitEditable"
+              ref="editUnitInputRef"
+              v-model="editingUnit"
+              placeholder="단위"
+              class="h-6 text-sm w-16"
               @keydown="onEditKeydown"
               @click.stop
             />

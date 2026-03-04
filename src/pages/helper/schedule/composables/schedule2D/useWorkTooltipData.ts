@@ -241,11 +241,11 @@ export function useWorkTooltipData() {
       analyticsClient.trackAction('schedule_2d', 'create_work', 'success')
       closeDialog()
       return response
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('작업 생성 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
       analyticsClient.trackAction('schedule_2d', 'create_work', 'fail')
-      const errorMessage = error.response?.data?.message || error.message
-      alert(errorMessage)
       return null
     } finally {
       isSavingDetails.value = false
@@ -276,11 +276,11 @@ export function useWorkTooltipData() {
       analyticsClient.trackAction('schedule_2d', 'update_work', 'success')
       closeDialog()
       return response
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('작업 수정 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
       analyticsClient.trackAction('schedule_2d', 'update_work', 'fail')
-      const errorMessage = error.response?.data?.message || error.message
-      alert(errorMessage)
       return null
     } finally {
       isSavingDetails.value = false

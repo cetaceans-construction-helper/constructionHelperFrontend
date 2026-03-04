@@ -1,14 +1,15 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import AreaCard from '@/components/helper/AreaCard.vue'
 import { Button } from '@/components/ui/button'
-import { workApi, type WorkResponse } from '@/api/work'
+import { workApi, type WorkResponse, type WorkPhotoResponse } from '@/api/work'
 import { attendanceApi, type AttendanceByDateItem } from '@/api/attendance'
 import { materialOrderApi, type DeliveryQuantityByDate } from '@/api/materialOrder'
 import { equipmentApi, type EquipmentDeploymentByDateItem } from '@/api/equipment'
 import { useProjectStore } from '@/stores/project'
 import { useCalendarStore } from '@/stores/calendarStore'
+import WorkPhotoDialog from '@/pages/helper/dashboard/components/WorkPhotoDialog.vue'
 
 const router = useRouter()
 const projectStore = useProjectStore()
@@ -32,25 +33,105 @@ const dayNames = ['일', '월', '화', '수', '목', '금', '토']
 const todayDayName = dayNames[today.getDay()]
 
 // 데이터 상태
-const allWorks = ref<WorkResponse[]>([])
-const todayWorkIds = ref<number[]>([])
-const tomorrowWorkIds = ref<number[]>([])
+const todayWorks = ref<WorkResponse[]>([])
+const tomorrowWorks = ref<WorkResponse[]>([])
 const todayAttendance = ref<AttendanceByDateItem[]>([])
 const todayDeliveryQuantities = ref<DeliveryQuantityByDate[]>([])
 const todayEquipment = ref<EquipmentDeploymentByDateItem[]>([])
 const isLoading = ref(false)
 
+// 사진 관련 상태
+const photoObjectUrls = ref<Map<number, string>>(new Map())
+const fileInputRef = ref<HTMLInputElement | null>(null)
+const selectedWorkForPhoto = ref<WorkResponse | null>(null)
+const photoDialogRef = ref<InstanceType<typeof WorkPhotoDialog> | null>(null)
+
+function revokeAllObjectUrls() {
+  for (const url of photoObjectUrls.value.values()) {
+    URL.revokeObjectURL(url)
+  }
+  photoObjectUrls.value = new Map()
+}
+
+async function loadAllPhotos() {
+  revokeAllObjectUrls()
+  const newUrls = new Map<number, string>()
+
+  for (const work of todayWorks.value) {
+    if (!work.photos) continue
+    for (const photo of work.photos) {
+      try {
+        newUrls.set(photo.photoId, await workApi.downloadWorkPhoto(photo.url))
+      } catch {
+        // 개별 사진 로드 실패 무시
+      }
+    }
+  }
+  photoObjectUrls.value = newUrls
+}
+
+function triggerPhotoUpload(work: WorkResponse) {
+  selectedWorkForPhoto.value = work
+  fileInputRef.value?.click()
+}
+
+async function onPhotoFileChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const files = input.files ? Array.from(input.files) : []
+  if (files.length === 0 || !selectedWorkForPhoto.value) return
+
+  try {
+    await workApi.createWorkPhoto(selectedWorkForPhoto.value.workId, todayString, files)
+    todayWorks.value = await workApi.getWorkListByDate(todayString)
+    await loadAllPhotos()
+  } catch (error: unknown) {
+    console.error('사진 업로드 실패:', error)
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    alert(err.response?.data?.message || err.message)
+  } finally {
+    input.value = ''
+    selectedWorkForPhoto.value = null
+  }
+}
+
+// 전체 사진 목록 (workName 포함)
+interface PhotoWithWork {
+  photo: WorkPhotoResponse
+  workName: string
+}
+
+const allTodayPhotos = computed<PhotoWithWork[]>(() => {
+  const result: PhotoWithWork[] = []
+  for (const work of todayWorks.value) {
+    if (!work.photos) continue
+    for (const photo of work.photos) {
+      result.push({ photo, workName: work.workName })
+    }
+  }
+  return result
+})
+
+function openPhotoDialog(photo: WorkPhotoResponse) {
+  const url = photoObjectUrls.value.get(photo.photoId)
+  if (!url) return
+  photoDialogRef.value?.openDialog(photo, url)
+}
+
+async function onPhotoUpdated() {
+  todayWorks.value = await workApi.getWorkListByDate(todayString)
+  await loadAllPhotos()
+}
+
+onUnmounted(() => {
+  revokeAllObjectUrls()
+})
+
 // 오늘 작업 (workType별 그루핑)
 const todayWorksByType = computed(() => {
-  const todaySet = new Set(todayWorkIds.value)
-  const filtered = allWorks.value.filter(w => todaySet.has(w.workId))
-
   const grouped = new Map<string, WorkResponse[]>()
-  for (const work of filtered) {
+  for (const work of todayWorks.value) {
     const wt = work.workType || '미분류'
-    if (!grouped.has(wt)) {
-      grouped.set(wt, [])
-    }
+    if (!grouped.has(wt)) grouped.set(wt, [])
     grouped.get(wt)!.push(work)
   }
   return grouped
@@ -58,15 +139,10 @@ const todayWorksByType = computed(() => {
 
 // 내일 작업 (workType별 그루핑)
 const tomorrowWorksByType = computed(() => {
-  const tomorrowSet = new Set(tomorrowWorkIds.value)
-  const filtered = allWorks.value.filter(w => tomorrowSet.has(w.workId))
-
   const grouped = new Map<string, WorkResponse[]>()
-  for (const work of filtered) {
+  for (const work of tomorrowWorks.value) {
     const wt = work.workType || '미분류'
-    if (!grouped.has(wt)) {
-      grouped.set(wt, [])
-    }
+    if (!grouped.has(wt)) grouped.set(wt, [])
     grouped.get(wt)!.push(work)
   }
   return grouped
@@ -155,21 +231,23 @@ onMounted(async () => {
     await calendarStore.getCalendar(projectStore.selectedProjectId)
 
     // 작업 데이터 병렬 로드
-    const [works, todayIds, tomorrowIds, attendance, deliveryQuantities, equipment] = await Promise.all([
-      workApi.getWorkList(),
-      workApi.getWorkListByDate(todayString),
-      workApi.getWorkListByDate(tomorrowString),
-      attendanceApi.getAttendanceListByDate(todayString),
-      materialOrderApi.getTotalDeliveryQuantityByDate(todayString),
-      equipmentApi.getEquipmentDeploymentListByDate(todayString),
-    ])
+    const [todayWorkList, tomorrowWorkList, attendance, deliveryQuantities, equipment] =
+      await Promise.all([
+        workApi.getWorkListByDate(todayString),
+        workApi.getWorkListByDate(tomorrowString),
+        attendanceApi.getAttendanceListByDate(todayString),
+        materialOrderApi.getTotalDeliveryQuantityByDate(todayString),
+        equipmentApi.getEquipmentDeploymentListByDate(todayString),
+      ])
 
-    allWorks.value = works
-    todayWorkIds.value = todayIds
-    tomorrowWorkIds.value = tomorrowIds
+    todayWorks.value = todayWorkList
+    tomorrowWorks.value = tomorrowWorkList
     todayAttendance.value = attendance
     todayDeliveryQuantities.value = deliveryQuantities
     todayEquipment.value = equipment
+
+    // 오늘 작업 사진 로드
+    await loadAllPhotos()
   } catch (error) {
     console.error('대시보드 데이터 로드 실패:', error)
   } finally {
@@ -182,7 +260,7 @@ onMounted(async () => {
   <div class="flex-1 flex flex-col gap-4">
     <div class="flex gap-4 items-start">
       <!-- 오늘작업 영역 -->
-      <AreaCard height="flex-none" min-height="auto" class="w-1/3">
+      <AreaCard height="flex-none" min-height="auto" class="w-1/2">
         <div class="flex items-center justify-between mb-3">
           <h3 class="text-lg font-semibold">오늘작업</h3>
           <Button variant="outline" size="sm" @click="router.push('/helper/schedule/2d')">
@@ -216,8 +294,45 @@ onMounted(async () => {
               <div v-for="[workType, works] in todayWorksByType" :key="workType">
                 <p class="text-sm font-medium mb-1">&#9632; {{ workType }}</p>
                 <div class="space-y-0.5">
-                  <p v-for="work in works" :key="work.workId" class="text-sm text-muted-foreground">
+                  <p
+                    v-for="work in works"
+                    :key="work.workId"
+                    class="text-sm text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+                    @click="triggerPhotoUpload(work)"
+                  >
                     - {{ work.workName }}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- 사진 영역 -->
+            <div v-if="allTodayPhotos.length > 0" class="mt-4 pt-3 border-t border-border">
+              <h4 class="text-xs font-semibold mb-2 text-muted-foreground">사진</h4>
+              <div class="grid grid-cols-4 gap-2">
+                <div
+                  v-for="{ photo, workName } in allTodayPhotos"
+                  :key="photo.photoId"
+                  class="cursor-pointer"
+                  @click="openPhotoDialog(photo)"
+                >
+                  <div class="aspect-square rounded overflow-hidden border border-border">
+                    <img
+                      v-if="photoObjectUrls.get(photo.photoId)"
+                      :src="photoObjectUrls.get(photo.photoId)"
+                      :alt="photo.description || '작업 사진'"
+                      class="w-full h-full object-cover"
+                    />
+                    <div
+                      v-else
+                      class="w-full h-full bg-muted flex items-center justify-center text-xs text-muted-foreground"
+                    >
+                      ...
+                    </div>
+                  </div>
+                  <p class="text-sm text-muted-foreground mt-0.5 truncate">{{ workName }}</p>
+                  <p v-if="photo.description" class="text-sm text-muted-foreground truncate">
+                    {{ photo.description }}
                   </p>
                 </div>
               </div>
@@ -318,7 +433,7 @@ onMounted(async () => {
       </AreaCard>
 
       <!-- AI 도우미 영역 -->
-      <AreaCard height="flex-none" min-height="auto" class="w-1/3">
+      <AreaCard height="flex-none" min-height="auto" class="w-1/4">
         <h3 class="text-lg font-semibold">AI 도우미</h3>
         <div class="space-y-4 mt-[5rem]">
           <div class="border border-border rounded-lg p-3 flex items-center justify-between">
@@ -337,7 +452,7 @@ onMounted(async () => {
       </AreaCard>
 
       <!-- 작업 평가 영역 -->
-      <AreaCard height="flex-none" min-height="auto" class="w-1/3">
+      <AreaCard height="flex-none" min-height="auto" class="w-1/4">
         <h3 class="text-lg font-semibold">작업 평가</h3>
         <div class="space-y-4 mt-[5rem]">
           <div class="border border-border rounded-lg p-3">
@@ -363,5 +478,16 @@ onMounted(async () => {
         </div>
       </AreaCard>
     </div>
+
+    <input
+      ref="fileInputRef"
+      type="file"
+      multiple
+      accept="image/*"
+      class="hidden"
+      @change="onPhotoFileChange"
+    />
+
+    <WorkPhotoDialog ref="photoDialogRef" @updated="onPhotoUpdated" />
   </div>
 </template>

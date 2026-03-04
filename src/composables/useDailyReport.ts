@@ -25,11 +25,11 @@ export function useDailyReport() {
   async function loadDailyData() {
     isLoadingDaily.value = true
     try {
-      const [workIds, obj3dIds] = await Promise.all([
+      const [workResponses, obj3dIds] = await Promise.all([
         workApi.getWorkListByDate(selectedDate.value),
         object3dApi.getObject3dListByDate(selectedDate.value),
       ])
-      dailyWorkIds.value = workIds
+      dailyWorkIds.value = workResponses.map((w) => w.workId)
       dailyObject3dIds.value = obj3dIds
     } catch (error) {
       console.error('작업 일보 데이터 로드 실패:', error)

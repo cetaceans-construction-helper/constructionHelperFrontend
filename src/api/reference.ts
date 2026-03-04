@@ -105,6 +105,7 @@ export interface CreateTasksResponse {
 export interface UpdateReferenceRequest {
   id?: number
   name?: string
+  unit?: string
   ids?: number[]
 }
 

@@ -1,6 +1,6 @@
 import { ref, computed, watch, type Ref } from 'vue'
 import type { Node } from '@vue-flow/core'
-import { workApi, type WorkResponse, type MutationResponse } from '@/api/work'
+import { workApi, type WorkResponse, type MutationResponse, type UpdateWorkPayload } from '@/api/work'
 import { analyticsClient } from '@/lib/analytics/analyticsClient'
 
 export function useWorkEditor(
@@ -37,7 +37,7 @@ export function useWorkEditor(
     isUpdatingWork.value = true
     try {
       const work = selectedWork.value
-      const payload: Record<string, any> = {}
+      const payload: UpdateWorkPayload = {}
       if (work && workEditForm.value.startDate !== work.startDate) payload.startDate = workEditForm.value.startDate
       if (work && workEditForm.value.workLeadTime !== work.workLeadTime) payload.workLeadTime = workEditForm.value.workLeadTime
       if (work && workEditForm.value.isWorkingOnHoliday !== work.isWorkingOnHoliday) payload.isWorkingOnHoliday = workEditForm.value.isWorkingOnHoliday
