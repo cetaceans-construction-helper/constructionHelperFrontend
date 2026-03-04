@@ -307,8 +307,8 @@ async function generateMir(deliveryId: number) {
   isGeneratingMir.value[deliveryId] = true
   try {
     mirList.value = await materialInspectionRequestApi.getMaterialInspectionRequestList()
-    router.push('/helper/document/material-inspection')
     analyticsClient.trackAction('material_delivery', 'create_mir', 'success')
+    router.push('/helper/document/material-inspection')
   } catch (error: unknown) {
     console.error('자재반입검수요청서 생성 실패:', error)
     analyticsClient.trackAction('material_delivery', 'create_mir', 'fail')

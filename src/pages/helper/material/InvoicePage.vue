@@ -141,8 +141,8 @@ async function saveDelivery() {
       usageIds: selectedUsageIds.value,
     })
     deliveryDialogOpen.value = false
-    router.push('/helper/material/incoming')
     analyticsClient.trackAction('material_delivery', 'create_delivery', 'success')
+    router.push('/helper/material/incoming')
   } catch (error: unknown) {
     console.error('송장입력 실패:', error)
     analyticsClient.trackAction('material_delivery', 'create_delivery', 'fail')
