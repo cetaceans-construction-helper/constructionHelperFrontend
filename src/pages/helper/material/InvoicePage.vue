@@ -25,6 +25,7 @@ import { Label } from '@/components/ui/label'
 import { useMaterialOrder } from './composables/useMaterialOrder'
 import { materialOrderApi } from '@/api/materialOrder'
 import type { MaterialOrderResponse } from '@/api/materialOrder'
+import { analyticsClient } from '@/lib/analytics/analyticsClient'
 
 const router = useRouter()
 const { orders, isLoading, loadOrders } = useMaterialOrder()
@@ -140,9 +141,11 @@ async function saveDelivery() {
       usageIds: selectedUsageIds.value,
     })
     deliveryDialogOpen.value = false
+    analyticsClient.trackAction('material_delivery', 'create_delivery', 'success')
     router.push('/helper/material/incoming')
   } catch (error: unknown) {
     console.error('송장입력 실패:', error)
+    analyticsClient.trackAction('material_delivery', 'create_delivery', 'fail')
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     alert(err.response?.data?.message || err.message)
   } finally {

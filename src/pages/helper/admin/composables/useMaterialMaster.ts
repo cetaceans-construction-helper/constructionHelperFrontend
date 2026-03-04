@@ -4,6 +4,7 @@ import {
   type MaterialTypeResponse,
   type MaterialSpecResponse,
 } from '@/api/reference'
+import { analyticsClient } from '@/lib/analytics/analyticsClient'
 
 export function useMaterialMaster() {
   const materialTypes = ref<MaterialTypeResponse[]>([])
@@ -53,8 +54,10 @@ export function useMaterialMaster() {
       newMaterialTypeName.value = ''
       newMaterialTypeUnit.value = ''
       await loadMaterialTypes()
+      analyticsClient.trackAction('admin_master_data', 'create_material_type', 'success')
     } catch (error: unknown) {
       console.error('MaterialType 추가 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'create_material_type', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -72,8 +75,10 @@ export function useMaterialMaster() {
       await referenceApi.createMaterialSpec(selectedMaterialTypeId.value, name)
       newMaterialSpecName.value = ''
       await loadMaterialSpecs(selectedMaterialTypeId.value)
+      analyticsClient.trackAction('admin_master_data', 'create_material_spec', 'success')
     } catch (error: unknown) {
       console.error('MaterialSpec 추가 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'create_material_spec', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -92,8 +97,10 @@ export function useMaterialMaster() {
         materialSpecs.value = []
       }
       materialTypes.value = materialTypes.value.filter((mt) => mt.id !== id)
+      analyticsClient.trackAction('admin_master_data', 'delete_material_type', 'success')
     } catch (error: unknown) {
       console.error('MaterialType 삭제 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'delete_material_type', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -107,8 +114,10 @@ export function useMaterialMaster() {
     try {
       await referenceApi.deleteMaterialSpec(id)
       materialSpecs.value = materialSpecs.value.filter((ms) => ms.id !== id)
+      analyticsClient.trackAction('admin_master_data', 'delete_material_spec', 'success')
     } catch (error: unknown) {
       console.error('MaterialSpec 삭제 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'delete_material_spec', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -125,8 +134,10 @@ export function useMaterialMaster() {
         item.name = name
         if (unit !== undefined) item.unit = unit
       }
+      analyticsClient.trackAction('admin_master_data', 'update_material_type', 'success')
     } catch (error: unknown) {
       console.error('MaterialType 수정 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'update_material_type', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
       await loadMaterialTypes()
@@ -138,8 +149,10 @@ export function useMaterialMaster() {
       await referenceApi.updateMaterialSpec({ id, name })
       const item = materialSpecs.value.find((ms) => ms.id === id)
       if (item) item.name = name
+      analyticsClient.trackAction('admin_master_data', 'update_material_spec', 'success')
     } catch (error: unknown) {
       console.error('MaterialSpec 이름 수정 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'update_material_spec', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
       if (selectedMaterialTypeId.value) await loadMaterialSpecs(selectedMaterialTypeId.value)

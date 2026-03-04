@@ -56,6 +56,7 @@ import type {
   IdNameResponse,
   WorkTypeResponse,
 } from '@/api/reference'
+import { analyticsClient } from '@/lib/analytics/analyticsClient'
 
 const router = useRouter()
 const { orders, loadOrders } = useMaterialOrder()
@@ -215,9 +216,11 @@ async function saveDirectDelivery() {
     directDeliveryDialogOpen.value = false
     materialSpecs.value = []
     loadOrders()
+    analyticsClient.trackAction('material_delivery', 'create_delivery', 'success')
     loadDeliveries()
   } catch (error: unknown) {
     console.error('송장입력 실패:', error)
+    analyticsClient.trackAction('material_delivery', 'create_delivery', 'fail')
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     alert(err.response?.data?.message || err.message)
   } finally {
@@ -255,8 +258,10 @@ async function confirmDeleteDelivery() {
     delete deliveryDragStart[deletedId]
     delete deliveryTranslateStart[deletedId]
     delete isGeneratingMir.value[deletedId]
+    analyticsClient.trackAction('material_delivery', 'delete_delivery', 'success')
   } catch (error: unknown) {
     console.error('반입자재 삭제 실패:', error)
+    analyticsClient.trackAction('material_delivery', 'delete_delivery', 'fail')
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     alert(err.response?.data?.message || err.message)
   } finally {
@@ -281,8 +286,10 @@ async function confirmDeleteMir() {
     await materialInspectionRequestApi.deleteMaterialInspectionRequest(mirDeleteTargetId.value)
     showMirDeleteDialog.value = false
     mirList.value = mirList.value.filter((m) => m.id !== mirDeleteTargetId.value)
+    analyticsClient.trackAction('material_delivery', 'delete_mir', 'success')
   } catch (error: unknown) {
     console.error('검수요청서 삭제 실패:', error)
+    analyticsClient.trackAction('material_delivery', 'delete_mir', 'fail')
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     alert(err.response?.data?.message || err.message)
   } finally {
@@ -295,8 +302,10 @@ async function generateMir(deliveryId: number) {
   try {
     await materialInspectionRequestApi.createMaterialInspectionRequest(deliveryId)
     router.push('/helper/document/material-inspection')
+    analyticsClient.trackAction('material_delivery', 'create_mir', 'success')
   } catch (error: unknown) {
     console.error('자재반입검수요청서 생성 실패:', error)
+    analyticsClient.trackAction('material_delivery', 'create_mir', 'fail')
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     alert(err.response?.data?.message || err.message)
   } finally {
@@ -488,9 +497,11 @@ async function updateDelivery(delivery: MaterialDeliverySummary) {
     delete deliveryImageIndex.value[id]
     delete deliveryImageScale.value[id]
     delete deliveryImageTranslate[id]
+    analyticsClient.trackAction('material_delivery', 'update_delivery', 'success')
     loadDeliveries()
   } catch (error: unknown) {
     console.error('반입자재 수정 실패:', error)
+    analyticsClient.trackAction('material_delivery', 'update_delivery', 'fail')
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     alert(err.response?.data?.message || err.message)
   } finally {

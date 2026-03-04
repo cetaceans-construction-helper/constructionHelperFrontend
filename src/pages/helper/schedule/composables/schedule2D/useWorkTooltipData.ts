@@ -7,6 +7,7 @@ import {
 } from '@/api/reference'
 import { workApi, type WorkResponse, type UpdateWorkPayload, type CreateWorkPayload, type MutationResponse } from '@/api/work'
 import { appConfig } from '@/config'
+import { analyticsClient } from '@/lib/analytics/analyticsClient'
 
 export function useWorkTooltipData() {
   // 참조 데이터 (한 번 로드)
@@ -237,12 +238,14 @@ export function useWorkTooltipData() {
       if (editAnnotation.value) payload.annotation = editAnnotation.value
 
       const response = await workApi.createWork(payload)
+      analyticsClient.trackAction('schedule_2d', 'create_work', 'success')
       closeDialog()
       return response
     } catch (error: unknown) {
       console.error('작업 생성 실패:', error)
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
+      analyticsClient.trackAction('schedule_2d', 'create_work', 'fail')
       return null
     } finally {
       isSavingDetails.value = false
@@ -270,12 +273,14 @@ export function useWorkTooltipData() {
       }
 
       const response = await workApi.updateWork(editingWorkId.value, payload)
+      analyticsClient.trackAction('schedule_2d', 'update_work', 'success')
       closeDialog()
       return response
     } catch (error: unknown) {
       console.error('작업 수정 실패:', error)
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
+      analyticsClient.trackAction('schedule_2d', 'update_work', 'fail')
       return null
     } finally {
       isSavingDetails.value = false

@@ -35,6 +35,7 @@ import { useCalendarStore } from '@/stores/calendarStore'
 import { useChartConfigStore } from '@/stores/chartConfigStore'
 import { worksToNodes, workToNode, computeNodeX, computeNodeWidth, dayIndexToDate } from '../nodeConfig'
 import { appConfig } from '@/config'
+import { analyticsClient } from '@/lib/analytics/analyticsClient'
 
 // Composables
 import { useDateHeader, ROW_HEIGHT, HEADER_HEIGHT } from '../composables/schedule2D/useDateHeader'
@@ -195,6 +196,7 @@ const optimizeTarget = ref<'all' | 'current'>('all')
 
 const executeOptimize = async () => {
   isOptimizing.value = true
+  const action = optimizeTarget.value === 'current' ? 'optimize_current_path' : 'optimize_all_paths'
   try {
     const mutation = optimizeTarget.value === 'current'
       ? await workPathApi.optimizePath(selectedPathId.value!)
@@ -202,8 +204,10 @@ const executeOptimize = async () => {
     applyMutation(mutation)
     showOptimizeDialog.value = false
     showPathDialog.value = false
+    analyticsClient.trackAction('schedule_2d', action, 'success')
   } catch (error: unknown) {
     console.error('경로 최적화 실패:', error)
+    analyticsClient.trackAction('schedule_2d', action, 'fail')
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     alert(err.response?.data?.message || err.message)
   } finally {
@@ -375,8 +379,10 @@ const updateEdgeOverlap = async (pathId: number, sourceWorkId: number, targetWor
     const mutation = await workPathApi.updateWorkPath(pathId, { edges: updatedEdges })
     applyMutation(mutation)
     tooltip.value.visible = false
+    analyticsClient.trackAction('schedule_2d', 'update_path', 'success')
   } catch (error: unknown) {
     console.error('lagDays 수정 실패:', error)
+    analyticsClient.trackAction('schedule_2d', 'update_path', 'fail')
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     alert(err.response?.data?.message || err.message)
   }
@@ -538,16 +544,23 @@ const executeDelete = async () => {
       clearWorkSelection()
       tooltip.value.visible = false
       emit('works-loaded', nodes.value.map((n) => n.data.work as WorkResponse))
+      analyticsClient.trackAction('schedule_2d', 'delete_work', 'success')
     } else if (deleteType.value === 'path' && selectedPathId.value) {
       await workPathApi.deleteWorkPath(selectedPathId.value)
       const deletedPathId = selectedPathId.value
       edges.value = edges.value.filter((e) => e.data?.pathId !== deletedPathId)
       paths.value = paths.value.filter((p) => p.workPathId !== deletedPathId)
       cancelPathEdit()
+      analyticsClient.trackAction('schedule_2d', 'delete_path', 'success')
     }
     showDeleteDialog.value = false
   } catch (error: unknown) {
     console.error('삭제 실패:', error)
+    analyticsClient.trackAction(
+      'schedule_2d',
+      deleteType.value === 'work' ? 'delete_work' : 'delete_path',
+      'fail',
+    )
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     const errorMessage = err.response?.data?.message || err.message
     alert(errorMessage)
@@ -682,8 +695,10 @@ const savePathChanges = async () => {
     })
     applyMutation(mutation)
     cancelPathEdit()
+    analyticsClient.trackAction('schedule_2d', 'update_path', 'success')
   } catch (error: unknown) {
     console.error('패스 수정 실패:', error)
+    analyticsClient.trackAction('schedule_2d', 'update_path', 'fail')
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     alert(err.response?.data?.message || err.message)
   } finally {
@@ -770,7 +785,7 @@ const updateTooltipWork = async (patch: { startDate?: string, workLeadTime?: num
     workEditForm.value.startDate = tooltip.value.startDate
     workEditForm.value.workLeadTime = tooltip.value.workLeadTime
     workEditForm.value.isWorkingOnHoliday = tooltip.value.isWorkingOnHoliday
-
+    
     // 대상 노드 명시적 갱신 (applyMutation이 처리 못할 경우 대비)
     const directWork = mutation.updatedWorks.find(w => w.workId === tooltip.value.workId)
     if (directWork) {
@@ -792,8 +807,10 @@ const updateTooltipWork = async (patch: { startDate?: string, workLeadTime?: num
     }
 
     emit('works-loaded', nodes.value.map(n => n.data.work as WorkResponse))
+    analyticsClient.trackAction('schedule_2d', 'update_work', 'success')
   } catch (error: unknown) {
     console.error('작업 수정 실패:', error)
+    analyticsClient.trackAction('schedule_2d', 'update_work', 'fail')
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     alert(err.response?.data?.message || err.message)
     // 롤백
@@ -846,8 +863,10 @@ const handleConnect = async (params: { source: string; target: string }) => {
     applyMutation(mutation)
     // 생성된 패스를 자동 선택
     selectPath(newPath.workPathId)
+    analyticsClient.trackAction('schedule_2d', 'create_path', 'success')
   } catch (error: unknown) {
     console.error('패스 생성 실패:', error)
+    analyticsClient.trackAction('schedule_2d', 'create_path', 'fail')
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     alert(err.response?.data?.message || err.message)
   }
@@ -1086,8 +1105,10 @@ const onNodeDragStop = async (event: { node: Node }) => {
       event.node.data.work = { ...work, positionY: snappedY }
     }
     applyMutation(mutation)
+    analyticsClient.trackAction('schedule_2d', 'update_work', 'success')
   } catch (error: unknown) {
     console.error('위치 저장 실패:', error)
+    analyticsClient.trackAction('schedule_2d', 'update_work', 'fail')
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     alert(err.response?.data?.message || err.message)
     // 실패 시 원위치 복구
@@ -1193,8 +1214,10 @@ const onResizeEnd = async () => {
     workEditForm.value.startDate = newStartDate
     workEditForm.value.workLeadTime = newLeadTime
     applyMutation(mutation)
+    analyticsClient.trackAction('schedule_2d', 'update_work', 'success')
   } catch (error: unknown) {
     console.error('리사이즈 실패:', error)
+    analyticsClient.trackAction('schedule_2d', 'update_work', 'fail')
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     alert(err.response?.data?.message || err.message)
     node.position.x = r.origNodeX

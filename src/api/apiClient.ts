@@ -2,6 +2,15 @@ import axios from 'axios'
 import { getAccessToken } from './client'
 import { useProjectStore } from '@/stores/project'
 import { appConfig } from '@/config'
+import type { AxiosError } from 'axios'
+import { analyticsClient } from '@/lib/analytics/analyticsClient'
+import {
+  getApiErrorFeature,
+  getCurrentRoutePath,
+  getApiErrorStatusGroup,
+  shouldSkipApiErrorTracking,
+  shouldTrackApiError,
+} from '@/lib/analytics/helpers/apiErrorTracking'
 
 // 인증이 필요한 일반 API용 클라이언트
 const apiClient = axios.create({
@@ -28,5 +37,23 @@ apiClient.interceptors.request.use((config) => {
 
   return config
 })
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error: AxiosError) => {
+    const statusGroup = getApiErrorStatusGroup(error)
+    if (
+      statusGroup &&
+      !shouldSkipApiErrorTracking(error) &&
+      shouldTrackApiError()
+    ) {
+      analyticsClient.trackError(getApiErrorFeature(error, 'api'), statusGroup, {
+        route_path: getCurrentRoutePath(),
+      })
+    }
+
+    return Promise.reject(error)
+  },
+)
 
 export default apiClient
