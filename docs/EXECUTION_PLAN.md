@@ -306,9 +306,9 @@ Stage B 완료 조건:
 
 ### C-2. `auth`
 
-- [ ] `auth` 단일 feature로 통합 유지 (login/signup/session 로직 포함)
-- [ ] token/유저 상태/API 경계를 `auth` 내부에서 정리
-- [ ] 라우트 참조/가드 참조를 `auth/public.ts` 기반으로 정리
+- [x] `auth` 단일 feature로 통합 유지 (login/signup/session 로직 포함)
+- [x] token/유저 상태/API 경계를 `auth` 내부에서 정리
+- [x] 라우트 참조/가드 참조를 `auth/public.ts` 기반으로 정리
 
 ### C-3. `dashboard`
 
@@ -407,7 +407,7 @@ Stage E 완료 조건 (프로젝트 완료):
 ## 10) 진행 보드 (Top Feature 단위)
 
 - [x] `app` 완료
-- [ ] `auth` 완료
+- [x] `auth` 완료
 - [ ] `dashboard` 완료
 - [ ] `schedule` 완료
 - [ ] `attendance` 완료

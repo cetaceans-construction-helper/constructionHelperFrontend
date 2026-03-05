@@ -1,5 +1,5 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
-import { authGuard } from './guards'
+import { authGuard, authRouteComponents } from '@/features/auth/public'
 import { analyticsClient } from '@/lib/analytics/analyticsClient'
 
 const router = createRouter({
@@ -13,12 +13,12 @@ const router = createRouter({
     {
       path: '/login',
       name: 'login',
-      component: () => import('@/pages/LoginPage.vue'),
+      component: authRouteComponents.LoginPage,
     },
     {
       path: '/signup',
       name: 'signup',
-      component: () => import('@/pages/SignupPage.vue'),
+      component: authRouteComponents.SignupPage,
     },
     {
       path: '/helper',
