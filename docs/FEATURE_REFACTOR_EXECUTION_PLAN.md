@@ -172,13 +172,13 @@ src/
 - [x] `project-admin.holiday`
 
 ### Batch A2-9: `system-admin`
-- [ ] `system-admin.shell`
-- [ ] `system-admin.project-management`
-- [ ] `system-admin.worker-management`
-- [ ] `system-admin.company-management`
-- [ ] `system-admin.role-management`
-- [ ] `system-admin.mapping-management`
-- [ ] `system-admin.data`
+- [x] `system-admin.shell`
+- [x] `system-admin.project-management`
+- [x] `system-admin.worker-management`
+- [x] `system-admin.company-management`
+- [x] `system-admin.role-management`
+- [x] `system-admin.mapping-management`
+- [x] `system-admin.data`
 
 ### Batch A2-10: `shared`
 - [ ] `shared.ui`
