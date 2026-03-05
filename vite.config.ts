@@ -57,16 +57,40 @@ const legacyCompatPlugin = {
   name: 'legacy-compat-resolver',
   enforce: 'pre' as const,
   resolveId(source: string) {
-    if (!source.startsWith('@/')) return null
+    const tryResolve = (scope: (typeof legacyScopes)[number], subPath: string) => {
+      const normalizedSubPath = subPath.replace(/^\/+/, '')
+      const legacyBase = join(srcRoot, 'legacy', scope, normalizedSubPath)
+      return resolveLegacyFile(legacyBase)
+    }
 
-    const scope = legacyScopes.find(
-      (item) => source === `@/${item}` || source.startsWith(`@/${item}/`),
-    )
-    if (!scope) return null
+    if (source.startsWith('@/')) {
+      const scope = legacyScopes.find(
+        (item) => source === `@/${item}` || source.startsWith(`@/${item}/`),
+      )
+      if (!scope) return null
+      const subPath = source.slice(`@/${scope}`.length)
+      return tryResolve(scope, subPath)
+    }
 
-    const subPath = source.slice(`@/${scope}`.length).replace(/^\/+/, '')
-    const legacyBase = join(srcRoot, 'legacy', scope, subPath)
-    return resolveLegacyFile(legacyBase)
+    if (source.startsWith('/src/')) {
+      const scope = legacyScopes.find(
+        (item) => source === `/src/${item}` || source.startsWith(`/src/${item}/`),
+      )
+      if (!scope) return null
+      const subPath = source.slice(`/src/${scope}`.length)
+      return tryResolve(scope, subPath)
+    }
+
+    if (source.startsWith(`${srcRoot}/`)) {
+      const scope = legacyScopes.find(
+        (item) => source === `${srcRoot}/${item}` || source.startsWith(`${srcRoot}/${item}/`),
+      )
+      if (!scope) return null
+      const subPath = source.slice(`${srcRoot}/${scope}`.length)
+      return tryResolve(scope, subPath)
+    }
+
+    return null
   },
 }
 

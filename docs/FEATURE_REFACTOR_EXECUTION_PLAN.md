@@ -106,23 +106,6 @@ src/
 - `refactor(material.order): split use-cases from view-model`
 - `chore(imports/material.order): route through public.ts`
 
-### 4.2 배치별 공통 검증
-
-각 배치 종료마다 아래 수행:
-
-- [ ] `npm run lint`
-- [ ] `npm run type-check`
-- [ ] `npm run test:unit`
-- [ ] `npm run build`
-- [ ] 라우트 smoke test (`/`, `/login`, `/signup`, `/helper/dashboard`, `/helper/schedule/2d`, `/helper/material/order`, `/system-admin`)
-
-## 5) Stage A - Legacy 안정화 (현재 진행 단계)
-
-## A-0. 베이스라인
-
-- [ ] 기존 동작 기준선 기록
-- [ ] 핵심 수동 시나리오 캡처
-
 ## A-1. legacy 컨테이너 + 호환 레이어
 
 ### A-1.1 legacy 디렉토리
@@ -144,13 +127,13 @@ src/
 ## A-2. legacy 이관 (Top feature 배치)
 
 ### Batch A2-1: `app`
-- [ ] `app.bootstrap`
-- [ ] `app.routing`
-- [ ] `app.shell`
-- [ ] `app.public-home`
-- [ ] `app.context`
-- [ ] `app.legacy-shell-candidate`
-- [ ] `app.test`
+- [x] `app.bootstrap`
+- [x] `app.routing`
+- [x] `app.shell`
+- [x] `app.public-home`
+- [x] `app.context`
+- [x] `app.legacy-shell-candidate`
+- [x] `app.test`
 
 ### Batch A2-2: `auth`
 - [ ] `auth.login`
@@ -399,4 +382,3 @@ Stage E 완료 조건 (프로젝트 완료):
 - [ ] `system-admin` 완료
 - [ ] `shared` 완료
 - [ ] `legacy` 제거 완료
-
