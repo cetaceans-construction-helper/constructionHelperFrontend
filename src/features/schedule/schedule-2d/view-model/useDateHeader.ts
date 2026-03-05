@@ -1,6 +1,6 @@
 import { ref, computed, type Ref, type ComputedRef } from 'vue'
-import type { CalendarResponse, CalendarDateInfo } from '@/types/calendar'
-import { getDateType } from '@/types/calendar'
+import type { CalendarResponse, CalendarDateInfo } from '@/shared/network-core/contracts/calendar'
+import { getDateType } from '@/shared/network-core/contracts/calendar'
 import { useChartConfigStore } from '@/features/schedule/schedule-2d/view-model/chartConfigStore'
 
 // 날짜 헤더 타입 정의

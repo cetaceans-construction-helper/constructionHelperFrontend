@@ -90,7 +90,7 @@ const router = createRouter({
         {
           path: 'safety',
           name: 'safety',
-          component: () => import('@/pages/helper/safety/PlaceholderPage.vue'),
+          component: () => import('@/app/shell/ui/placeholders/SafetyPlaceholderPage.vue'),
         },
         {
           path: 'document/manager',
@@ -110,7 +110,7 @@ const router = createRouter({
         {
           path: 'functions',
           name: 'functions',
-          component: () => import('@/pages/helper/functions/PlaceholderPage.vue'),
+          component: () => import('@/app/shell/ui/placeholders/FunctionsPlaceholderPage.vue'),
         },
         {
           path: 'admin',

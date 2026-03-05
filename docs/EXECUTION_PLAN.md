@@ -367,20 +367,22 @@ Stage C 완료 조건:
 
 ## D-1. legacy 의존 제거
 
-- [ ] `rg "src/legacy|@/legacy"` 검색 결과 0
-- [ ] legacy resolver에서 fallback 경로 참조 제거
+- [x] `rg "src/legacy|@/legacy"` 검색 결과 0
+- [x] legacy resolver에서 fallback 경로 참조 제거
 
 ## D-2. alias 정리
 
-- [ ] Vite legacy resolver 제거
-- [ ] TS legacy path fallback 제거
-- [ ] 최종 alias를 `@/* -> src/*` 단순화
+- [x] Vite legacy resolver 제거
+- [x] TS legacy path fallback 제거
+- [x] 최종 alias를 `@/* -> src/*` 단순화
+- [x] `components`, `lib`, `pages`는 fallback 없이 동작하도록 실체 경로 확보
+- [x] `components/lib/pages` 대상 Vite/TS fallback 매핑 제거
 
 ## D-3. 코드 삭제
 
-- [ ] `src/legacy/*` 제거
-- [ ] 미사용 후보(`app.legacy-shell-candidate`, `material.legacy-candidate`, `shared.legacy-sample`) 처리
-- [ ] git keep 파일 삭제
+- [x] `src/legacy/*` 제거
+- [x] 미사용 후보(`app.legacy-shell-candidate`, `material.legacy-candidate`, `shared.legacy-sample`) 처리
+- [ ] gitkeep 파일 삭제
 
 Stage D 완료 조건:
 - [ ] legacy 코드/호환 로직 0

@@ -7,7 +7,7 @@ import {
 } from '@/api/reference'
 import { workApi, type MutationResponse } from '@/api/work'
 import { projectApi } from '@/api/project'
-import type { Project } from '@/types/project'
+import type { Project } from '@/shared/network-core/contracts/project'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 

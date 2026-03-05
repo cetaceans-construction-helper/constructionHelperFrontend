@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import { calendarApi } from '@/api/calendar'
-import type { CalendarResponse } from '@/types/calendar'
+import type { CalendarResponse } from '@/shared/network-core/contracts/calendar'
 
 export const useCalendarStore = defineStore('calendar', () => {
   const calendarData = ref<CalendarResponse | null>(null)

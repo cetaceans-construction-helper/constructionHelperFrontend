@@ -22,12 +22,12 @@ import {
   SelectValue,
 } from '@/shared/ui/select'
 import { useRouter, useRoute } from 'vue-router'
-import { useThemeStore } from '@/stores/theme'
+import { useThemeStore } from '@/shared/theme/theme-store'
 import { useAuthStore } from '@/features/auth/public'
 import { useProjectStore } from '@/app/context/stores/project'
 import { projectApi } from '@/api/project'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
-import type { Project } from '@/types/project'
+import type { Project } from '@/shared/network-core/contracts/project'
 
 const router = useRouter()
 const route = useRoute()
