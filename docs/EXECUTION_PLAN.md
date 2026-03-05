@@ -340,8 +340,8 @@ Stage B 완료 조건:
 
 ### C-8. `project-admin`
 
-- [ ] `master-data`, `resource`, `document-setting`, `holiday` 분리
-- [ ] 반복 CRUD 패턴 공통화는 2개 이상 재사용 확인 후 진행
+- [x] `master-data`, `resource`, `document-setting`, `holiday` 분리
+- [x] 반복 CRUD 패턴 공통화는 2개 이상 재사용 확인 후 진행 (현 단계에서는 공통화 보류)
 
 ### C-9. `system-admin`
 
@@ -414,7 +414,7 @@ Stage E 완료 조건 (프로젝트 완료):
 - [x] `attendance` 완료
 - [x] `material` 완료
 - [x] `document` 완료
-- [ ] `project-admin` 완료
+- [x] `project-admin` 완료
 - [ ] `system-admin` 완료
 - [ ] `shared` 완료
 - [ ] `legacy` 제거 완료

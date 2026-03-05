@@ -4,6 +4,10 @@ import { attendanceRouteComponents } from '@/features/attendance/public'
 import { dashboardRouteComponents } from '@/features/dashboard/public'
 import { documentRouteComponents } from '@/features/document/public'
 import { materialRouteComponents } from '@/features/material/public'
+import { projectAdminDocumentSettingRouteComponents } from '@/features/project-admin/document-setting/public'
+import { projectAdminHolidayRouteComponents } from '@/features/project-admin/holiday/public'
+import { projectAdminMasterDataRouteComponents } from '@/features/project-admin/master-data/public'
+import { projectAdminResourceRouteComponents } from '@/features/project-admin/resource/public'
 import { schedule2dRouteComponents } from '@/features/schedule/schedule-2d/public'
 import { schedule3dRouteComponents } from '@/features/schedule/schedule-3d/public'
 import { analyticsClient } from '@/lib/analytics/analyticsClient'
@@ -110,22 +114,22 @@ const router = createRouter({
         {
           path: 'admin',
           name: 'admin',
-          component: () => import('@/pages/helper/admin/AdminPage.vue'),
+          component: projectAdminMasterDataRouteComponents.AdminPage,
         },
         {
           path: 'admin/resource',
           name: 'admin-resource',
-          component: () => import('@/pages/helper/admin/ResourceManagementPage.vue'),
+          component: projectAdminResourceRouteComponents.ResourceManagementPage,
         },
         {
           path: 'admin/document',
           name: 'admin-document',
-          component: () => import('@/pages/helper/admin/DocumentSettingPage.vue'),
+          component: projectAdminDocumentSettingRouteComponents.DocumentSettingPage,
         },
         {
           path: 'admin/holiday',
           name: 'admin-holiday',
-          component: () => import('@/pages/helper/admin/HolidayManagementPage.vue'),
+          component: projectAdminHolidayRouteComponents.HolidayManagementPage,
         },
       ],
     },
