@@ -1,7 +1,7 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios'
-import router from '@/router'
+import router from '@/legacy/router'
 import type { FieldErrors, TokenResponse } from '@/types/auth'
-import { appConfig } from '@/config'
+import { appConfig } from '@/legacy/config'
 import { analyticsClient } from '@/lib/analytics/analyticsClient'
 import {
   getApiErrorFeature,

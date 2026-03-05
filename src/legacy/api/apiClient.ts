@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { getAccessToken } from '@/api/client'
 import { useProjectStore } from '@/stores/project'
-import { appConfig } from '@/config'
+import { appConfig } from '@/legacy/config'
 import type { AxiosError } from 'axios'
 import { analyticsClient } from '@/lib/analytics/analyticsClient'
 import {

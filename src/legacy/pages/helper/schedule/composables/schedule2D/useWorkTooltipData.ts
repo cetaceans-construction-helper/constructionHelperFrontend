@@ -6,7 +6,7 @@ import {
   type SubWorkTypeResponse,
 } from '@/api/reference'
 import { workApi, type WorkResponse, type UpdateWorkPayload, type CreateWorkPayload, type MutationResponse } from '@/api/work'
-import { appConfig } from '@/config'
+import { appConfig } from '@/legacy/config'
 import { analyticsClient } from '@/lib/analytics/analyticsClient'
 
 export function useWorkTooltipData() {

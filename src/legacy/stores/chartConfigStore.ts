@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { appConfig } from '@/config'
+import { appConfig } from '@/legacy/config'
 
 export interface ChartConfig {
   pixelPerDay: number

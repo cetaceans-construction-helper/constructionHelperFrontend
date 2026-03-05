@@ -34,7 +34,7 @@ import { useProjectStore } from '@/stores/project'
 import { useCalendarStore } from '@/stores/calendarStore'
 import { useChartConfigStore } from '@/stores/chartConfigStore'
 import { worksToNodes, workToNode, computeNodeX, computeNodeWidth, dayIndexToDate } from '../nodeConfig'
-import { appConfig } from '@/config'
+import { appConfig } from '@/legacy/config'
 import { analyticsClient } from '@/lib/analytics/analyticsClient'
 
 // Composables
