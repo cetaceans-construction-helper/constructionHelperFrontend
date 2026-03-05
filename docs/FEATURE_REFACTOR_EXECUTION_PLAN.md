@@ -161,9 +161,9 @@ src/
 - [x] `material.legacy-candidate`
 
 ### Batch A2-7: `document`
-- [ ] `document.manager`
-- [ ] `document.daily-report`
-- [ ] `document.material-inspection`
+- [x] `document.manager`
+- [x] `document.daily-report`
+- [x] `document.material-inspection`
 
 ### Batch A2-8: `project-admin`
 - [ ] `project-admin.master-data`

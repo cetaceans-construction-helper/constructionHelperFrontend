@@ -1,4 +1,4 @@
-import apiClient from './apiClient'
+import apiClient from '@/api/apiClient'
 
 // === 문서번호 슬롯 타입 ===
 export type DocumentSlot =
