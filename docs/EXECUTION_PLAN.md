@@ -329,9 +329,9 @@ Stage B 완료 조건:
 
 ### C-6. `material`
 
-- [ ] `material` 단일 feature로 통합 유지
-- [ ] use-case/repository 경계를 `material` 내부에서 명확화
-- [ ] 상태 전이/검증 규칙을 `model`로 이동
+- [x] `material` 단일 feature로 통합 유지
+- [x] use-case/repository 경계를 `material` 내부에서 명확화
+- [x] 상태 전이/검증 규칙을 `model`로 이동
 
 ### C-7. `document`
 
@@ -411,7 +411,7 @@ Stage E 완료 조건 (프로젝트 완료):
 - [x] `dashboard` 완료
 - [x] `schedule` 완료
 - [x] `attendance` 완료
-- [ ] `material` 완료
+- [x] `material` 완료
 - [ ] `document` 완료
 - [ ] `project-admin` 완료
 - [ ] `system-admin` 완료

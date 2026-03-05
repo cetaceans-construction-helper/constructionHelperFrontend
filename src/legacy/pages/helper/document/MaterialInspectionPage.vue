@@ -26,7 +26,7 @@ import {
   materialInspectionRequestApi,
   type MaterialInspectionRequestResponse,
 } from '@/api/projectDocumentCode'
-import { materialOrderApi } from '@/api/materialOrder'
+import { materialOrderApi } from '@/features/material/public'
 import { analyticsClient } from '@/lib/analytics/analyticsClient'
 
 const isLoading = ref(false)

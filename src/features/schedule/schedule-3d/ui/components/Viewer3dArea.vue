@@ -27,7 +27,10 @@ import {
   type IdNameResponse,
   type WorkTypeResponse,
 } from '@/api/reference'
-import { materialOrderApi } from '@/api/materialOrder'
+import {
+  materialOrderApi,
+  validateMaterialOrderCreationInput,
+} from '@/features/material/public'
 import { taskApi } from '@/api/task'
 import type { Object3d, Task } from '@/features/schedule/schedule-3d/model/object3d-types'
 import type { WorkResponse } from '@/api/work'
@@ -162,12 +165,12 @@ async function handleDivisionChange(divisionId: string | number | bigint | Recor
 }
 
 async function handleCreateOrder() {
-  if (!selectedMaterialTypeId.value) {
-    alert('자재유형을 선택해주세요')
-    return
-  }
-  if (!selectedWorkTypeId.value) {
-    alert('공종을 선택해주세요')
+  const validationError = validateMaterialOrderCreationInput({
+    materialTypeId: selectedMaterialTypeId.value,
+    workTypeId: selectedWorkTypeId.value,
+  })
+  if (validationError) {
+    alert(validationError)
     return
   }
 

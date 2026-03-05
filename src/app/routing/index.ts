@@ -2,6 +2,7 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 import { authGuard, authRouteComponents } from '@/features/auth/public'
 import { attendanceRouteComponents } from '@/features/attendance/public'
 import { dashboardRouteComponents } from '@/features/dashboard/public'
+import { materialRouteComponents } from '@/features/material/public'
 import { schedule2dRouteComponents } from '@/features/schedule/schedule-2d/public'
 import { schedule3dRouteComponents } from '@/features/schedule/schedule-3d/public'
 import { analyticsClient } from '@/lib/analytics/analyticsClient'
@@ -63,22 +64,22 @@ const router = createRouter({
         {
           path: 'material/order',
           name: 'material-order',
-          component: () => import('@/pages/helper/material/InvoicePage.vue'),
+          component: materialRouteComponents.InvoicePage,
         },
         {
           path: 'material/incoming',
           name: 'material-incoming',
-          component: () => import('@/pages/helper/material/IncomingMaterialPage.vue'),
+          component: materialRouteComponents.IncomingMaterialPage,
         },
         {
           path: 'material/outgoing',
           name: 'material-outgoing',
-          component: () => import('@/pages/helper/material/OutgoingMaterialPage.vue'),
+          component: materialRouteComponents.OutgoingMaterialPage,
         },
         {
           path: 'material/remaining',
           name: 'material-remaining',
-          component: () => import('@/pages/helper/material/RemainingMaterialPage.vue'),
+          component: materialRouteComponents.RemainingMaterialPage,
         },
         {
           path: 'safety',
