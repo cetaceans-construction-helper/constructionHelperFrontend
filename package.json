@@ -15,7 +15,7 @@
     "type-check": "vue-tsc --build",
     "lint": "eslint . --fix --cache",
     "format": "prettier --write --experimental-cli src/",
-    "deploy": "npm run build && gh-pages -d dist -b deploy -r git@github-company:cetaceans-construction-helper/constructionHelperFrontend.git"
+    "deploy": "npm run build && touch dist/.nojekyll && gh-pages -d dist -t -b deploy-v2 -r git@github-company:cetaceans-construction-helper/constructionHelperFrontend.git"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.18",
