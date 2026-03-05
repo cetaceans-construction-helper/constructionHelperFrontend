@@ -1,4 +1,4 @@
-import apiClient from './apiClient'
+import apiClient from '@/api/apiClient'
 import type { Object3d } from '@/types/object3d'
 
 export const object3dApi = {

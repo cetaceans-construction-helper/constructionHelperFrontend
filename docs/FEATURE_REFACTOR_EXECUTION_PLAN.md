@@ -181,13 +181,13 @@ src/
 - [x] `system-admin.data`
 
 ### Batch A2-10: `shared`
-- [ ] `shared.ui`
-- [ ] `shared.helper-ui`
-- [ ] `shared.analytics`
-- [ ] `shared.network-core`
-- [ ] `shared.utils`
-- [ ] `shared.theme`
-- [ ] `shared.legacy-sample`
+- [x] `shared.ui`
+- [x] `shared.helper-ui`
+- [x] `shared.analytics`
+- [x] `shared.network-core`
+- [x] `shared.utils`
+- [x] `shared.theme`
+- [x] `shared.legacy-sample`
 
 Stage A 완료 조건:
 - [ ] 모든 코드가 `src/legacy/*` 또는 신규 위치에서 정상 resolve
