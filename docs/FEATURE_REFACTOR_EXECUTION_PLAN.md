@@ -198,22 +198,22 @@ Stage A 완료 조건:
 
 ## B-1. `src/app` 뼈대
 
-- [ ] `src/app/bootstrap`
-- [ ] `src/app/routing`
-- [ ] `src/app/shell`
-- [ ] `src/app/context`
-- [ ] `src/app/public-home`
+- [x] `src/app/bootstrap`
+- [x] `src/app/routing`
+- [x] `src/app/shell`
+- [x] `src/app/context`
+- [x] `src/app/public-home`
 
 ## B-2. `src/features` 뼈대 (2단계 분류 반영)
 
-- [ ] `src/features/auth/{login,signup,session}`
-- [ ] `src/features/dashboard/main`
-- [ ] `src/features/schedule/{schedule-2d,schedule-3d}`
-- [ ] `src/features/attendance/{input,worker-register,data}`
-- [ ] `src/features/material/{order,incoming,outgoing,remaining,data}`
-- [ ] `src/features/document/{manager,daily-report,material-inspection}`
-- [ ] `src/features/project-admin/{master-data,resource,document-setting,holiday}`
-- [ ] `src/features/system-admin/{shell,project-management,worker-management,company-management,role-management,mapping-management,data}`
+- [x] `src/features/auth/{login,signup,session}`
+- [x] `src/features/dashboard/main`
+- [x] `src/features/schedule/{schedule-2d,schedule-3d}`
+- [x] `src/features/attendance/{input,worker-register,data}`
+- [x] `src/features/material/{order,incoming,outgoing,remaining,data}`
+- [x] `src/features/document/{manager,daily-report,material-inspection}`
+- [x] `src/features/project-admin/{master-data,resource,document-setting,holiday}`
+- [x] `src/features/system-admin/{shell,project-management,worker-management,company-management,role-management,mapping-management,data}`
 
 ## B-3. 하위 feature 템플릿 생성
 
