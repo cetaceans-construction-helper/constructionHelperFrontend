@@ -6,7 +6,7 @@ import type {
   MirSlotValue,
   ImageCategory,
 } from '@/features/document/public'
-import { analyticsClient } from '@/lib/analytics/analyticsClient'
+import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 function createDefaultSlots(): SlotConfig[] {
   return (['A', 'B', 'C', 'D', 'E'] as const).map((key) => ({

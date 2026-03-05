@@ -35,7 +35,7 @@ import { useCalendarStore } from '@/app/context/stores/calendarStore'
 import { useChartConfigStore } from '@/features/schedule/schedule-2d/view-model/chartConfigStore'
 import { worksToNodes, workToNode, computeNodeX, computeNodeWidth, dayIndexToDate } from '@/features/schedule/schedule-2d/use-cases/nodeConfig'
 import { appConfig } from '@/app/bootstrap/config'
-import { analyticsClient } from '@/lib/analytics/analyticsClient'
+import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 // Composables
 import { useDateHeader, ROW_HEIGHT, HEADER_HEIGHT } from '@/features/schedule/schedule-2d/view-model/useDateHeader'

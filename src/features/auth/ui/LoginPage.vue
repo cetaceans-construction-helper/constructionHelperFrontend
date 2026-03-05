@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/features/auth/view-model/auth-store'
-import { analyticsClient } from '@/lib/analytics/analyticsClient'
+import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 const router = useRouter()
 const route = useRoute()

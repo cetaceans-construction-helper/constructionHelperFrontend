@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import LoginPage from '@/features/auth/ui/LoginPage.vue'
+import { LoginPageView } from '@/features/auth/public'
 </script>
 
 <template>
-  <LoginPage />
+  <LoginPageView />
 </template>

@@ -2,8 +2,8 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { authApi } from '@/features/auth/infra/auth-api'
 import { ValidationError } from '@/features/auth/infra/auth-client'
-import { analyticsClient } from '@/lib/analytics/analyticsClient'
-import { getAuthErrorType } from '@/lib/analytics/helpers/getAuthErrorType'
+import { analyticsClient } from '@/shared/analytics/analyticsClient'
+import { getAuthErrorType } from '@/features/auth/use-cases/getAuthErrorType'
 import type {
   User,
   LoginCredentials,

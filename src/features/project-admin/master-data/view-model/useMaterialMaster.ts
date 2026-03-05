@@ -4,7 +4,7 @@ import {
   type MaterialTypeResponse,
   type MaterialSpecResponse,
 } from '@/api/reference'
-import { analyticsClient } from '@/lib/analytics/analyticsClient'
+import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 export function useMaterialMaster() {
   const materialTypes = ref<MaterialTypeResponse[]>([])

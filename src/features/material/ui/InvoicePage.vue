@@ -30,7 +30,7 @@ import {
 } from '@/features/material/model/material-order-rules'
 import type { MaterialOrderResponse } from '@/features/material/model/material-order-types'
 import { useMaterialOrder } from '@/features/material/view-model/useMaterialOrder'
-import { analyticsClient } from '@/lib/analytics/analyticsClient'
+import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 const router = useRouter()
 const { orders, isLoading, loadOrders } = useMaterialOrder()

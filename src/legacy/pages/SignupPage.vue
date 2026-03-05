@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import SignupPage from '@/features/auth/ui/SignupPage.vue'
+import { SignupPageView } from '@/features/auth/public'
 </script>
 
 <template>
-  <SignupPage />
+  <SignupPageView />
 </template>

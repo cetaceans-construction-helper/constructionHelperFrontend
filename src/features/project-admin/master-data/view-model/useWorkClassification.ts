@@ -6,7 +6,7 @@ import {
   type SubWorkTypeResponse,
   type WorkStepResponse,
 } from '@/api/reference'
-import { analyticsClient } from '@/lib/analytics/analyticsClient'
+import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 export function useWorkClassification() {
   const divisions = ref<IdNameResponse[]>([])

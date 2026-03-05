@@ -8,7 +8,7 @@ import {
 import { workApi, type MutationResponse } from '@/api/work'
 import { projectApi } from '@/api/project'
 import type { Project } from '@/types/project'
-import { analyticsClient } from '@/lib/analytics/analyticsClient'
+import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 
 export function useWorkForm(onWorkCreated: (mutation: MutationResponse) => void) {

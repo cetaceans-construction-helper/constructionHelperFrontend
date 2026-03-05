@@ -26,7 +26,7 @@ import { useThemeStore } from '@/stores/theme'
 import { useAuthStore } from '@/features/auth/public'
 import { useProjectStore } from '@/app/context/stores/project'
 import { projectApi } from '@/api/project'
-import { analyticsClient } from '@/lib/analytics/analyticsClient'
+import { analyticsClient } from '@/shared/analytics/analyticsClient'
 import type { Project } from '@/types/project'
 
 const router = useRouter()

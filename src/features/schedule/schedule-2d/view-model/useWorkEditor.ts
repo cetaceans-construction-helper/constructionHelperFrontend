@@ -1,7 +1,7 @@
 import { ref, computed, watch, type Ref } from 'vue'
 import type { Node } from '@vue-flow/core'
 import { workApi, type WorkResponse, type MutationResponse, type UpdateWorkPayload } from '@/api/work'
-import { analyticsClient } from '@/lib/analytics/analyticsClient'
+import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 export function useWorkEditor(
   nodes: Ref<Node[]>,

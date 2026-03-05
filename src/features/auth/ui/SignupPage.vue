@@ -14,7 +14,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/features/auth/view-model/auth-store'
 import { companyApi } from '@/features/auth/infra/company-api'
 import type { Company } from '@/features/auth/model/auth-types'
-import { analyticsClient } from '@/lib/analytics/analyticsClient'
+import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 const router = useRouter()
 const authStore = useAuthStore()

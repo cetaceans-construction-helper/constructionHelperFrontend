@@ -11,7 +11,7 @@ import {
   type MaterialSpecResponse,
   type CreateTasksResponse,
 } from '@/api/reference'
-import { analyticsClient } from '@/lib/analytics/analyticsClient'
+import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 export function useComponentCode() {
   // 부재 타입 관리

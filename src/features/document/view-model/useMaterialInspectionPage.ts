@@ -6,7 +6,7 @@ import {
   downloadMaterialInspectionRequest,
   getMaterialInspectionRequests,
 } from '@/features/document/use-cases/material-inspection-request'
-import { analyticsClient } from '@/lib/analytics/analyticsClient'
+import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 interface ApiError {
   response?: { data?: { message?: string } }

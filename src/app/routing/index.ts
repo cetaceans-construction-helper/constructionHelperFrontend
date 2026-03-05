@@ -11,7 +11,7 @@ import { projectAdminResourceRouteComponents } from '@/features/project-admin/re
 import { schedule2dRouteComponents } from '@/features/schedule/schedule-2d/public'
 import { schedule3dRouteComponents } from '@/features/schedule/schedule-3d/public'
 import { systemAdminRouteComponents } from '@/features/system-admin/public'
-import { analyticsClient } from '@/lib/analytics/analyticsClient'
+import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 const router = createRouter({
   history: createWebHashHistory(import.meta.env.BASE_URL),

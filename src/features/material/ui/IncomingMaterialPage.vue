@@ -62,7 +62,7 @@ import type {
   IdNameResponse,
   WorkTypeResponse,
 } from '@/api/reference'
-import { analyticsClient } from '@/lib/analytics/analyticsClient'
+import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 const router = useRouter()
 const { orders, loadOrders } = useMaterialOrder()

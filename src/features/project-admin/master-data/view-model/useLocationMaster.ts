@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { referenceApi, type IdNameResponse } from '@/api/reference'
-import { analyticsClient } from '@/lib/analytics/analyticsClient'
+import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 export function useLocationMaster() {
   const zones = ref<IdNameResponse[]>([])

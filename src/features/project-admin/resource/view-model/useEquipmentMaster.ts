@@ -4,7 +4,7 @@ import {
   type EquipmentTypeResponse,
   type EquipmentSpecResponse,
 } from '@/api/reference'
-import { analyticsClient } from '@/lib/analytics/analyticsClient'
+import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 export function useEquipmentMaster() {
   const equipmentTypes = ref<EquipmentTypeResponse[]>([])

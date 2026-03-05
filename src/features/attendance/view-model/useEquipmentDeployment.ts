@@ -6,7 +6,7 @@ import {
   type EquipmentDeploymentEntry,
 } from '@/features/attendance/infra/equipment-api'
 import type { Contractor } from '@/features/attendance/infra/attendance-api'
-import { analyticsClient } from '@/lib/analytics/analyticsClient'
+import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 export interface EquipmentBox {
   id: string

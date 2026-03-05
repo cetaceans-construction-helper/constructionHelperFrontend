@@ -2,7 +2,7 @@ import { ref, computed, type Ref } from 'vue'
 import type { Node, Edge } from '@vue-flow/core'
 import { workPathApi, type PathResponse, type PathEdge } from '@/api/workPath'
 import type { WorkResponse, MutationResponse } from '@/api/work'
-import { analyticsClient } from '@/lib/analytics/analyticsClient'
+import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 // 엣지 배열 → 순서 있는 체인 배열
 function edgesToChain(edges: PathEdge[]): number[] {

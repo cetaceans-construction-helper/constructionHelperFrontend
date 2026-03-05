@@ -6,7 +6,7 @@ import {
   type SubWorkTypeResponse,
   type LaborTypeResponse,
 } from '@/api/reference'
-import { analyticsClient } from '@/lib/analytics/analyticsClient'
+import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 interface ApiError {
   response?: { data?: { message?: string } }

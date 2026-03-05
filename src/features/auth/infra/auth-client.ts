@@ -1,14 +1,14 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios'
 import type { FieldErrors, TokenResponse } from '@/features/auth/model/auth-types'
 import { appConfig } from '@/app/bootstrap/config'
-import { analyticsClient } from '@/lib/analytics/analyticsClient'
+import { analyticsClient } from '@/shared/analytics/analyticsClient'
 import {
   getApiErrorFeature,
   getCurrentRoutePath,
   getApiErrorStatusGroup,
   shouldSkipApiErrorTracking,
   shouldTrackApiError,
-} from '@/lib/analytics/helpers/apiErrorTracking'
+} from '@/shared/analytics/helpers/apiErrorTracking'
 
 // Access Token 저장소 (메모리)
 let accessToken: string | null = null

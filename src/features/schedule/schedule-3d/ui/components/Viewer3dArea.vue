@@ -34,7 +34,7 @@ import {
 import { taskApi } from '@/api/task'
 import type { Object3d, Task } from '@/features/schedule/schedule-3d/model/object3d-types'
 import type { WorkResponse } from '@/api/work'
-import { analyticsClient } from '@/lib/analytics/analyticsClient'
+import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 const router = useRouter()
 

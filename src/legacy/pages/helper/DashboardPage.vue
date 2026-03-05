@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import DashboardPage from '@/features/dashboard/ui/DashboardPage.vue'
+import { DashboardPageView } from '@/features/dashboard/public'
 </script>
 
 <template>
-  <DashboardPage />
+  <DashboardPageView />
 </template>
