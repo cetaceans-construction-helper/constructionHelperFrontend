@@ -1893,7 +1893,7 @@ onUnmounted(() => {
         >
           삭제
         </button>
-        <button
+        <!-- <button
           type="button"
           class="w-full py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950 rounded border border-blue-300 dark:border-blue-700 transition-colors"
           @click="optimizeTarget = 'current'; showOptimizeDialog = true"
@@ -1906,7 +1906,7 @@ onUnmounted(() => {
           @click="optimizeTarget = 'all'; showOptimizeDialog = true"
         >
           전체 패스 최적화
-        </button>
+        </button> -->
       </DialogFooter>
     </DialogContent>
   </Dialog>

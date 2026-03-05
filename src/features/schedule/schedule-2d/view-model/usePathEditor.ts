@@ -324,25 +324,28 @@ export function usePathEditor(
     return null
   }
 
-  // 패스에서 노드 제거 (중간 노드는 앞뒤 자동 연결)
+  // 패스에서 노드 제거 (체인 기반 재구성으로 순서 보장)
   const removeNodeFromPath = (workId: number) => {
-    // incoming edge 찾기 (이 노드로 들어오는 edge)
-    const incomingEdge = editingPathEdges.value.find(e => e.targetWorkId === workId)
-    // outgoing edge 찾기 (이 노드에서 나가는 edge)
-    const outgoingEdge = editingPathEdges.value.find(e => e.sourceWorkId === workId)
+    const currentChain = edgesToChain(editingPathEdges.value)
+    if (!currentChain.includes(workId)) return
 
-    // 해당 노드 관련 edge 모두 제거
-    editingPathEdges.value = editingPathEdges.value.filter(
-      e => e.sourceWorkId !== workId && e.targetWorkId !== workId
-    )
-
-    // 중간 노드인 경우: 앞뒤 자동 연결
-    if (incomingEdge && outgoingEdge) {
-      editingPathEdges.value.push({
-        sourceWorkId: incomingEdge.sourceWorkId,
-        targetWorkId: outgoingEdge.targetWorkId
-      })
+    const newChain = currentChain.filter(id => id !== workId)
+    if (newChain.length < 2) {
+      editingPathEdges.value = []
+      return
     }
+
+    const lagMap = new Map<string, number | null>()
+    editingPathEdges.value.forEach(e => {
+      if (e.lagDays != null) {
+        lagMap.set(`${e.sourceWorkId}-${e.targetWorkId}`, e.lagDays)
+      }
+    })
+
+    editingPathEdges.value = chainToEdges(newChain).map(e => {
+      const lag = lagMap.get(`${e.sourceWorkId}-${e.targetWorkId}`)
+      return lag != null ? { ...e, lagDays: lag } : e
+    })
   }
 
   // 패스 편집 모드 초기화 (외부에서 사용)

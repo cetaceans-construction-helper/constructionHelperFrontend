@@ -29,9 +29,9 @@ const {
 
 <template>
   <div class="flex-1 flex flex-col gap-4">
-    <div class="flex gap-4 items-start">
+    <div class="dashboard-layout">
       <!-- 오늘작업 영역 -->
-      <AreaCard height="flex-none" min-height="auto" class="w-1/2">
+      <AreaCard height="flex-none" min-height="auto" class="dashboard-col-main">
         <div class="flex items-center justify-between mb-3">
           <h3 class="text-lg font-semibold">오늘작업</h3>
           <Button variant="outline" size="sm" @click="router.push('/helper/schedule/2d')">
@@ -204,7 +204,7 @@ const {
       </AreaCard>
 
       <!-- AI 도우미 영역 -->
-      <AreaCard height="flex-none" min-height="auto" class="w-1/4">
+      <AreaCard height="flex-none" min-height="auto" class="dashboard-col-side">
         <h3 class="text-lg font-semibold">AI 도우미</h3>
         <div class="space-y-4 mt-[5rem]">
           <div class="border border-border rounded-lg p-3 flex items-center justify-between">
@@ -223,7 +223,7 @@ const {
       </AreaCard>
 
       <!-- 작업 평가 영역 -->
-      <AreaCard height="flex-none" min-height="auto" class="w-1/4">
+      <AreaCard height="flex-none" min-height="auto" class="dashboard-col-side">
         <h3 class="text-lg font-semibold">작업 평가</h3>
         <div class="space-y-4 mt-[5rem]">
           <div class="border border-border rounded-lg p-3">
@@ -262,3 +262,30 @@ const {
     <WorkPhotoDialog ref="photoDialogRef" @updated="onPhotoUpdated" />
   </div>
 </template>
+
+<style scoped>
+.dashboard-layout {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.dashboard-col-main {
+  width: 50%;
+}
+
+.dashboard-col-side {
+  width: 25%;
+}
+
+@media (max-aspect-ratio: 1/1) {
+  .dashboard-layout {
+    flex-direction: column;
+  }
+
+  .dashboard-col-main,
+  .dashboard-col-side {
+    width: 100%;
+  }
+}
+</style>
