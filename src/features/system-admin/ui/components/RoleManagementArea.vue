@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Separator } from '@/components/ui/separator'
+import { Button } from '@/shared/ui/button'
+import { Input } from '@/shared/ui/input'
+import { Separator } from '@/shared/ui/separator'
 import { useRoleManagement } from '@/features/system-admin/view-model/useRoleManagement'
 
 const {

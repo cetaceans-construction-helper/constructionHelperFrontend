@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { getAccessToken } from '@/features/auth/public'
+import { getAccessToken } from '@/shared/network-core/access-token'
 import { useProjectStore } from '@/app/context/stores/project'
 import { appConfig } from '@/app/bootstrap/config'
 import type { AxiosError } from 'axios'

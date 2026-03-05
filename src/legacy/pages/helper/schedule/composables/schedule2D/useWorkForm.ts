@@ -1,1 +1,1 @@
-export * from '@/features/schedule/schedule-2d/view-model/useWorkForm'
+export * from '@/features/schedule/schedule-2d/public'

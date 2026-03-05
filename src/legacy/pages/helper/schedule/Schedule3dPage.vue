@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import Schedule3dPage from '@/features/schedule/schedule-3d/ui/Schedule3dPage.vue'
+import { Schedule3dPageView } from '@/features/schedule/schedule-3d/public'
 </script>
 
 <template>
-  <Schedule3dPage />
+  <Schedule3dPageView />
 </template>

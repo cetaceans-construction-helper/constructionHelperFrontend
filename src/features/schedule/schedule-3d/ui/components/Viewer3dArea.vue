@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Checkbox } from '@/components/ui/checkbox'
+import { Button } from '@/shared/ui/button'
+import { Input } from '@/shared/ui/input'
+import { Checkbox } from '@/shared/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -10,17 +10,17 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from '@/components/ui/dialog'
+} from '@/shared/ui/dialog'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '@/shared/ui/select'
 import { ChevronLeft, ChevronRight, Truck } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
-import SideTabBox from '@/components/helper/SideTabBox.vue'
+import SideTabBox from '@/shared/helper-ui/SideTabBox.vue'
 import {
   referenceApi,
   type MaterialTypeResponse,

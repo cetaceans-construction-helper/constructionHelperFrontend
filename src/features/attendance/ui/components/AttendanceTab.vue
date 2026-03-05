@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Button } from '@/shared/ui/button'
+import { Input } from '@/shared/ui/input'
 import { Plus, Minus } from 'lucide-vue-next'
 import { useAttendance } from '@/features/attendance/view-model/useAttendance'
 import { useEquipmentDeployment } from '@/features/attendance/view-model/useEquipmentDeployment'

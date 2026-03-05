@@ -2,7 +2,7 @@
 import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { VueFlow, useVueFlow, type Node, type Edge } from '@vue-flow/core'
 import { Controls } from '@vue-flow/controls'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/shared/ui/button'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,22 +12,22 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+} from '@/shared/ui/alert-dialog'
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from '@/components/ui/dialog'
+} from '@/shared/ui/dialog'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { Checkbox } from '@/components/ui/checkbox'
+} from '@/shared/ui/select'
+import { Checkbox } from '@/shared/ui/checkbox'
 import { workApi, type WorkResponse, type MutationResponse, type UpdateWorkPayload } from '@/api/work'
 import { workPathApi, type PathResponse } from '@/api/workPath'
 import { useProjectStore } from '@/app/context/stores/project'

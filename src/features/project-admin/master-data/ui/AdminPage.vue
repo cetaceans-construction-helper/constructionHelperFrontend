@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import PageContainer from '@/components/helper/PageContainer.vue'
-import AreaCard from '@/components/helper/AreaCard.vue'
-import { Separator } from '@/components/ui/separator'
+import PageContainer from '@/shared/helper-ui/PageContainer.vue'
+import AreaCard from '@/shared/helper-ui/AreaCard.vue'
+import { Separator } from '@/shared/ui/separator'
 import WorkClassificationArea from '@/features/project-admin/master-data/ui/components/WorkClassificationArea.vue'
 import MaterialMasterArea from '@/features/project-admin/master-data/ui/components/MaterialMasterArea.vue'
 import LocationMasterArea from '@/features/project-admin/master-data/ui/components/LocationMasterArea.vue'

@@ -1,6 +1,7 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios'
 import type { FieldErrors, TokenResponse } from '@/features/auth/model/auth-types'
 import { appConfig } from '@/app/bootstrap/config'
+import { getAccessToken, setAccessToken } from '@/shared/network-core/access-token'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
 import {
   getApiErrorFeature,
@@ -10,14 +11,7 @@ import {
   shouldTrackApiError,
 } from '@/shared/analytics/helpers/apiErrorTracking'
 
-// Access Token 저장소 (메모리)
-let accessToken: string | null = null
-
-export const setAccessToken = (token: string | null) => {
-  accessToken = token
-}
-
-export const getAccessToken = () => accessToken
+export { getAccessToken, setAccessToken } from '@/shared/network-core/access-token'
 
 // ValidationError class for field-level errors
 export class ValidationError extends Error {
@@ -41,6 +35,7 @@ const client = axios.create({
 
 // Request interceptor - Authorization 헤더 추가
 client.interceptors.request.use((config) => {
+  const accessToken = getAccessToken()
   if (accessToken) {
     config.headers.Authorization = `Bearer ${accessToken}`
   }

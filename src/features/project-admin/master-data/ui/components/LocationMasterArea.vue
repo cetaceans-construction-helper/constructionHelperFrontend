@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Button } from '@/shared/ui/button'
+import { Input } from '@/shared/ui/input'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -11,8 +11,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import SortableReferenceList from '@/components/helper/SortableReferenceList.vue'
+} from '@/shared/ui/alert-dialog'
+import SortableReferenceList from '@/shared/helper-ui/SortableReferenceList.vue'
 import { useLocationMaster } from '@/features/project-admin/master-data/view-model/useLocationMaster'
 
 const {

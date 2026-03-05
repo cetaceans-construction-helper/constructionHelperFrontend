@@ -351,12 +351,12 @@ Stage B 완료 조건:
 
 ### C-10. `shared` 정리
 
-- [ ] 실제 2개 이상 feature 재사용 코드만 남김
-- [ ] 도메인 특화 코드는 원래 feature로 회수
+- [x] 실제 2개 이상 feature 재사용 코드만 남김
+- [x] 도메인 특화 코드는 원래 feature로 회수
 - [x] 공통 분석/네트워크/유틸 코어를 `legacy`에서 `shared`로 이동 (`analytics`, `network-core`, `utils`)
 - [x] `legacy` 경로는 wrapper로 유지하여 호환성 보장
 - [x] auth 전용 에러 분류 로직(`getAuthErrorType`)을 `shared`가 아닌 `features/auth`로 회수
-- [ ] `shared/ui`, `shared/helper-ui`로 UI 공용 컴포넌트 실체 이전
+- [x] `shared/ui`, `shared/helper-ui`로 UI 공용 컴포넌트 실체 이전
 
 Stage C 완료 조건:
 - [ ] 모든 Top Feature가 새 구조에서 동작
@@ -420,5 +420,5 @@ Stage E 완료 조건 (프로젝트 완료):
 - [x] `document` 완료
 - [x] `project-admin` 완료
 - [x] `system-admin` 완료
-- [ ] `shared` 완료
+- [x] `shared` 완료
 - [ ] `legacy` 제거 완료

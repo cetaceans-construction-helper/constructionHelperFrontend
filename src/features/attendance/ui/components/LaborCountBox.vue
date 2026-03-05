@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Button } from '@/shared/ui/button'
+import { Input } from '@/shared/ui/input'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '@/shared/ui/select'
 import { X, Plus, Minus, Loader2 } from 'lucide-vue-next'
 import type { LaborTypeResponse } from '@/api/reference'
 import type { Contractor } from '@/features/attendance/infra/attendance-api'

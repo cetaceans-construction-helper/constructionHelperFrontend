@@ -2,8 +2,8 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/features/auth/public'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/shared/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
 import {
   Sidebar,
   SidebarContent,
@@ -13,7 +13,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
-} from '@/components/ui/sidebar'
+} from '@/shared/ui/sidebar'
 import CompanyManagementArea from '@/features/system-admin/ui/components/CompanyManagementArea.vue'
 import ProjectManagementArea from '@/features/system-admin/ui/components/ProjectManagementArea.vue'
 import RoleManagementArea from '@/features/system-admin/ui/components/RoleManagementArea.vue'

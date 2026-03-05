@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import PageContainer from '@/components/helper/PageContainer.vue'
-import AreaCard from '@/components/helper/AreaCard.vue'
-import { Button } from '@/components/ui/button'
+import PageContainer from '@/shared/helper-ui/PageContainer.vue'
+import AreaCard from '@/shared/helper-ui/AreaCard.vue'
+import { Button } from '@/shared/ui/button'
 import {
   Table,
   TableBody,
@@ -9,7 +9,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
+} from '@/shared/ui/table'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,7 +19,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+} from '@/shared/ui/alert-dialog'
 import { Download, Trash2 } from 'lucide-vue-next'
 import { useMaterialInspectionPage } from '@/features/document/view-model/useMaterialInspectionPage'
 

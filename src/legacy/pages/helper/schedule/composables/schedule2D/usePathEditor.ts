@@ -1,1 +1,1 @@
-export * from '@/features/schedule/schedule-2d/view-model/usePathEditor'
+export * from '@/features/schedule/schedule-2d/public'

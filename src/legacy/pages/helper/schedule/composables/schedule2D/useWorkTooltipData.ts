@@ -1,1 +1,1 @@
-export * from '@/features/schedule/schedule-2d/view-model/useWorkTooltipData'
+export * from '@/features/schedule/schedule-2d/public'

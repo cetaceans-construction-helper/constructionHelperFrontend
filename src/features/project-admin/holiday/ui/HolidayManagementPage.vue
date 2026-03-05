@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import PageContainer from '@/components/helper/PageContainer.vue'
-import AreaCard from '@/components/helper/AreaCard.vue'
+import PageContainer from '@/shared/helper-ui/PageContainer.vue'
+import AreaCard from '@/shared/helper-ui/AreaCard.vue'
 import HolidayCalendarArea from '@/features/project-admin/holiday/ui/components/HolidayCalendarArea.vue'
 </script>
 

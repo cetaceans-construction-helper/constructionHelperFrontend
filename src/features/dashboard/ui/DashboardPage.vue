@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
-import AreaCard from '@/components/helper/AreaCard.vue'
-import { Button } from '@/components/ui/button'
+import AreaCard from '@/shared/helper-ui/AreaCard.vue'
+import { Button } from '@/shared/ui/button'
 import WorkPhotoDialog from '@/features/dashboard/ui/components/WorkPhotoDialog.vue'
 import { useDashboardPage } from '@/features/dashboard/view-model/useDashboardPage'
 

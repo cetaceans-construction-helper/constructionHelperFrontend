@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Button } from '@/components/ui/button'
+import { Button } from '@/shared/ui/button'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()

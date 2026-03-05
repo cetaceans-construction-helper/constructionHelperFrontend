@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/shared/ui/button'
 import { ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import { useHolidayManagement } from '@/features/project-admin/holiday/view-model/useHolidayManagement'
 import type { CalendarCell } from '@/features/project-admin/holiday/view-model/useHolidayManagement'

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
 import * as THREE from 'three'
-import PageContainer from '@/components/helper/PageContainer.vue'
-import AreaCard from '@/components/helper/AreaCard.vue'
+import PageContainer from '@/shared/helper-ui/PageContainer.vue'
+import AreaCard from '@/shared/helper-ui/AreaCard.vue'
 import { useEngine } from '@/features/schedule/schedule-3d/view-model/useEngine'
 import { useDailyReport } from '@/features/schedule/schedule-3d/view-model/useDailyReport'
 import Viewer3dArea from './components/Viewer3dArea.vue'

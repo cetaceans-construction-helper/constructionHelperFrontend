@@ -1,5 +1,5 @@
 <script lang="ts">
-import Viewer2dArea from '@/features/schedule/schedule-2d/ui/components/Viewer2dArea.vue'
+import { Viewer2dAreaView } from '@/features/schedule/schedule-2d/public'
 
-export default Viewer2dArea
+export default Viewer2dAreaView
 </script>

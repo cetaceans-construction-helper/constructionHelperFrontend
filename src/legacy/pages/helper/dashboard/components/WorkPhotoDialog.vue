@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import WorkPhotoDialog from '@/features/dashboard/ui/components/WorkPhotoDialog.vue'
+import { WorkPhotoDialogView } from '@/features/dashboard/public'
 </script>
 
 <template>
-  <WorkPhotoDialog />
+  <WorkPhotoDialogView />
 </template>

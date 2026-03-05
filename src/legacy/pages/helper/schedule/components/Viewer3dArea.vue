@@ -1,5 +1,5 @@
 <script lang="ts">
-import Viewer3dArea from '@/features/schedule/schedule-3d/ui/components/Viewer3dArea.vue'
+import { Viewer3dAreaView } from '@/features/schedule/schedule-3d/public'
 
-export default Viewer3dArea
+export default Viewer3dAreaView
 </script>

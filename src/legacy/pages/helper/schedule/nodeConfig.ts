@@ -1,1 +1,1 @@
-export * from '@/features/schedule/schedule-2d/use-cases/nodeConfig'
+export * from '@/features/schedule/schedule-2d/public'

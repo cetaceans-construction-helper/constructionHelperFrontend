@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import PageContainer from '@/components/helper/PageContainer.vue'
-import AreaCard from '@/components/helper/AreaCard.vue'
+import PageContainer from '@/shared/helper-ui/PageContainer.vue'
+import AreaCard from '@/shared/helper-ui/AreaCard.vue'
 import MirSettingArea from '@/features/project-admin/document-setting/ui/components/MirSettingArea.vue'
 import PromptManagementArea from '@/features/project-admin/document-setting/ui/components/PromptManagementArea.vue'
 </script>
