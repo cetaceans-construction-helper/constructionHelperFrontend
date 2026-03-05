@@ -1,4 +1,4 @@
-import apiClient from './apiClient'
+import apiClient from '@/api/apiClient'
 import type { PathResponse } from './workPath'
 
 // 작업 생성 페이로드

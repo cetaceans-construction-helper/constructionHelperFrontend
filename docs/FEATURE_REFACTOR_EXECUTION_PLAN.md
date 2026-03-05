@@ -144,8 +144,8 @@ src/
 - [x] `dashboard.main`
 
 ### Batch A2-4: `schedule`
-- [ ] `schedule.schedule-2d`
-- [ ] `schedule.schedule-3d`
+- [x] `schedule.schedule-2d`
+- [x] `schedule.schedule-3d`
 
 ### Batch A2-5: `attendance`
 - [ ] `attendance.input`
