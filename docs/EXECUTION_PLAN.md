@@ -383,7 +383,7 @@ Stage C 완료 조건:
 
 - [x] `src/legacy/*` 제거
 - [x] 미사용 후보(`app.legacy-shell-candidate`, `material.legacy-candidate`, `shared.legacy-sample`) 처리
-- [ ] gitkeep 파일 삭제
+- [x] gitkeep 파일 삭제
 
 Stage D 완료 조건:
 - [x] legacy 코드/호환 로직 0
@@ -424,4 +424,4 @@ Stage E 완료 조건 (프로젝트 완료):
 - [x] `project-admin` 완료
 - [x] `system-admin` 완료
 - [x] `shared` 완료
-- [ ] `legacy` 제거 완료
+- [x] `legacy` 제거 완료
