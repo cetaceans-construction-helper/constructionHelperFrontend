@@ -1,6 +1,10 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { attendanceApi, type AttendanceByDateItem } from '@/api/attendance'
-import { equipmentApi, type EquipmentDeploymentByDateItem } from '@/api/equipment'
+import {
+  attendanceApi,
+  equipmentApi,
+  type AttendanceByDateItem,
+  type EquipmentDeploymentByDateItem,
+} from '@/features/attendance/public'
 import { materialOrderApi, type DeliveryQuantityByDate } from '@/api/materialOrder'
 import { workApi, type WorkPhotoResponse, type WorkResponse } from '@/api/work'
 import { useCalendarStore } from '@/app/context/stores/calendarStore'

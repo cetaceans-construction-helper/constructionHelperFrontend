@@ -1,13 +1,7 @@
 <script setup lang="ts">
-import PageContainer from '@/components/helper/PageContainer.vue'
-import AreaCard from '@/components/helper/AreaCard.vue'
-import AttendanceTab from '@/pages/helper/material/components/AttendanceTab.vue'
+import { AttendanceInputPageView } from '@/features/attendance/public'
 </script>
 
 <template>
-  <PageContainer title="출역입력">
-    <AreaCard height="flex-1">
-      <AttendanceTab />
-    </AreaCard>
-  </PageContainer>
+  <AttendanceInputPageView />
 </template>

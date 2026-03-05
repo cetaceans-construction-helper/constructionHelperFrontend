@@ -1,5 +1,7 @@
-import type { AttendanceByDateItem } from '@/api/attendance'
-import type { EquipmentDeploymentByDateItem } from '@/api/equipment'
+import type {
+  AttendanceByDateItem,
+  EquipmentDeploymentByDateItem,
+} from '@/features/attendance/public'
 import type { WorkPhotoResponse } from '@/api/work'
 
 export interface PhotoWithWork {

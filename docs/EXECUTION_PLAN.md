@@ -323,9 +323,9 @@ Stage B 완료 조건:
 
 ### C-5. `attendance`
 
-- [ ] `material` UI 재사용 의존 제거
-- [ ] `attendance` 단일 feature로 통합 유지
-- [ ] API 경계를 `attendance/public.ts` 기준으로 정리
+- [x] `material` UI 재사용 의존 제거
+- [x] `attendance` 단일 feature로 통합 유지
+- [x] API 경계를 `attendance/public.ts` 기준으로 정리
 
 ### C-6. `material`
 
@@ -410,7 +410,7 @@ Stage E 완료 조건 (프로젝트 완료):
 - [x] `auth` 완료
 - [x] `dashboard` 완료
 - [x] `schedule` 완료
-- [ ] `attendance` 완료
+- [x] `attendance` 완료
 - [ ] `material` 완료
 - [ ] `document` 완료
 - [ ] `project-admin` 완료

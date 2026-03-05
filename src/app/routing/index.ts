@@ -1,5 +1,6 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { authGuard, authRouteComponents } from '@/features/auth/public'
+import { attendanceRouteComponents } from '@/features/attendance/public'
 import { dashboardRouteComponents } from '@/features/dashboard/public'
 import { schedule2dRouteComponents } from '@/features/schedule/schedule-2d/public'
 import { schedule3dRouteComponents } from '@/features/schedule/schedule-3d/public'
@@ -52,12 +53,12 @@ const router = createRouter({
         {
           path: 'attendance/input',
           name: 'attendance-input',
-          component: () => import('@/pages/helper/attendance/AttendanceInputPage.vue'),
+          component: attendanceRouteComponents.AttendanceInputPage,
         },
         {
           path: 'attendance/register',
           name: 'attendance-register',
-          component: () => import('@/pages/helper/attendance/WorkerRegisterPage.vue'),
+          component: attendanceRouteComponents.WorkerRegisterPage,
         },
         {
           path: 'material/order',
