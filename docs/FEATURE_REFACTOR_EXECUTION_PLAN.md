@@ -190,8 +190,8 @@ src/
 - [x] `shared.legacy-sample`
 
 Stage A 완료 조건:
-- [ ] 모든 코드가 `src/legacy/*` 또는 신규 위치에서 정상 resolve
-- [ ] A2 전 배치 검증 통과
+- [x] 모든 코드가 `src/legacy/*` 또는 신규 위치에서 정상 resolve
+- [x] A2 전 배치 검증 통과
 
 ## 6) Stage B - 신규 아키텍처 뼈대 구축
 
