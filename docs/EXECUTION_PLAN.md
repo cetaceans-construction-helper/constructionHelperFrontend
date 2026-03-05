@@ -312,8 +312,8 @@ Stage B 완료 조건:
 
 ### C-3. `dashboard`
 
-- [ ] `dashboard`를 top 단일 템플릿 기준으로 정리
-- [ ] 셸 의존 최소화 (입력은 props/컨텍스트, 로직은 use-cases)
+- [x] `dashboard`를 top 단일 템플릿 기준으로 정리
+- [x] 셸 의존 최소화 (입력은 props/컨텍스트, 로직은 use-cases)
 
 ### C-4. `schedule`
 
@@ -408,7 +408,7 @@ Stage E 완료 조건 (프로젝트 완료):
 
 - [x] `app` 완료
 - [x] `auth` 완료
-- [ ] `dashboard` 완료
+- [x] `dashboard` 완료
 - [ ] `schedule` 완료
 - [ ] `attendance` 완료
 - [ ] `material` 완료

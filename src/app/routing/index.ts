@@ -1,5 +1,6 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { authGuard, authRouteComponents } from '@/features/auth/public'
+import { dashboardRouteComponents } from '@/features/dashboard/public'
 import { analyticsClient } from '@/lib/analytics/analyticsClient'
 
 const router = createRouter({
@@ -28,7 +29,7 @@ const router = createRouter({
         {
           path: 'dashboard',
           name: 'dashboard',
-          component: () => import('@/pages/helper/DashboardPage.vue'),
+          component: dashboardRouteComponents.DashboardPage,
         },
         {
           path: 'schedule',
