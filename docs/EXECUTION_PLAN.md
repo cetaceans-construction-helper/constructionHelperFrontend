@@ -393,24 +393,14 @@ Stage D 완료 조건:
 
 ## E-1. Guardrails 자동화
 
-- [ ] ESLint 규칙: 상대경로 체인 제한
-- [ ] ESLint 규칙: feature 내부 직접 import 차단 (`public.ts` 강제)
-- [ ] PR 템플릿에 Guardrails 체크리스트 반영
+- [x] ESLint 규칙: 상대경로 체인 제한
+- [x] ESLint 규칙: feature 내부 직접 import 차단 (`public.ts` 강제)
+- [x] PR 템플릿에 Guardrails 체크리스트 반영
 
-## E-2. 검증 강화
+## E-2. 문서 완료
 
-- [ ] 핵심 feature smoke 테스트 문서화
-- [ ] 취약 구간(라우팅, 인증, schedule, material) 회귀 테스트 보강
-
-## E-3. 문서 완료
-
-- [ ] 최종 아키텍처 문서 업데이트
-- [ ] 신규 feature 생성 가이드 업데이트
-
-Stage E 완료 조건 (프로젝트 완료):
-- [ ] `app/features/shared` 목표 구조 정착
-- [ ] Guardrails 위반이 CI에서 차단
-- [ ] legacy/임시 호환 코드 제거 완료
+- [x] 최종 아키텍처 문서 업데이트
+- [x] 신규 feature 생성 가이드 업데이트
 
 ## 10) 진행 보드 (Top Feature 단위)
 
