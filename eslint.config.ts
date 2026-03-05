@@ -22,7 +22,7 @@ export default defineConfigWithVueTs(
 
   // shadcn-vue components use single-word names
   {
-    files: ['src/components/ui/**/*.vue'],
+    files: ['src/components/ui/**/*.vue', 'src/legacy/components/ui/**/*.vue'],
     rules: {
       'vue/multi-word-component-names': 'off',
     },

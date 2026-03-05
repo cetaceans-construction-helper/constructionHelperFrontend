@@ -1,0 +1,128 @@
+<script setup lang="ts">
+import { onMounted, ref } from 'vue'
+import { Button } from '@/shared/ui/button'
+import { Input } from '@/shared/ui/input'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/shared/ui/alert-dialog'
+import SortableReferenceList from '@/shared/helper-ui/SortableReferenceList.vue'
+import { useLocationMaster } from '@/features/project-admin/master-data/view-model/useLocationMaster'
+
+const {
+  zones,
+  floors,
+  sections,
+  usages,
+  newZone,
+  newFloor,
+  newSection,
+  newUsage,
+  isCreating,
+  isDeleting,
+  loadAll,
+  addZone,
+  addFloor,
+  addSection,
+  addUsage,
+  deleteZone,
+  deleteFloor,
+  deleteSection,
+  deleteUsage,
+  updateZoneName,
+  updateFloorName,
+  updateSectionName,
+  updateUsageName,
+  reorderZones,
+  reorderFloors,
+  reorderSections,
+  reorderUsages,
+} = useLocationMaster()
+
+onMounted(() => {
+  loadAll()
+})
+
+const columns = [
+  { label: 'Zone', items: zones, input: newZone, creating: 'zone', deleting: 'zone', add: addZone, deleteFn: deleteZone, updateName: updateZoneName, reorder: reorderZones },
+  { label: 'Floor', items: floors, input: newFloor, creating: 'floor', deleting: 'floor', add: addFloor, deleteFn: deleteFloor, updateName: updateFloorName, reorder: reorderFloors },
+  { label: 'Section', items: sections, input: newSection, creating: 'section', deleting: 'section', add: addSection, deleteFn: deleteSection, updateName: updateSectionName, reorder: reorderSections },
+  { label: 'Usage', items: usages, input: newUsage, creating: 'usage', deleting: 'usage', add: addUsage, deleteFn: deleteUsage, updateName: updateUsageName, reorder: reorderUsages },
+]
+
+// 삭제 다이얼로그 상태
+const showDeleteDialog = ref(false)
+const deleteTargetId = ref<number | null>(null)
+const deleteTargetName = ref('')
+const deleteAction = ref<((id: number) => Promise<void>) | null>(null)
+
+function openDeleteDialog(id: number, name: string, fn: (id: number) => Promise<void>) {
+  deleteTargetId.value = id
+  deleteTargetName.value = name
+  deleteAction.value = fn
+  showDeleteDialog.value = true
+}
+
+async function confirmDelete() {
+  if (deleteTargetId.value != null && deleteAction.value) {
+    await deleteAction.value(deleteTargetId.value)
+  }
+  showDeleteDialog.value = false
+}
+</script>
+
+<template>
+  <div>
+    <h3 class="text-sm font-semibold mb-3">위치분류</h3>
+    <div class="grid grid-cols-4 gap-4">
+      <div v-for="col in columns" :key="col.label" class="space-y-2">
+        <p class="text-xs text-muted-foreground font-medium">{{ col.label }}</p>
+        <div class="flex gap-1">
+          <Input
+            v-model="col.input.value"
+            placeholder="이름 입력"
+            class="h-8 text-sm"
+            @keyup.enter="col.add"
+          />
+          <Button
+            size="sm"
+            class="h-8 shrink-0"
+            :disabled="isCreating[col.creating] || !col.input.value.trim()"
+            @click="col.add"
+          >
+            추가
+          </Button>
+        </div>
+        <SortableReferenceList
+          :items="col.items.value"
+          :selectable="false"
+          :disabled="isDeleting[col.deleting]"
+          @delete="(id, name) => openDeleteDialog(id, name, col.deleteFn)"
+          @update-name="({ id, name }) => col.updateName(id, name)"
+          @reorder="col.reorder"
+        />
+      </div>
+    </div>
+
+    <AlertDialog :open="showDeleteDialog" @update:open="showDeleteDialog = $event">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>삭제 확인</AlertDialogTitle>
+          <AlertDialogDescription>
+            '{{ deleteTargetName }}' 항목을 삭제하시겠습니까?
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>취소</AlertDialogCancel>
+          <AlertDialogAction @click="confirmDelete">삭제</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  </div>
+</template>
