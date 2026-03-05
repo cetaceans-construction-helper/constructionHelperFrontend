@@ -166,10 +166,10 @@ src/
 - [x] `document.material-inspection`
 
 ### Batch A2-8: `project-admin`
-- [ ] `project-admin.master-data`
-- [ ] `project-admin.resource`
-- [ ] `project-admin.document-setting`
-- [ ] `project-admin.holiday`
+- [x] `project-admin.master-data`
+- [x] `project-admin.resource`
+- [x] `project-admin.document-setting`
+- [x] `project-admin.holiday`
 
 ### Batch A2-9: `system-admin`
 - [ ] `system-admin.shell`

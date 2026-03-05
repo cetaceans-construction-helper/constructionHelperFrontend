@@ -1,4 +1,4 @@
-import apiClient from './apiClient'
+import apiClient from '@/api/apiClient'
 
 // 공통 타입
 export interface IdNameResponse {
