@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from '@/shared/ui/select'
 import { X, Plus, Minus, Loader2 } from 'lucide-vue-next'
-import type { EquipmentSpecResponse } from '@/api/reference'
+import type { EquipmentSpecResponse } from '@/shared/network-core/apis/reference'
 import type { Contractor } from '@/features/attendance/infra/attendance-api'
 
 interface Props {

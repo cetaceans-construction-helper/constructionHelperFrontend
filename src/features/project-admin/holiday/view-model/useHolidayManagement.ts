@@ -1,7 +1,7 @@
 import { ref, computed, watch } from 'vue'
 import { useCalendarStore } from '@/app/context/stores/calendarStore'
 import { useProjectStore } from '@/app/context/stores/project'
-import { projectCalendarApi } from '@/api/projectCalendar'
+import { projectCalendarApi } from '@/shared/network-core/apis/projectCalendar'
 import type { CalendarDateInfo } from '@/shared/network-core/contracts/calendar'
 
 export interface CalendarCell {

@@ -6,7 +6,7 @@ import {
   type EquipmentDeploymentByDateItem,
 } from '@/features/attendance/public'
 import { materialOrderApi, type DeliveryQuantityByDate } from '@/features/material/public'
-import { workApi, type WorkPhotoResponse, type WorkResponse } from '@/api/work'
+import { workApi, type WorkPhotoResponse, type WorkResponse } from '@/shared/network-core/apis/work'
 import { useCalendarStore } from '@/app/context/stores/calendarStore'
 import { useProjectStore } from '@/app/context/stores/project'
 import type {

@@ -1,7 +1,7 @@
 import { ref, computed } from 'vue'
-import { referenceApi } from '@/api/reference'
-import { materialTypePromptApi } from '@/api/materialTypePrompt'
-import type { MaterialTypeResponse } from '@/api/reference'
+import { referenceApi } from '@/shared/network-core/apis/reference'
+import { materialTypePromptApi } from '@/shared/network-core/apis/materialTypePrompt'
+import type { MaterialTypeResponse } from '@/shared/network-core/apis/reference'
 
 export function usePromptManagement() {
   const materialTypes = ref<MaterialTypeResponse[]>([])

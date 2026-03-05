@@ -2,7 +2,7 @@ import type {
   AttendanceByDateItem,
   EquipmentDeploymentByDateItem,
 } from '@/features/attendance/public'
-import type { WorkPhotoResponse } from '@/api/work'
+import type { WorkPhotoResponse } from '@/shared/network-core/apis/work'
 
 export interface PhotoWithWork {
   photo: WorkPhotoResponse

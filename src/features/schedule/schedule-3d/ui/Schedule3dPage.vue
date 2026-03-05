@@ -6,9 +6,9 @@ import AreaCard from '@/shared/helper-ui/AreaCard.vue'
 import { useEngine } from '@/features/schedule/schedule-3d/view-model/useEngine'
 import { useDailyReport } from '@/features/schedule/schedule-3d/view-model/useDailyReport'
 import Viewer3dArea from './components/Viewer3dArea.vue'
-import { object3dApi } from '@/api/object3d'
-import { taskApi } from '@/api/task'
-import { workApi, type WorkResponse } from '@/api/work'
+import { object3dApi } from '@/shared/network-core/apis/object3d'
+import { taskApi } from '@/shared/network-core/apis/task'
+import { workApi, type WorkResponse } from '@/shared/network-core/apis/work'
 import type { Object3d, Task } from '@/features/schedule/schedule-3d/model/object3d-types'
 
 // 3D Engine

@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { referenceApi, type IdNameResponse } from '@/api/reference'
+import { referenceApi, type IdNameResponse } from '@/shared/network-core/apis/reference'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 export function useLocationMaster() {

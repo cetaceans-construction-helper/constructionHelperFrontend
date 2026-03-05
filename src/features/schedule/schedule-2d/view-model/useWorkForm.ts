@@ -4,9 +4,9 @@ import {
   type IdNameResponse,
   type WorkTypeResponse,
   type SubWorkTypeResponse,
-} from '@/api/reference'
-import { workApi, type MutationResponse } from '@/api/work'
-import { projectApi } from '@/api/project'
+} from '@/shared/network-core/apis/reference'
+import { workApi, type MutationResponse } from '@/shared/network-core/apis/work'
+import { projectApi } from '@/shared/network-core/apis/project'
 import type { Project } from '@/shared/network-core/contracts/project'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
 

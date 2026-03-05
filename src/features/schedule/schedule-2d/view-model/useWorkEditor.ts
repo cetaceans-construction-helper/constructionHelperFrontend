@@ -1,6 +1,6 @@
 import { ref, computed, watch, type Ref } from 'vue'
 import type { Node } from '@vue-flow/core'
-import { workApi, type WorkResponse, type MutationResponse, type UpdateWorkPayload } from '@/api/work'
+import { workApi, type WorkResponse, type MutationResponse, type UpdateWorkPayload } from '@/shared/network-core/apis/work'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 export function useWorkEditor(

@@ -4,8 +4,8 @@ import {
   type IdNameResponse,
   type WorkTypeResponse,
   type SubWorkTypeResponse,
-} from '@/api/reference'
-import { workApi, type WorkResponse, type UpdateWorkPayload, type CreateWorkPayload, type MutationResponse } from '@/api/work'
+} from '@/shared/network-core/apis/reference'
+import { workApi, type WorkResponse, type UpdateWorkPayload, type CreateWorkPayload, type MutationResponse } from '@/shared/network-core/apis/work'
 import { appConfig } from '@/app/bootstrap/config'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
 

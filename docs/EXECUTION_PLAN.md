@@ -359,9 +359,9 @@ Stage B 완료 조건:
 - [x] `shared/ui`, `shared/helper-ui`로 UI 공용 컴포넌트 실체 이전
 
 Stage C 완료 조건:
-- [ ] 모든 Top Feature가 새 구조에서 동작
-- [ ] 라우터가 `src/features`/`src/app` 기반으로 동작
-- [ ] 신규 코드에 `legacy` 직접 import 없음
+- [x] 모든 Top Feature가 새 구조에서 동작
+- [x] 라우터가 `src/features`/`src/app` 기반으로 동작
+- [x] 신규 코드에 `legacy` 직접 import 없음
 
 ## 8) Stage D - Legacy 제거 및 호환 레이어 철거
 
@@ -377,6 +377,7 @@ Stage C 완료 조건:
 - [x] 최종 alias를 `@/* -> src/*` 단순화
 - [x] `components`, `lib`, `pages`는 fallback 없이 동작하도록 실체 경로 확보
 - [x] `components/lib/pages` 대상 Vite/TS fallback 매핑 제거
+- [x] 루트 호환 레이어(`src/api`, `src/lib`) 제거 및 `shared/network-core`로 이관
 
 ## D-3. 코드 삭제
 
@@ -385,8 +386,8 @@ Stage C 완료 조건:
 - [ ] gitkeep 파일 삭제
 
 Stage D 완료 조건:
-- [ ] legacy 코드/호환 로직 0
-- [ ] 빌드/테스트/라우팅 정상
+- [x] legacy 코드/호환 로직 0
+- [x] 빌드/테스트/라우팅 정상
 
 ## 9) Stage E - 규칙 강제 및 릴리즈 준비
 

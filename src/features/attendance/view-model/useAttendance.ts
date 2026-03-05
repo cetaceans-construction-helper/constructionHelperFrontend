@@ -1,5 +1,5 @@
 import { ref, watch } from 'vue'
-import { referenceApi, type LaborTypeResponse } from '@/api/reference'
+import { referenceApi, type LaborTypeResponse } from '@/shared/network-core/apis/reference'
 import {
   attendanceApi,
   type AttendanceByDateItem,

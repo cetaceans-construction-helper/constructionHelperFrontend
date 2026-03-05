@@ -28,8 +28,8 @@ import {
   SelectValue,
 } from '@/shared/ui/select'
 import { Checkbox } from '@/shared/ui/checkbox'
-import { workApi, type WorkResponse, type MutationResponse, type UpdateWorkPayload } from '@/api/work'
-import { workPathApi, type PathResponse } from '@/api/workPath'
+import { workApi, type WorkResponse, type MutationResponse, type UpdateWorkPayload } from '@/shared/network-core/apis/work'
+import { workPathApi, type PathResponse } from '@/shared/network-core/apis/workPath'
 import { useProjectStore } from '@/app/context/stores/project'
 import { useCalendarStore } from '@/app/context/stores/calendarStore'
 import { useChartConfigStore } from '@/features/schedule/schedule-2d/view-model/chartConfigStore'

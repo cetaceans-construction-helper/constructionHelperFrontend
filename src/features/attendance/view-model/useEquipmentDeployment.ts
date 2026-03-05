@@ -1,5 +1,5 @@
 import { ref, watch, type Ref } from 'vue'
-import { referenceApi, type EquipmentSpecResponse } from '@/api/reference'
+import { referenceApi, type EquipmentSpecResponse } from '@/shared/network-core/apis/reference'
 import {
   equipmentApi,
   type EquipmentDeploymentByDateItem,

@@ -5,7 +5,7 @@ import {
   type WorkTypeResponse,
   type SubWorkTypeResponse,
   type LaborTypeResponse,
-} from '@/api/reference'
+} from '@/shared/network-core/apis/reference'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 interface ApiError {

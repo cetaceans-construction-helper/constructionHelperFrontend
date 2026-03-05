@@ -10,7 +10,7 @@ import {
   type MaterialTypeResponse,
   type MaterialSpecResponse,
   type CreateTasksResponse,
-} from '@/api/reference'
+} from '@/shared/network-core/apis/reference'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 export function useComponentCode() {

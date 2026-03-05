@@ -55,13 +55,13 @@ import {
   materialInspectionRequestRepository,
   type MaterialInspectionRequestResponse,
 } from '@/features/document/public'
-import { referenceApi } from '@/api/reference'
+import { referenceApi } from '@/shared/network-core/apis/reference'
 import type {
   MaterialSpecResponse,
   MaterialTypeResponse,
   IdNameResponse,
   WorkTypeResponse,
-} from '@/api/reference'
+} from '@/shared/network-core/apis/reference'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 const router = useRouter()

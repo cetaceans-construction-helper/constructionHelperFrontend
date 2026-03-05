@@ -3,7 +3,7 @@ import {
   referenceApi,
   type MaterialTypeResponse,
   type MaterialSpecResponse,
-} from '@/api/reference'
+} from '@/shared/network-core/apis/reference'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 export function useMaterialMaster() {

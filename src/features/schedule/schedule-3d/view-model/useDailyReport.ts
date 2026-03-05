@@ -1,6 +1,6 @@
 import { ref, watch } from 'vue'
-import { workApi } from '@/api/work'
-import { object3dApi } from '@/api/object3d'
+import { workApi } from '@/shared/network-core/apis/work'
+import { object3dApi } from '@/shared/network-core/apis/object3d'
 import type { Engine } from '@/features/schedule/schedule-3d/infra/three/Engine'
 
 function formatDate(date: Date): string {

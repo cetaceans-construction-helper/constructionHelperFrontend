@@ -1,4 +1,4 @@
-import apiClient from '@/api/apiClient'
+import apiClient from '@/shared/network-core/apiClient'
 import type { CalendarResponse } from '@/shared/network-core/contracts/calendar'
 
 export const calendarApi = {

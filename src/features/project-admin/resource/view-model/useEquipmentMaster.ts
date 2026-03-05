@@ -3,7 +3,7 @@ import {
   referenceApi,
   type EquipmentTypeResponse,
   type EquipmentSpecResponse,
-} from '@/api/reference'
+} from '@/shared/network-core/apis/reference'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 export function useEquipmentMaster() {

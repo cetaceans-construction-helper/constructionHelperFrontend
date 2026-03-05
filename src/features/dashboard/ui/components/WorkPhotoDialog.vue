@@ -8,7 +8,7 @@ import {
 } from '@/shared/ui/dialog'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
-import { workApi } from '@/api/work'
+import { workApi } from '@/shared/network-core/apis/work'
 import { Check } from 'lucide-vue-next'
 
 const emit = defineEmits<{

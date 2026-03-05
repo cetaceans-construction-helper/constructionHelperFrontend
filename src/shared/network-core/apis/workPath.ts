@@ -1,4 +1,4 @@
-import apiClient from '@/api/apiClient'
+import apiClient from '@/shared/network-core/apiClient'
 import type { MutationResponse } from './work'
 
 export interface PathEdge {

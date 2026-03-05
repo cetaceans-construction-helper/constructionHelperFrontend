@@ -26,14 +26,14 @@ import {
   type MaterialTypeResponse,
   type IdNameResponse,
   type WorkTypeResponse,
-} from '@/api/reference'
+} from '@/shared/network-core/apis/reference'
 import {
   materialOrderApi,
   validateMaterialOrderCreationInput,
 } from '@/features/material/public'
-import { taskApi } from '@/api/task'
+import { taskApi } from '@/shared/network-core/apis/task'
 import type { Object3d, Task } from '@/features/schedule/schedule-3d/model/object3d-types'
-import type { WorkResponse } from '@/api/work'
+import type { WorkResponse } from '@/shared/network-core/apis/work'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 const router = useRouter()

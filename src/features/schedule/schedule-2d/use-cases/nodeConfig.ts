@@ -1,5 +1,5 @@
 import { Position, type Node } from '@vue-flow/core'
-import type { WorkResponse } from '@/api/work'
+import type { WorkResponse } from '@/shared/network-core/apis/work'
 import { CHART_CONFIG } from '@/features/schedule/schedule-2d/view-model/chartConfigStore'
 
 // 그룹 크기 계산에 사용하는 기본 여백

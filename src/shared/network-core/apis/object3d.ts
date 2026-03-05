@@ -1,4 +1,4 @@
-import apiClient from '@/api/apiClient'
+import apiClient from '@/shared/network-core/apiClient'
 import type { Object3d } from '@/shared/network-core/contracts/object3d'
 
 export const object3dApi = {
