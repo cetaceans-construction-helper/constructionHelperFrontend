@@ -1,0 +1,83 @@
+import { ref, computed, watch, type Ref } from 'vue'
+import type { Node } from '@vue-flow/core'
+import { workApi, type WorkResponse, type MutationResponse, type UpdateWorkPayload } from '@/api/work'
+import { analyticsClient } from '@/lib/analytics/analyticsClient'
+
+export function useWorkEditor(
+  nodes: Ref<Node[]>,
+  onWorkUpdated: (mutation: MutationResponse) => void
+) {
+  // 작업 선택 및 수정 상태
+  const selectedWorkId = ref<number | null>(null)
+  const isUpdatingWork = ref(false)
+  const workEditForm = ref({ startDate: '', workLeadTime: 1, isWorkingOnHoliday: true })
+
+  // 선택된 작업 데이터
+  const selectedWork = computed(() => {
+    if (!selectedWorkId.value) return null
+    const node = nodes.value.find(n => n.id === `work-${selectedWorkId.value}`)
+    return node?.data.work as WorkResponse | undefined
+  })
+
+  // 작업 선택 시 폼 초기화
+  watch(selectedWork, (work) => {
+    if (work) {
+      workEditForm.value = {
+        startDate: work.startDate,
+        workLeadTime: work.workLeadTime,
+        isWorkingOnHoliday: work.isWorkingOnHoliday
+      }
+    }
+  })
+
+  // 작업 수정 제출
+  const submitWorkUpdate = async () => {
+    if (!selectedWorkId.value) return
+
+    isUpdatingWork.value = true
+    try {
+      const work = selectedWork.value
+      const payload: UpdateWorkPayload = {}
+      if (work && workEditForm.value.startDate !== work.startDate) payload.startDate = workEditForm.value.startDate
+      if (work && workEditForm.value.workLeadTime !== work.workLeadTime) payload.workLeadTime = workEditForm.value.workLeadTime
+      if (work && workEditForm.value.isWorkingOnHoliday !== work.isWorkingOnHoliday) payload.isWorkingOnHoliday = workEditForm.value.isWorkingOnHoliday
+      const mutation = await workApi.updateWork(selectedWorkId.value, payload)
+      onWorkUpdated(mutation)
+      analyticsClient.trackAction('schedule_2d', 'update_work', 'success')
+      selectedWorkId.value = null
+    } catch (error: unknown) {
+      console.error('작업 수정 실패:', error)
+      analyticsClient.trackAction('schedule_2d', 'update_work', 'fail')
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      const errorMessage = err.response?.data?.message || err.message
+      alert(errorMessage)
+    } finally {
+      isUpdatingWork.value = false
+    }
+  }
+
+  // 작업 선택 해제
+  const clearSelection = () => {
+    selectedWorkId.value = null
+  }
+
+  // 작업 선택
+  const selectWork = (workId: number) => {
+    selectedWorkId.value = workId
+  }
+
+  return {
+    // State
+    selectedWorkId,
+    isUpdatingWork,
+    workEditForm,
+
+    // Computed
+    selectedWork,
+
+    // Methods
+    submitWorkUpdate,
+    clearSelection,
+    selectWork
+  }
+}

@@ -317,9 +317,9 @@ Stage B 완료 조건:
 
 ### C-4. `schedule`
 
-- [ ] `schedule-2d`, `schedule-3d` 독립 분리
-- [ ] three engine 관련 코드는 3d 하위 feature로 우선 귀속
-- [ ] 공용이 확실해지면 `shared` 승격
+- [x] `schedule-2d`, `schedule-3d` 독립 분리
+- [x] three engine 관련 코드는 3d 하위 feature로 우선 귀속
+- [x] 공용이 확실해지면 `shared` 승격
 
 ### C-5. `attendance`
 
@@ -409,7 +409,7 @@ Stage E 완료 조건 (프로젝트 완료):
 - [x] `app` 완료
 - [x] `auth` 완료
 - [x] `dashboard` 완료
-- [ ] `schedule` 완료
+- [x] `schedule` 완료
 - [ ] `attendance` 완료
 - [ ] `material` 완료
 - [ ] `document` 완료

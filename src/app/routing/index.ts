@@ -1,6 +1,8 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { authGuard, authRouteComponents } from '@/features/auth/public'
 import { dashboardRouteComponents } from '@/features/dashboard/public'
+import { schedule2dRouteComponents } from '@/features/schedule/schedule-2d/public'
+import { schedule3dRouteComponents } from '@/features/schedule/schedule-3d/public'
 import { analyticsClient } from '@/lib/analytics/analyticsClient'
 
 const router = createRouter({
@@ -38,12 +40,12 @@ const router = createRouter({
             {
               path: '3d',
               name: 'schedule-3d',
-              component: () => import('@/pages/helper/schedule/Schedule3dPage.vue'),
+              component: schedule3dRouteComponents.Schedule3dPage,
             },
             {
               path: '2d',
               name: 'schedule-2d',
-              component: () => import('@/pages/helper/schedule/Schedule2dPage.vue'),
+              component: schedule2dRouteComponents.Schedule2dPage,
             },
           ],
         },
