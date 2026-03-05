@@ -367,22 +367,15 @@ const loadCalendarData = async () => {
 const calendarData = computed(() => calendarStore.calendarData)
 
 // lagDays 수정
-const updateEdgeOverlap = async (pathId: number, sourceWorkId: number, targetWorkId: number, days: number | null) => {
-  const path = paths.value.find(p => p.workPathId === pathId)
-  if (!path) return
-  const updatedEdges = path.edges.map(e =>
-    e.sourceWorkId === sourceWorkId && e.targetWorkId === targetWorkId
-      ? { ...e, lagDays: days }
-      : e
-  )
+const updateEdgeOverlap = async (pathId: number, _sourceWorkId: number, targetWorkId: number, days: number | null) => {
   try {
-    const mutation = await workPathApi.updateWorkPath(pathId, { edges: updatedEdges })
+    const mutation = await workPathApi.updateWorkPathLagDays(pathId, { workId: targetWorkId, lagDays: days })
     applyMutation(mutation)
     tooltip.value.visible = false
-    analyticsClient.trackAction('schedule_2d', 'update_path', 'success')
+    analyticsClient.trackAction('schedule_2d', 'update_path_lag_days', 'success')
   } catch (error: unknown) {
     console.error('lagDays 수정 실패:', error)
-    analyticsClient.trackAction('schedule_2d', 'update_path', 'fail')
+    analyticsClient.trackAction('schedule_2d', 'update_path_lag_days', 'fail')
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     alert(err.response?.data?.message || err.message)
   }
@@ -682,17 +675,30 @@ watch(selectedPathId, (pathId) => {
   }
 })
 
-// 패스 변경 저장
+// 패스 변경 저장 (변경된 필드만 전송)
 const savePathChanges = async () => {
   if (!selectedPathId.value) return
+  const path = paths.value.find(p => p.workPathId === selectedPathId.value)
+  if (!path) return
+
+  const payload: import('@/shared/network-core/apis/workPath').UpdateWorkPathPayload = {}
+  if (editPathName.value !== (path.workPathName ?? '')) payload.workPathName = editPathName.value
+  if (editPathColor.value !== path.workPathColor) payload.workPathColor = editPathColor.value
+  if (editPathCritical.value !== path.critical) payload.critical = editPathCritical.value
+
+  const newEdges = editingPathEdges.value.map(({ sourceWorkId, targetWorkId }) => ({ sourceWorkId, targetWorkId }))
+  const origEdges = path.edges.map(({ sourceWorkId, targetWorkId }) => ({ sourceWorkId, targetWorkId }))
+  const edgesChanged = JSON.stringify(newEdges) !== JSON.stringify(origEdges)
+  if (edgesChanged) payload.edges = newEdges
+
+  if (Object.keys(payload).length === 0) {
+    cancelPathEdit()
+    return
+  }
+
   isSavingPath.value = true
   try {
-    const mutation = await workPathApi.updateWorkPath(selectedPathId.value, {
-      workPathName: editPathName.value,
-      workPathColor: editPathColor.value,
-      critical: editPathCritical.value,
-      edges: editingPathEdges.value,
-    })
+    const mutation = await workPathApi.updateWorkPath(selectedPathId.value, payload)
     applyMutation(mutation)
     cancelPathEdit()
     analyticsClient.trackAction('schedule_2d', 'update_path', 'success')

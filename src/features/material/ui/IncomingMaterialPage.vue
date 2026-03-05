@@ -587,6 +587,18 @@ onUnmounted(() => {
             <span class="text-sm text-muted-foreground">{{ delivery.supplier }}</span>
             <span class="text-sm text-muted-foreground">{{ delivery.deliveryDate }}</span>
             <span v-if="delivery.location" class="text-sm text-muted-foreground">{{ delivery.location }}</span>
+            <div v-if="delivery.specQuantities?.length > 0" class="flex items-center gap-2 flex-wrap">
+              <Badge
+                v-for="sq in delivery.specQuantities"
+                :key="sq.materialSpecId"
+                variant="outline"
+                class="text-sm px-2.5 py-1"
+              >
+                {{ sq.materialSpecName }}:
+                <span class="font-semibold ml-1">{{ sq.quantity }}</span>
+                <span class="text-muted-foreground ml-0.5">{{ delivery.unit }}</span>
+              </Badge>
+            </div>
             <div class="flex items-center gap-1 ml-auto" @click.stop>
               <Button
                 v-if="!mirDeliveryIds.has(delivery.materialDeliveryId)"

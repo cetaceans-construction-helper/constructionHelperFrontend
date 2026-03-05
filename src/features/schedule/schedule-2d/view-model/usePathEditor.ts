@@ -211,13 +211,31 @@ export function usePathEditor(
     }
   }
 
+  // edges 변경 여부 확인
+  const hasEdgesChanged = () => {
+    if (!selectedPathId.value) return false
+    const path = paths.value.find(p => p.workPathId === selectedPathId.value)
+    if (!path) return false
+    const newEdges = editingPathEdges.value.map(({ sourceWorkId, targetWorkId }) => ({ sourceWorkId, targetWorkId }))
+    const origEdges = path.edges.map(({ sourceWorkId, targetWorkId }) => ({ sourceWorkId, targetWorkId }))
+    return JSON.stringify(newEdges) !== JSON.stringify(origEdges)
+  }
+
   // 패스 수정 제출 (선택 해제 포함)
   const submitPathUpdate = async () => {
     if (!selectedPathId.value) return
 
+    if (!hasEdgesChanged()) {
+      selectedPathId.value = null
+      editingPathEdges.value = []
+      return
+    }
+
     isUpdatingPath.value = true
     try {
-      const mutation = await workPathApi.updateWorkPath(selectedPathId.value, { edges: editingPathEdges.value })
+      const mutation = await workPathApi.updateWorkPath(selectedPathId.value, {
+        edges: editingPathEdges.value.map(({ sourceWorkId, targetWorkId }) => ({ sourceWorkId, targetWorkId })),
+      })
       onPathUpdated(mutation)
       analyticsClient.trackAction('schedule_2d', 'update_path', 'success')
       selectedPathId.value = null
@@ -236,10 +254,13 @@ export function usePathEditor(
   // 패스 수정 즉시 저장 (선택 유지)
   const savePathEdges = async () => {
     if (!selectedPathId.value) return
+    if (!hasEdgesChanged()) return
 
     isUpdatingPath.value = true
     try {
-      const mutation = await workPathApi.updateWorkPath(selectedPathId.value, { edges: editingPathEdges.value })
+      const mutation = await workPathApi.updateWorkPath(selectedPathId.value, {
+        edges: editingPathEdges.value.map(({ sourceWorkId, targetWorkId }) => ({ sourceWorkId, targetWorkId })),
+      })
       onPathUpdated(mutation)
       analyticsClient.trackAction('schedule_2d', 'update_path', 'success')
     } catch (error: unknown) {

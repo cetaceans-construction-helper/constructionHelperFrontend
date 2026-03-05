@@ -70,6 +70,7 @@ export function useWorkTooltipData() {
   // 다이얼로그 열기
   const openDialog = async (work: WorkResponse) => {
     editingWorkId.value = work.workId
+    isCreateMode.value = false
     await initFromWork(work)
     showDialog.value = true
   }

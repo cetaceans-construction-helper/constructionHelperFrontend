@@ -51,7 +51,7 @@ export const useDashboardPage = () => {
       if (!work.photos) continue
       for (const photo of work.photos) {
         try {
-          newUrls.set(photo.photoId, await workApi.downloadWorkPhoto(photo.url))
+          newUrls.set(photo.photoId, await workApi.downloadWorkPhoto(photo.thumbnailUrl))
         } catch {
           // 개별 사진 로드 실패는 무시
         }
@@ -95,10 +95,11 @@ export const useDashboardPage = () => {
     return result
   })
 
-  const openPhotoDialog = (photo: WorkPhotoResponse) => {
-    const url = photoObjectUrls.value.get(photo.photoId)
-    if (!url) return
-    photoDialogRef.value?.openDialog(photo, url)
+  const openPhotoDialog = async (photo: WorkPhotoResponse) => {
+    const thumbnailUrl = photoObjectUrls.value.get(photo.photoId)
+    if (!thumbnailUrl) return
+    const originalUrl = await workApi.downloadWorkPhoto(photo.url)
+    photoDialogRef.value?.openDialog(photo, originalUrl)
   }
 
   const onPhotoUpdated = async () => {

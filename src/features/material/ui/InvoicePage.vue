@@ -20,8 +20,19 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/shared/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/shared/ui/alert-dialog'
 import { Checkbox } from '@/shared/ui/checkbox'
 import { Label } from '@/shared/ui/label'
+import { X } from 'lucide-vue-next'
 import { materialOrderApi } from '@/features/material/infra/material-order-api'
 import {
   formatMaterialOrderLineLocation as formatLocation,
@@ -46,6 +57,36 @@ const selectedFloorIds = ref<number[]>([])
 const selectedSectionIds = ref<number[]>([])
 const selectedUsageIds = ref<number[]>([])
 const isSaving = ref(false)
+
+// 삭제 다이얼로그 상태
+const showDeleteDialog = ref(false)
+const deleteTargetId = ref<number | null>(null)
+const deleteTargetName = ref('')
+const isDeletingOrder = ref(false)
+
+function openDeleteDialog(orderId: number, orderNo: string) {
+  deleteTargetId.value = orderId
+  deleteTargetName.value = orderNo
+  showDeleteDialog.value = true
+}
+
+async function confirmDeleteOrder() {
+  if (deleteTargetId.value == null) return
+  isDeletingOrder.value = true
+  try {
+    await materialOrderApi.deleteMaterialOrder(deleteTargetId.value)
+    showDeleteDialog.value = false
+    analyticsClient.trackAction('material_order', 'delete_order', 'success')
+    loadOrders()
+  } catch (error: unknown) {
+    console.error('발주서 삭제 실패:', error)
+    analyticsClient.trackAction('material_order', 'delete_order', 'fail')
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    alert(err.response?.data?.message || err.message)
+  } finally {
+    isDeletingOrder.value = false
+  }
+}
 
 // 선택된 order의 orderLines에서 고유한 위치정보 추출
 const uniqueZones = computed(() => {
@@ -209,7 +250,7 @@ onMounted(() => {
                 variant="outline"
                 class="text-sm px-2.5 py-1"
               >
-                {{ spec.materialSpecName }}
+                {{ spec.materialSpecName }}:
                 <span class="font-semibold ml-1">{{ spec.quantity }}</span>
                 <span class="text-muted-foreground ml-0.5">{{ order.unit }}</span>
               </Badge>
@@ -229,6 +270,14 @@ onMounted(() => {
                 @click="openDeliveryDialog(order)"
               >
                 송장입력
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                class="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                @click="openDeleteDialog(order.id, order.orderNo)"
+              >
+                <X class="h-4 w-4" />
               </Button>
             </div>
           </div>
@@ -365,5 +414,23 @@ onMounted(() => {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <!-- 발주서 삭제 확인 다이얼로그 -->
+    <AlertDialog :open="showDeleteDialog" @update:open="showDeleteDialog = $event">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>삭제 확인</AlertDialogTitle>
+          <AlertDialogDescription>
+            '{{ deleteTargetName }}' 발주서를 삭제하시겠습니까?
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel :disabled="isDeletingOrder">취소</AlertDialogCancel>
+          <AlertDialogAction :disabled="isDeletingOrder" @click="confirmDeleteOrder">
+            {{ isDeletingOrder ? '삭제 중...' : '삭제' }}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </PageContainer>
 </template>

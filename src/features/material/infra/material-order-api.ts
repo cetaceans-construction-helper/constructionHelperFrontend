@@ -42,6 +42,10 @@ export const materialOrderApi = {
     return data
   },
 
+  async deleteMaterialOrder(orderId: number): Promise<void> {
+    await apiClient.delete(`/materialOrder/deleteMaterialOrder/${orderId}`)
+  },
+
   async createMaterialDelivery(params: {
     orderId?: number
     materialTypeId: number

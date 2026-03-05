@@ -19,6 +19,7 @@ export interface CreateWorkPayload {
 export interface WorkPhotoResponse {
   photoId: number
   url: string
+  thumbnailUrl: string
   description: string
 }
 

@@ -38,14 +38,14 @@ type ProjectSelectionState = 'manual' | 'auto_initial' | 'auto_recovery'
 
 // Section 정의 (1단계 구조)
 const sections = [
-  { id: 'dashboard', label: '대시보드', path: '/helper/dashboard' },
-  { id: 'process', label: '공정관리', path: '/helper/schedule/2d' },
-  { id: 'attendance', label: '출역관리', path: '/helper/attendance/input' },
-  { id: 'material', label: '자재관리', path: '/helper/material/order' },
-  { id: 'safety', label: '안전관리', path: '/helper/safety' },
-  { id: 'document', label: '문서관리', path: '/helper/document/manager' },
-  { id: 'utility', label: '유용한 기능', path: '/helper/functions' },
-  { id: 'admin', label: '관리자', path: '/helper/admin' },
+  { id: 'dashboard', label: '대시보드', shortLabel: '대시', path: '/helper/dashboard' },
+  { id: 'process', label: '공정관리', shortLabel: '공정', path: '/helper/schedule/2d' },
+  { id: 'attendance', label: '출역관리', shortLabel: '출역', path: '/helper/attendance/input' },
+  { id: 'material', label: '자재관리', shortLabel: '자재', path: '/helper/material/order' },
+  { id: 'safety', label: '안전관리', shortLabel: '안전', path: '/helper/safety' },
+  { id: 'document', label: '문서관리', shortLabel: '문서', path: '/helper/document/manager' },
+  { id: 'utility', label: '유용한 기능', shortLabel: '기능', path: '/helper/functions' },
+  { id: 'admin', label: '관리자', shortLabel: '관리', path: '/helper/admin' },
 ]
 
 // 각 Section별 Menu 정의 (2단계 구조)
@@ -231,29 +231,30 @@ onUnmounted(() => {
       <header class="border-b border-border bg-background">
         <div class="flex items-center justify-between p-3">
           <!-- Logo -->
-          <div class="flex items-center gap-3 px-3">
-            <span class="font-semibold text-2xl hidden md:inline">건설업무도우미</span>
+          <div class="flex items-center gap-3 px-3 shrink-0 hidden [@media(min-aspect-ratio:3/2)]:flex">
+            <span class="font-semibold text-2xl whitespace-nowrap">건설업무도우미</span>
           </div>
 
           <!-- Section Buttons (Segmented Design) -->
-          <div class="flex-1 flex justify-center">
+          <div class="flex-1 flex justify-center min-w-0">
             <div class="inline-flex rounded-lg bg-muted p-1.5">
               <Button
                 v-for="section in sections"
                 :key="section.id"
                 :variant="currentSection === section.id ? 'default' : 'ghost'"
                 @click="selectSection(section.id)"
-                class="rounded-md text-base px-4 py-2"
+                class="rounded-md text-base px-2 [@media(min-aspect-ratio:1/1)]:px-4 py-2"
               >
-                {{ section.label }}
+                <span class="hidden [@media(min-aspect-ratio:1/1)]:inline">{{ section.label }}</span>
+                <span class="[@media(min-aspect-ratio:1/1)]:hidden">{{ section.shortLabel }}</span>
               </Button>
             </div>
           </div>
 
           <!-- User Actions -->
-          <div class="flex items-center gap-3">
+          <div class="flex items-center gap-3 shrink-0">
             <Select v-model="selectedProject" :disabled="isLoadingProjects">
-              <SelectTrigger class="w-72 h-10 text-base">
+              <SelectTrigger class="w-40 [@media(min-aspect-ratio:3/2)]:w-72 h-10 text-base">
                 <SelectValue :placeholder="isLoadingProjects ? '로딩 중...' : '프로젝트 선택'" />
               </SelectTrigger>
               <SelectContent>
@@ -262,7 +263,7 @@ onUnmounted(() => {
                 </SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" @click="handleLogout" class="text-base px-4 py-2">로그아웃</Button>
+            <Button variant="outline" @click="handleLogout" class="text-xs [@media(min-aspect-ratio:3/2)]:text-base px-2 py-1 [@media(min-aspect-ratio:3/2)]:px-4 [@media(min-aspect-ratio:3/2)]:py-2 shrink-0">로그아웃</Button>
           </div>
         </div>
       </header>
