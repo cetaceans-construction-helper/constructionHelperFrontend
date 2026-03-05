@@ -299,10 +299,10 @@ Stage B 완료 조건:
 
 ### C-1. `app`
 
-- [ ] `main.ts`는 루트 유지, 내부 부트스트랩 로직만 `app/bootstrap`으로 이동
-- [ ] 라우터 구성 `app/routing`으로 이동
-- [ ] 셸 컴포넌트 `app/shell`로 이동
-- [ ] 프로젝트/캘린더 컨텍스트 `app/context`로 이동
+- [x] `main.ts`는 루트 유지, 내부 부트스트랩 로직만 `app/bootstrap`으로 이동
+- [x] 라우터 구성 `app/routing`으로 이동
+- [x] 셸 컴포넌트 `app/shell`로 이동
+- [x] 프로젝트/캘린더 컨텍스트 `app/context`로 이동
 
 ### C-2. `auth`
 
@@ -406,7 +406,7 @@ Stage E 완료 조건 (프로젝트 완료):
 
 ## 10) 진행 보드 (Top Feature 단위)
 
-- [ ] `app` 완료
+- [x] `app` 완료
 - [ ] `auth` 완료
 - [ ] `dashboard` 완료
 - [ ] `schedule` 완료
