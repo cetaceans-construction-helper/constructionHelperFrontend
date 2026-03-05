@@ -6,6 +6,22 @@
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
 
     "paths": {
+      "@/pages": ["./src/legacy/pages", "./src/pages"],
+      "@/pages/*": ["./src/legacy/pages/*", "./src/pages/*"],
+      "@/api": ["./src/legacy/api", "./src/api"],
+      "@/api/*": ["./src/legacy/api/*", "./src/api/*"],
+      "@/components": ["./src/legacy/components", "./src/components"],
+      "@/components/*": ["./src/legacy/components/*", "./src/components/*"],
+      "@/composables": ["./src/legacy/composables", "./src/composables"],
+      "@/composables/*": ["./src/legacy/composables/*", "./src/composables/*"],
+      "@/stores": ["./src/legacy/stores", "./src/stores"],
+      "@/stores/*": ["./src/legacy/stores/*", "./src/stores/*"],
+      "@/types": ["./src/legacy/types", "./src/types"],
+      "@/types/*": ["./src/legacy/types/*", "./src/types/*"],
+      "@/lib": ["./src/legacy/lib", "./src/lib"],
+      "@/lib/*": ["./src/legacy/lib/*", "./src/lib/*"],
+      "@/utils": ["./src/legacy/utils", "./src/utils"],
+      "@/utils/*": ["./src/legacy/utils/*", "./src/utils/*"],
       "@/*": ["./src/*"]
     }
   }
