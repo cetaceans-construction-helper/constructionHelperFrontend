@@ -2,6 +2,7 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 import { authGuard, authRouteComponents } from '@/features/auth/public'
 import { attendanceRouteComponents } from '@/features/attendance/public'
 import { dashboardRouteComponents } from '@/features/dashboard/public'
+import { documentRouteComponents } from '@/features/document/public'
 import { materialRouteComponents } from '@/features/material/public'
 import { schedule2dRouteComponents } from '@/features/schedule/schedule-2d/public'
 import { schedule3dRouteComponents } from '@/features/schedule/schedule-3d/public'
@@ -89,17 +90,17 @@ const router = createRouter({
         {
           path: 'document/manager',
           name: 'document-manager',
-          component: () => import('@/pages/helper/document/ManagerPage.vue'),
+          component: documentRouteComponents.ManagerPage,
         },
         {
           path: 'document/daily-report',
           name: 'document-daily-report',
-          component: () => import('@/pages/helper/document/DailyReportPage.vue'),
+          component: documentRouteComponents.DailyReportPage,
         },
         {
           path: 'document/material-inspection',
           name: 'document-material-inspection',
-          component: () => import('@/pages/helper/document/MaterialInspectionPage.vue'),
+          component: documentRouteComponents.MaterialInspectionPage,
         },
         {
           path: 'functions',

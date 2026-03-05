@@ -335,8 +335,8 @@ Stage B 완료 조건:
 
 ### C-7. `document`
 
-- [ ] `document` 단일 feature로 통합 유지
-- [ ] 문서 생성/다운로드 로직 use-case로 이동
+- [x] `document` 단일 feature로 통합 유지
+- [x] 문서 생성/다운로드 로직 use-case로 이동
 
 ### C-8. `project-admin`
 
@@ -376,6 +376,7 @@ Stage C 완료 조건:
 
 - [ ] `src/legacy/*` 제거
 - [ ] 미사용 후보(`app.legacy-shell-candidate`, `material.legacy-candidate`, `shared.legacy-sample`) 처리
+- [ ] git keep 파일 삭제
 
 Stage D 완료 조건:
 - [ ] legacy 코드/호환 로직 0
@@ -412,7 +413,7 @@ Stage E 완료 조건 (프로젝트 완료):
 - [x] `schedule` 완료
 - [x] `attendance` 완료
 - [x] `material` 완료
-- [ ] `document` 완료
+- [x] `document` 완료
 - [ ] `project-admin` 완료
 - [ ] `system-admin` 완료
 - [ ] `shared` 완료

@@ -48,8 +48,13 @@ import type {
   MaterialDeliverySummary,
 } from '@/features/material/model/material-order-types'
 import { useMaterialOrder } from '@/features/material/view-model/useMaterialOrder'
-import { materialInspectionRequestApi } from '@/api/projectDocumentCode'
-import type { MaterialInspectionRequestResponse } from '@/api/projectDocumentCode'
+import {
+  createMaterialInspectionRequest,
+  deleteMaterialInspectionRequest,
+  getMaterialInspectionRequests,
+  materialInspectionRequestRepository,
+  type MaterialInspectionRequestResponse,
+} from '@/features/document/public'
 import { referenceApi } from '@/api/reference'
 import type {
   MaterialSpecResponse,
@@ -287,7 +292,7 @@ async function confirmDeleteMir() {
   if (mirDeleteTargetId.value == null) return
   isDeletingMir.value = true
   try {
-    await materialInspectionRequestApi.deleteMaterialInspectionRequest(mirDeleteTargetId.value)
+    await deleteMaterialInspectionRequest(materialInspectionRequestRepository, mirDeleteTargetId.value)
     showMirDeleteDialog.value = false
     mirList.value = mirList.value.filter((m) => m.id !== mirDeleteTargetId.value)
     analyticsClient.trackAction('material_delivery', 'delete_mir', 'success')
@@ -304,7 +309,7 @@ async function confirmDeleteMir() {
 async function generateMir(deliveryId: number) {
   isGeneratingMir.value[deliveryId] = true
   try {
-    await materialInspectionRequestApi.createMaterialInspectionRequest(deliveryId)
+    await createMaterialInspectionRequest(materialInspectionRequestRepository, deliveryId)
     router.push('/helper/document/material-inspection')
     analyticsClient.trackAction('material_delivery', 'create_mir', 'success')
   } catch (error: unknown) {
@@ -529,8 +534,7 @@ async function loadDeliveries() {
 onMounted(() => {
   loadOrders()
   loadDeliveries()
-  materialInspectionRequestApi
-    .getMaterialInspectionRequestList()
+  getMaterialInspectionRequests(materialInspectionRequestRepository)
     .then((list) => (mirList.value = list))
     .catch(() => {})
 })
