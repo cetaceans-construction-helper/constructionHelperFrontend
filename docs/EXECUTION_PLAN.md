@@ -345,9 +345,9 @@ Stage B 완료 조건:
 
 ### C-9. `system-admin`
 
-- [ ] `system-admin` 단일 feature로 통합 유지
-- [ ] 내부 UI/업무 섹션 분리는 폴더가 아닌 use-case/view-model 경계로 관리
-- [ ] 시스템관리 API 계약을 `system-admin` 내부에서 명확화
+- [x] `system-admin` 단일 feature로 통합 유지
+- [x] 내부 UI/업무 섹션 분리는 폴더가 아닌 use-case/view-model 경계로 관리
+- [x] 시스템관리 API 계약을 `system-admin` 내부에서 명확화
 
 ### C-10. `shared` 정리
 
@@ -415,6 +415,6 @@ Stage E 완료 조건 (프로젝트 완료):
 - [x] `material` 완료
 - [x] `document` 완료
 - [x] `project-admin` 완료
-- [ ] `system-admin` 완료
+- [x] `system-admin` 완료
 - [ ] `shared` 완료
 - [ ] `legacy` 제거 완료

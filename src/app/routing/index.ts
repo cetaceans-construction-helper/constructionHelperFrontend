@@ -10,6 +10,7 @@ import { projectAdminMasterDataRouteComponents } from '@/features/project-admin/
 import { projectAdminResourceRouteComponents } from '@/features/project-admin/resource/public'
 import { schedule2dRouteComponents } from '@/features/schedule/schedule-2d/public'
 import { schedule3dRouteComponents } from '@/features/schedule/schedule-3d/public'
+import { systemAdminRouteComponents } from '@/features/system-admin/public'
 import { analyticsClient } from '@/lib/analytics/analyticsClient'
 
 const router = createRouter({
@@ -136,7 +137,7 @@ const router = createRouter({
     {
       path: '/system-admin',
       name: 'system-admin',
-      component: () => import('@/pages/system-admin/SystemAdminPage.vue'),
+      component: systemAdminRouteComponents.SystemAdminPage,
       meta: { requiresSuper: true },
     },
   ],
