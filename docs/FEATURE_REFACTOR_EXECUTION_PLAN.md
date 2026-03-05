@@ -141,7 +141,7 @@ src/
 - [x] `auth.session`
 
 ### Batch A2-3: `dashboard`
-- [ ] `dashboard.main`
+- [x] `dashboard.main`
 
 ### Batch A2-4: `schedule`
 - [ ] `schedule.schedule-2d`
