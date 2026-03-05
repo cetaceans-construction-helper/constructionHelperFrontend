@@ -1,4 +1,4 @@
-import apiClient from './apiClient'
+import apiClient from '@/api/apiClient'
 
 // 장비투입 entry
 export interface EquipmentDeploymentEntry {

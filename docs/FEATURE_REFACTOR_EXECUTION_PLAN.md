@@ -153,12 +153,12 @@ src/
 - [x] `attendance.data`
 
 ### Batch A2-6: `material`
-- [ ] `material.order`
-- [ ] `material.incoming`
-- [ ] `material.outgoing`
-- [ ] `material.remaining`
-- [ ] `material.data`
-- [ ] `material.legacy-candidate`
+- [x] `material.order`
+- [x] `material.incoming`
+- [x] `material.outgoing`
+- [x] `material.remaining`
+- [x] `material.data`
+- [x] `material.legacy-candidate`
 
 ### Batch A2-7: `document`
 - [ ] `document.manager`
