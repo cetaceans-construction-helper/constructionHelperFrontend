@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { getAccessToken } from './client'
+import { getAccessToken } from '@/api/client'
 import { useProjectStore } from '@/stores/project'
 import { appConfig } from '@/config'
 import type { AxiosError } from 'axios'

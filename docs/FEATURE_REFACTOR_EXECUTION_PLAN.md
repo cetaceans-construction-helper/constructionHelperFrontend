@@ -136,9 +136,9 @@ src/
 - [x] `app.test`
 
 ### Batch A2-2: `auth`
-- [ ] `auth.login`
-- [ ] `auth.signup`
-- [ ] `auth.session`
+- [x] `auth.login`
+- [x] `auth.signup`
+- [x] `auth.session`
 
 ### Batch A2-3: `dashboard`
 - [ ] `dashboard.main`
