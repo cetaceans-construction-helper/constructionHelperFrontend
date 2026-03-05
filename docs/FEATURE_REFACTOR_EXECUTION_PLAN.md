@@ -148,9 +148,9 @@ src/
 - [x] `schedule.schedule-3d`
 
 ### Batch A2-5: `attendance`
-- [ ] `attendance.input`
-- [ ] `attendance.worker-register`
-- [ ] `attendance.data`
+- [x] `attendance.input`
+- [x] `attendance.worker-register`
+- [x] `attendance.data`
 
 ### Batch A2-6: `material`
 - [ ] `material.order`

@@ -1,4 +1,4 @@
-import apiClient from './apiClient'
+import apiClient from '@/api/apiClient'
 
 // 기존 entry 타입 (내부 사용)
 export interface AttendanceEntry {
