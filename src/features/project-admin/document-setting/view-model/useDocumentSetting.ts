@@ -39,6 +39,7 @@ interface CellRefEditState {
       quantity: string
       unit: string
     }
+    overflow: { startCell: string; maxRows: string }[]
   }
   lineConcat: { cell: string; field: string; separator: string }[]
   photos: { key: string; cells: string; descriptionOffsetRow: string; descriptionOffsetCol: string }[]
@@ -64,6 +65,7 @@ function createDefaultCellRef(): CellRefEditState {
         quantity: '',
         unit: '',
       },
+      overflow: [],
     },
     lineConcat: [],
     photos: [],
@@ -137,6 +139,12 @@ export function useDocumentSetting() {
           cellRef.lines.columns.manufacturer = c.manufacturer != null ? String(c.manufacturer) : ''
           cellRef.lines.columns.quantity = c.quantity != null ? String(c.quantity) : ''
           cellRef.lines.columns.unit = c.unit != null ? String(c.unit) : ''
+        }
+        if (Array.isArray(l.overflow)) {
+          cellRef.lines.overflow = (l.overflow as { startCell: string; maxRows: number }[]).map((o) => ({
+            startCell: o.startCell ?? '',
+            maxRows: o.maxRows != null ? String(o.maxRows) : '',
+          }))
         }
       }
       // lineConcat
@@ -221,6 +229,13 @@ export function useDocumentSetting() {
       if (c.quantity !== '') cols.quantity = Number(c.quantity)
       if (c.unit !== '') cols.unit = Number(c.unit)
       if (Object.keys(cols).length > 0) linesObj.columns = cols
+      const validOverflows = cellRef.lines.overflow.filter((o) => o.startCell)
+      if (validOverflows.length > 0) {
+        linesObj.overflow = validOverflows.map((o) => ({
+          startCell: o.startCell,
+          maxRows: Number(o.maxRows) || 0,
+        }))
+      }
       cellResult.lines = linesObj
     }
 

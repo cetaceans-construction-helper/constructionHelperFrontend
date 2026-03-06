@@ -71,6 +71,14 @@ export interface UpdateWorkPayload {
   annotation?: string
 }
 
+// 2일치 작업 목록 응답 타입
+export interface TwoDaysWorkListResponse {
+  dates: {
+    date: string
+    works: WorkResponse[]
+  }[]
+}
+
 export const workApi = {
   // 작업 생성
   async createWork(payload: CreateWorkPayload): Promise<MutationResponse> {
@@ -107,6 +115,15 @@ export const workApi = {
     const { data } = await apiClient.get<WorkResponse[]>('/work/getWorkListByDate', {
       params: { date },
     })
+    return data
+  },
+
+  // 오늘 + 다음 작업일 2일치 작업 목록 조회
+  async get2DaysWorkListByDate(date: string): Promise<TwoDaysWorkListResponse> {
+    const { data } = await apiClient.get<TwoDaysWorkListResponse>(
+      '/work/get2DaysWorkListByDate',
+      { params: { date } },
+    )
     return data
   },
 

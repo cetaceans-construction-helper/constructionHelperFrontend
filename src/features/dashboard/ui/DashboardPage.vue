@@ -14,11 +14,13 @@ const {
   fileInputRef,
   isLoading,
   onPhotoFileChange,
+  nextWorkDateLabel,
   onPhotoUpdated,
   openPhotoDialog,
   photoDialogRef,
   photoObjectUrls,
   today,
+  todayWeather,
   todayDayName,
   todayString,
   todayWorksByType,
@@ -50,8 +52,8 @@ const {
               <p class="text-sm text-muted-foreground">{{ todayString }}</p>
             </div>
             <div class="text-right text-sm text-muted-foreground">
-              <p>맑음</p>
-              <p>-5°C / 3°C</p>
+              <p>{{ todayWeather?.weather ?? '-' }}</p>
+              <p>{{ todayWeather ? `${todayWeather.minTemperature}°C / ${todayWeather.maxTemperature}°C` : '-' }}</p>
             </div>
           </div>
 
@@ -112,7 +114,9 @@ const {
 
           <!-- 내일 작업 -->
           <div class="border border-border rounded-lg p-3">
-            <h4 class="text-sm font-semibold mb-2 text-foreground">내일 작업</h4>
+            <h4 class="text-sm font-semibold mb-2 text-foreground">
+              다음 작업일{{ nextWorkDateLabel ? ` - ${nextWorkDateLabel}` : '' }}
+            </h4>
             <div v-if="tomorrowWorksByType.size === 0" class="text-sm text-muted-foreground">
               내일 예정된 작업이 없습니다.
             </div>
@@ -228,6 +232,9 @@ const {
               </p>
               <p class="text-sm text-muted-foreground mt-1">
                 2. 공정표 작업 패스로 연결하면 기본적으로 따라다님.
+              </p>
+              <p class="text-sm text-muted-foreground mt-1">
+                3. 대시보드 날씨 잘못 출력하는 버그 해결.
               </p>
               <br />
               <p class="text-sm font-medium">26.02.27 금요일</p>

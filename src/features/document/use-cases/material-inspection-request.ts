@@ -1,17 +1,29 @@
-import type { MaterialInspectionRequestResponse } from '@/features/document/model/document-types'
+import type {
+  MaterialInspectionRequestResponse,
+  ValidateMirResponse,
+} from '@/features/document/model/document-types'
 
 export interface MaterialInspectionRequestRepository {
-  createMaterialInspectionRequest(deliveryId: number): Promise<void>
+  validateMaterialInspectionRequest(deliveryId: number): Promise<ValidateMirResponse>
+  createMaterialInspectionRequest(deliveryId: number, body?: { excludedIndices: number[] }): Promise<void>
   getMaterialInspectionRequestList(): Promise<MaterialInspectionRequestResponse[]>
   deleteMaterialInspectionRequest(mirId: number): Promise<void>
   downloadMaterialInspectionRequestFile(url: string): Promise<string>
 }
 
+export const validateMaterialInspectionRequest = async (
+  repository: MaterialInspectionRequestRepository,
+  deliveryId: number,
+): Promise<ValidateMirResponse> => {
+  return repository.validateMaterialInspectionRequest(deliveryId)
+}
+
 export const createMaterialInspectionRequest = async (
   repository: MaterialInspectionRequestRepository,
   deliveryId: number,
+  body?: { excludedIndices: number[] },
 ): Promise<void> => {
-  await repository.createMaterialInspectionRequest(deliveryId)
+  await repository.createMaterialInspectionRequest(deliveryId, body)
 }
 
 export const getMaterialInspectionRequests = async (

@@ -105,6 +105,15 @@ function toggleGroupBy(slotIndex: number, targetKey: string) {
     : [...slot.groupBy, targetKey]
 }
 
+// 오버플로우 관리
+function addOverflow() {
+  cellRef.lines.overflow.push({ startCell: '', maxRows: '' })
+}
+
+function removeOverflow(index: number) {
+  cellRef.lines.overflow.splice(index, 1)
+}
+
 // 라인 요약 (lineConcat) 관리
 const lineConcatFieldOptions = [
   { value: 'specName', label: '자재규격명' },
@@ -375,6 +384,31 @@ function removePhoto(index: number) {
               class="h-8 text-sm"
             />
           </div>
+        </div>
+
+        <!-- 오버플로우 -->
+        <p class="text-xs text-muted-foreground mt-4 mb-1">오버플로우</p>
+        <div class="space-y-2 mb-2">
+          <div
+            v-for="(ov, ovIdx) in cellRef.lines.overflow"
+            :key="ovIdx"
+            class="flex items-center gap-2"
+          >
+            <Input v-model="ov.startCell" placeholder="시작 셀 (예: 1!A5)" class="h-8 text-sm w-32" />
+            <div class="flex items-center gap-1.5">
+              <Label class="text-xs text-muted-foreground shrink-0">최대 행 수</Label>
+              <Input v-model="ov.maxRows" type="number" min="0" placeholder="0" class="h-8 text-sm w-20" />
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              class="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+              @click="removeOverflow(ovIdx)"
+            >
+              <X class="h-4 w-4" />
+            </Button>
+          </div>
+          <Button variant="outline" size="sm" @click="addOverflow">+ 오버플로우 추가</Button>
         </div>
       </div>
 

@@ -6,9 +6,14 @@ import {
   type EquipmentDeploymentByDateItem,
 } from '@/features/attendance/public'
 import { materialOrderApi, type DeliveryQuantityByDate } from '@/features/material/public'
-import { workApi, type WorkPhotoResponse, type WorkResponse } from '@/shared/network-core/apis/work'
-import { useCalendarStore } from '@/app/context/stores/calendarStore'
+import {
+  workApi,
+  type WorkPhotoResponse,
+  type WorkResponse,
+} from '@/shared/network-core/apis/work'
+import { calendarApi } from '@/shared/network-core/apis/calendar'
 import { useProjectStore } from '@/app/context/stores/project'
+import type { WeatherByDateResponse } from '@/shared/network-core/contracts/calendar'
 import type {
   AttendanceGroup,
   EquipmentGroup,
@@ -19,12 +24,12 @@ import { getDashboardDateContext } from '@/features/dashboard/use-cases/dashboar
 
 export const useDashboardPage = () => {
   const projectStore = useProjectStore()
-  const calendarStore = useCalendarStore()
-  const { today, todayDayName, todayString, tomorrowString } = getDashboardDateContext()
+  const { today, todayDayName, todayString } = getDashboardDateContext()
 
   // 데이터 상태
   const todayWorks = ref<WorkResponse[]>([])
   const tomorrowWorks = ref<WorkResponse[]>([])
+  const nextWorkDateLabel = ref('')
   const todayAttendance = ref<AttendanceByDateItem[]>([])
   const todayDeliveryQuantities = ref<DeliveryQuantityByDate[]>([])
   const todayEquipment = ref<EquipmentDeploymentByDateItem[]>([])
@@ -162,6 +167,8 @@ export const useDashboardPage = () => {
     return groups
   })
 
+  const todayWeather = ref<WeatherByDateResponse | null>(null)
+
   const equipmentByGroup = computed(() => {
     const groups: EquipmentGroup[] = []
     const groupMap = new Map<string, EquipmentGroup>()
@@ -191,18 +198,26 @@ export const useDashboardPage = () => {
 
     isLoading.value = true
     try {
-      await calendarStore.getCalendar(projectStore.selectedProjectId)
-      const [todayWorkList, tomorrowWorkList, attendance, deliveryQuantities, equipment] =
+      const [weather, twoDaysWork, attendance, deliveryQuantities, equipment] =
         await Promise.all([
-          workApi.getWorkListByDate(todayString),
-          workApi.getWorkListByDate(tomorrowString),
+          calendarApi.getWeatherByDate(todayString).catch(() => null),
+          workApi.get2DaysWorkListByDate(todayString),
           attendanceApi.getAttendanceListByDate(todayString),
           materialOrderApi.getTotalDeliveryQuantityByDate(todayString),
           equipmentApi.getEquipmentDeploymentListByDate(todayString),
         ])
 
-      todayWorks.value = todayWorkList
-      tomorrowWorks.value = tomorrowWorkList
+      todayWeather.value = weather
+
+      todayWorks.value = twoDaysWork.dates[0]?.works ?? []
+      tomorrowWorks.value = twoDaysWork.dates[1]?.works ?? []
+
+      const nextDateStr = twoDaysWork.dates[1]?.date
+      if (nextDateStr) {
+        const dayNames = ['일', '월', '화', '수', '목', '금', '토']
+        const d = new Date(nextDateStr)
+        nextWorkDateLabel.value = `${d.getMonth() + 1}월 ${d.getDate()}일 (${dayNames[d.getDay()]})`
+      }
       todayAttendance.value = attendance
       todayDeliveryQuantities.value = deliveryQuantities
       todayEquipment.value = equipment
@@ -232,8 +247,10 @@ export const useDashboardPage = () => {
     photoDialogRef,
     photoObjectUrls,
     today,
+    todayWeather,
     todayDayName,
     todayString,
+    nextWorkDateLabel,
     todayWorksByType,
     tomorrowWorksByType,
     triggerPhotoUpload,

@@ -19,6 +19,12 @@ export interface CalendarResponse {
   dates: CalendarDateInfo[]
 }
 
+export interface WeatherByDateResponse {
+  weather: string
+  minTemperature: number
+  maxTemperature: number
+}
+
 // 날짜 유형 (프론트엔드 계산용)
 export type DateType = 'normal' | 'holiday' | 'deactivated'
 

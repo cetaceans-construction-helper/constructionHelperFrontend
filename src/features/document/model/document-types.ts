@@ -36,6 +36,7 @@ export interface MirCellReference {
       quantity?: number
       unit?: number
     }
+    overflow?: { startCell: string; maxRows: number }[]
   }
   lineConcat?: {
     cell: string
@@ -67,6 +68,20 @@ export interface MaterialInspectionRequestResponse {
   mirUrl: string | null
   deliveryDate: string
   createdAt: string
+}
+
+export interface ValidateMirItem {
+  index: number
+  specName: string
+  quantity: number
+  unit: string
+}
+
+export interface ValidateMirResponse {
+  totalMaxRows: number
+  dataRowCount: number
+  exceeded: boolean
+  items: ValidateMirItem[]
 }
 
 export interface SlotConfig {

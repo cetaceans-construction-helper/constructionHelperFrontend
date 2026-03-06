@@ -9,6 +9,7 @@ export {
   deleteMaterialInspectionRequest,
   downloadMaterialInspectionRequest,
   getMaterialInspectionRequests,
+  validateMaterialInspectionRequest,
 } from '@/features/document/use-cases/material-inspection-request'
 
 export type { MaterialInspectionRequestRepository } from '@/features/document/use-cases/material-inspection-request'
@@ -22,6 +23,8 @@ export type {
   MirSlotValue,
   ProjectDocumentCodeResponse,
   SlotConfig,
+  ValidateMirItem,
+  ValidateMirResponse,
 } from '@/features/document/model/document-types'
 
 export { default as ManagerPageView } from '@/features/document/ui/ManagerPage.vue'

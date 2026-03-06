@@ -52,8 +52,10 @@ import {
   createMaterialInspectionRequest,
   deleteMaterialInspectionRequest,
   getMaterialInspectionRequests,
+  validateMaterialInspectionRequest,
   materialInspectionRequestRepository,
   type MaterialInspectionRequestResponse,
+  type ValidateMirResponse,
 } from '@/features/document/public'
 import { referenceApi } from '@/shared/network-core/apis/reference'
 import type {
@@ -134,8 +136,37 @@ const mirDeleteTargetId = ref<number | null>(null)
 const mirDeleteTargetName = ref('')
 const isDeletingMir = ref(false)
 
+// MIR 검증 다이얼로그
+const showMirValidationDialog = ref(false)
+const mirValidationResult = ref<ValidateMirResponse | null>(null)
+const mirValidationDeliveryId = ref<number | null>(null)
+const mirExcludedIndices = ref<number[]>([])
+const isCreatingMirAfterValidation = ref(false)
+
 function toggleId(list: number[], id: number): number[] {
   return list.includes(id) ? list.filter((v) => v !== id) : [...list, id]
+}
+
+function addDeliveryLine(deliveryId: number) {
+  const lines = deliveryLinesMap.value[deliveryId]
+  if (!lines) return
+  deliveryLinesMap.value[deliveryId] = [
+    ...lines,
+    {
+      deliveryLineId: 0,
+      manufacturer: null,
+      materialSpecId: null,
+      materialSpecName: null,
+      specValidation: false,
+      quantity: 0,
+    },
+  ]
+}
+
+function removeDeliveryLine(deliveryId: number, lineIdx: number) {
+  const lines = deliveryLinesMap.value[deliveryId]
+  if (!lines) return
+  deliveryLinesMap.value[deliveryId] = lines.filter((_, i) => i !== lineIdx)
 }
 
 async function openDirectDeliveryDialog() {
@@ -309,7 +340,36 @@ async function confirmDeleteMir() {
 async function generateMir(deliveryId: number) {
   isGeneratingMir.value[deliveryId] = true
   try {
-    await createMaterialInspectionRequest(materialInspectionRequestRepository, deliveryId)
+    const result = await validateMaterialInspectionRequest(materialInspectionRequestRepository, deliveryId)
+    if (!result.exceeded) {
+      await createMaterialInspectionRequest(materialInspectionRequestRepository, deliveryId)
+      router.push('/helper/document/material-inspection')
+      analyticsClient.trackAction('material_delivery', 'create_mir', 'success')
+    } else {
+      mirValidationResult.value = result
+      mirValidationDeliveryId.value = deliveryId
+      mirExcludedIndices.value = []
+      showMirValidationDialog.value = true
+    }
+  } catch (error: unknown) {
+    console.error('자재반입검수요청서 생성 실패:', error)
+    analyticsClient.trackAction('material_delivery', 'create_mir', 'fail')
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    alert(err.response?.data?.message || err.message)
+  } finally {
+    isGeneratingMir.value[deliveryId] = false
+  }
+}
+
+async function confirmMirWithExclusions() {
+  if (mirValidationDeliveryId.value == null) return
+  isCreatingMirAfterValidation.value = true
+  try {
+    const body = mirExcludedIndices.value.length > 0
+      ? { excludedIndices: mirExcludedIndices.value }
+      : undefined
+    await createMaterialInspectionRequest(materialInspectionRequestRepository, mirValidationDeliveryId.value, body)
+    showMirValidationDialog.value = false
     router.push('/helper/document/material-inspection')
     analyticsClient.trackAction('material_delivery', 'create_mir', 'success')
   } catch (error: unknown) {
@@ -318,7 +378,7 @@ async function generateMir(deliveryId: number) {
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     alert(err.response?.data?.message || err.message)
   } finally {
-    isGeneratingMir.value[deliveryId] = false
+    isCreatingMirAfterValidation.value = false
   }
 }
 
@@ -489,7 +549,6 @@ async function updateDelivery(delivery: MaterialDeliverySummary) {
       deliveryDate: editState.deliveryDate,
       location: editState.location || null,
       deliveryLines: lines.map((line) => ({
-        deliveryLineId: line.deliveryLineId,
         manufacturer: line.manufacturer,
         specId: line.materialSpecId,
         quantity: String(line.quantity),
@@ -735,6 +794,7 @@ onUnmounted(() => {
                           <TableHead>제조사</TableHead>
                           <TableHead>규격</TableHead>
                           <TableHead class="w-[200px] text-right">수량</TableHead>
+                          <TableHead class="w-[40px]" />
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -801,10 +861,28 @@ onUnmounted(() => {
                               </span>
                             </div>
                           </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              class="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                              @click="removeDeliveryLine(delivery.materialDeliveryId, lineIdx)"
+                            >
+                              <X class="h-3 w-3" />
+                            </Button>
+                          </TableCell>
                         </TableRow>
                       </TableBody>
                     </Table>
                   </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    :disabled="mirDeliveryIds.has(delivery.materialDeliveryId)"
+                    @click="addDeliveryLine(delivery.materialDeliveryId)"
+                  >
+                    + 행 추가
+                  </Button>
 
                   <!-- 수정하기 버튼 -->
                   <div class="flex justify-end">
@@ -1025,5 +1103,71 @@ onUnmounted(() => {
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+
+    <!-- MIR 검증 다이얼로그 -->
+    <Dialog v-model:open="showMirValidationDialog">
+      <DialogContent class="sm:max-w-[600px]">
+        <DialogHeader>
+          <DialogTitle>자재반입검수요청서 항목 초과</DialogTitle>
+        </DialogHeader>
+
+        <div v-if="mirValidationResult" class="space-y-4 py-2">
+          <p class="text-sm text-muted-foreground">
+            총 {{ mirValidationResult.dataRowCount }}개 항목 중 최대 {{ mirValidationResult.totalMaxRows }}개만 포함 가능합니다.
+            제외할 항목을 선택하세요.
+          </p>
+
+          <div class="border border-border rounded-lg overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead class="w-[40px]" />
+                  <TableHead>No</TableHead>
+                  <TableHead>규격명</TableHead>
+                  <TableHead class="text-right">수량</TableHead>
+                  <TableHead>단위</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableRow
+                  v-for="item in mirValidationResult.items"
+                  :key="item.index"
+                  :class="{ 'opacity-40': mirExcludedIndices.includes(item.index) }"
+                >
+                  <TableCell>
+                    <Checkbox
+                      :model-value="mirExcludedIndices.includes(item.index)"
+                      @update:model-value="mirExcludedIndices = toggleId(mirExcludedIndices, item.index)"
+                    />
+                  </TableCell>
+                  <TableCell class="text-sm">{{ item.index + 1 }}</TableCell>
+                  <TableCell class="text-sm">{{ item.specName }}</TableCell>
+                  <TableCell class="text-sm text-right">{{ item.quantity }}</TableCell>
+                  <TableCell class="text-sm">{{ item.unit }}</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
+
+          <p class="text-sm">
+            제외 후 남은 행 수:
+            <span :class="mirValidationResult.dataRowCount - mirExcludedIndices.length > mirValidationResult.totalMaxRows ? 'text-destructive font-semibold' : 'text-green-600 dark:text-green-400 font-semibold'">
+              {{ mirValidationResult.dataRowCount - mirExcludedIndices.length }}
+            </span>
+            / {{ mirValidationResult.totalMaxRows }}
+          </p>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" :disabled="isCreatingMirAfterValidation" @click="showMirValidationDialog = false">취소</Button>
+          <Button
+            :disabled="isCreatingMirAfterValidation || (mirValidationResult != null && mirValidationResult.dataRowCount - mirExcludedIndices.length > mirValidationResult.totalMaxRows)"
+            @click="confirmMirWithExclusions"
+          >
+            {{ isCreatingMirAfterValidation ? '생성 중...' : '생성' }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </PageContainer>
 </template>

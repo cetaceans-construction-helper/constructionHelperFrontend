@@ -111,7 +111,6 @@ export const materialOrderApi = {
       deliveryDate: string
       location?: string | null
       deliveryLines: {
-        deliveryLineId: number | null
         manufacturer: string | null
         specId: number | null
         quantity: string

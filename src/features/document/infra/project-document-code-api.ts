@@ -3,6 +3,7 @@ import type {
   DocumentNumberOptionsResponse,
   MaterialInspectionRequestResponse,
   ProjectDocumentCodeResponse,
+  ValidateMirResponse,
 } from '@/features/document/model/document-types'
 
 export const projectDocumentCodeApi = {
@@ -59,9 +60,20 @@ export const projectDocumentCodeApi = {
 }
 
 export const materialInspectionRequestApi = {
-  async createMaterialInspectionRequest(deliveryId: number): Promise<void> {
+  async validateMaterialInspectionRequest(deliveryId: number): Promise<ValidateMirResponse> {
+    const { data } = await apiClient.get<ValidateMirResponse>(
+      `/materialInspectionRequest/validateMaterialInspectionRequest/${deliveryId}`,
+    )
+    return data
+  },
+
+  async createMaterialInspectionRequest(
+    deliveryId: number,
+    body?: { excludedIndices: number[] },
+  ): Promise<void> {
     await apiClient.post(
       `/materialInspectionRequest/createMaterialInspectionRequest/${deliveryId}`,
+      body,
     )
   },
 
