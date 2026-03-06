@@ -9,6 +9,13 @@ import { workApi, type WorkResponse, type UpdateWorkPayload, type CreateWorkPayl
 import { appConfig } from '@/app/bootstrap/config'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
+function arraysEqual(a: number[], b: number[]): boolean {
+  if (a.length !== b.length) return false
+  const sa = [...a].sort()
+  const sb = [...b].sort()
+  return sa.every((v, i) => v === sb[i])
+}
+
 export function useWorkTooltipData() {
   // 참조 데이터 (한 번 로드)
   const divisions = ref<IdNameResponse[]>([])
@@ -19,6 +26,9 @@ export function useWorkTooltipData() {
   const sections = ref<IdNameResponse[]>([])
   const usages = ref<IdNameResponse[]>([])
   const componentTypes = ref<IdNameResponse[]>([])
+
+  // 원본 데이터 (변경 비교용)
+  const originalWork = ref<WorkResponse | null>(null)
 
   // 다이얼로그 상태
   const showDialog = ref(false)
@@ -80,6 +90,7 @@ export function useWorkTooltipData() {
     showDialog.value = false
     editingWorkId.value = null
     isCreateMode.value = false
+    originalWork.value = null
   }
 
   // 생성 모드로 다이얼로그 열기 (빈 폼)
@@ -107,6 +118,7 @@ export function useWorkTooltipData() {
 
   // WorkResponse로부터 편집 상태 초기화 (ID 필드 직접 사용)
   const initFromWork = async (work: WorkResponse) => {
+    originalWork.value = work
     // Division 이름으로 ID 찾기 (division은 ID가 응답에 없으므로 이름 매칭)
     const div = divisions.value.find((d) => d.name === work.division)
     editDivisionId.value = div ? String(div.id) : ''
@@ -255,24 +267,28 @@ export function useWorkTooltipData() {
 
   // 상세 정보 저장 → MutationResponse 반환
   const submitEdit = async (): Promise<MutationResponse | null> => {
-    if (!editingWorkId.value) return null
+    if (!editingWorkId.value || !originalWork.value) return null
+
+    const orig = originalWork.value
+    const payload: UpdateWorkPayload = {}
+
+    if (editStartDate.value !== orig.startDate) payload.startDate = editStartDate.value
+    if (editWorkLeadTime.value !== orig.workLeadTime) payload.workLeadTime = editWorkLeadTime.value
+    if (!arraysEqual(editZoneIds.value, orig.zoneIds ?? [])) payload.zoneIds = editZoneIds.value
+    if (!arraysEqual(editFloorIds.value, orig.floorIds ?? [])) payload.floorIds = editFloorIds.value
+    if (!arraysEqual(editSectionIds.value, orig.sectionIds ?? [])) payload.sectionIds = editSectionIds.value
+    if (!arraysEqual(editUsageIds.value, orig.usageIds ?? [])) payload.usageIds = editUsageIds.value
+    if (!arraysEqual(editComponentTypeIds.value, orig.componentTypeIds ?? [])) payload.componentTypeIds = editComponentTypeIds.value
+    if (editAnnotation.value !== (orig.annotation || '')) payload.annotation = editAnnotation.value
+    if (editSubWorkTypeId.value && Number(editSubWorkTypeId.value) !== orig.subWorkTypeId) payload.subWorkTypeId = Number(editSubWorkTypeId.value)
+
+    if (Object.keys(payload).length === 0) {
+      closeDialog()
+      return null
+    }
+
     isSavingDetails.value = true
     try {
-      const payload: UpdateWorkPayload = {
-        startDate: editStartDate.value,
-        workLeadTime: editWorkLeadTime.value,
-        zoneIds: editZoneIds.value,
-        floorIds: editFloorIds.value,
-        sectionIds: editSectionIds.value,
-        usageIds: editUsageIds.value,
-        componentTypeIds: editComponentTypeIds.value,
-        annotation: editAnnotation.value,
-      }
-
-      if (editSubWorkTypeId.value) {
-        payload.subWorkTypeId = Number(editSubWorkTypeId.value)
-      }
-
       const response = await workApi.updateWork(editingWorkId.value, payload)
       analyticsClient.trackAction('schedule_2d', 'update_work', 'success')
       closeDialog()
