@@ -274,6 +274,7 @@ const {
               <p class="text-sm font-bold text-red-500 mt-1">
                 4. 대시보드작업일보 -> 내일작업 / 다음 작업일 선택가능.
               </p>
+              <p class="text-sm font-bold text-red-500 mt-1">5. 작업일보 생성가능!!!</p>
               <br />
               <p class="text-sm font-medium">26.02.27 금요일</p>
               <p class="text-sm text-muted-foreground mt-1">1. 자재반입검수요청서 생성가능.</p>

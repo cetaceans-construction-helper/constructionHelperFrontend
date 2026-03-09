@@ -30,6 +30,7 @@ function openDialog(photo: { photoId: number; description: string }, imgUrl: str
 async function saveDescription() {
   try {
     await workApi.updateWorkPhoto(photoId.value, description.value)
+    isOpen.value = false
     emit('updated')
   } catch (error: unknown) {
     console.error('설명 수정 실패:', error)

@@ -144,7 +144,8 @@ function onEditKeydown(e: KeyboardEvent) {
             <Input
               ref="editInputRef"
               v-model="editingName"
-              class="h-6 text-sm flex-1"
+              class="h-6 text-sm"
+              :class="unitEditable ? 'basis-3/5 min-w-0' : 'flex-1'"
               @keydown="onEditKeydown"
               @click.stop
             />
@@ -153,7 +154,7 @@ function onEditKeydown(e: KeyboardEvent) {
               ref="editUnitInputRef"
               v-model="editingUnit"
               :placeholder="unitLabel"
-              class="h-6 text-sm w-16"
+              class="h-6 text-sm basis-2/5 min-w-0"
               @keydown="onEditKeydown"
               @click.stop
             />

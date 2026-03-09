@@ -13,6 +13,8 @@ const {
   isSaving,
   cellRef,
   dailyReportTemplateUrl,
+  sectionColumnKeys,
+  sectionColumnLabels,
   load,
   save,
   uploadTemplate,
@@ -149,6 +151,24 @@ const sectionKeys = ['todayWork', 'tomorrowWork', 'attendance', 'material', 'equ
                 min="0"
                 placeholder="0"
                 class="h-8 text-sm w-20"
+              />
+            </div>
+          </div>
+
+          <!-- 컬럼 오프셋 -->
+          <p class="text-xs text-muted-foreground mt-2 mb-1">컬럼 오프셋 (비워두면 미사용)</p>
+          <div class="grid grid-cols-3 gap-3">
+            <div
+              v-for="colKey in (sectionColumnKeys[sectionKey] ?? [])"
+              :key="colKey"
+              class="flex flex-col gap-1"
+            >
+              <Label class="text-xs text-muted-foreground">{{ (sectionColumnLabels[sectionKey] ?? {})[colKey] }} ({{ colKey }})</Label>
+              <Input
+                v-model="cellRef[sectionKey].columns[colKey]"
+                placeholder="미사용"
+                type="number"
+                class="h-8 text-sm"
               />
             </div>
           </div>

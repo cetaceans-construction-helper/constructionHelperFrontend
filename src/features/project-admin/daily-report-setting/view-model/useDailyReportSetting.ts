@@ -11,6 +11,7 @@ interface SectionEdit {
   startCell: string
   maxRows: string
   overflow: OverflowEdit[]
+  columns: Record<string, string>
 }
 
 interface CellRefEditState {
@@ -37,8 +38,31 @@ interface CellRefEditState {
   }
 }
 
-function createDefaultSection(): SectionEdit {
-  return { startCell: '', maxRows: '', overflow: [] }
+const SECTION_COLUMN_KEYS: Record<string, string[]> = {
+  todayWork: ['workTypeName', 'workName'],
+  tomorrowWork: ['workTypeName', 'workName'],
+  attendance: ['workTypeDisplayName', 'companyDisplayName', 'cumulativeCount', 'todayCount', 'totalCumulativeCount'],
+  material: ['materialTypeName', 'materialSpecName', 'unit', 'cumulativeQuantity', 'todayQuantity', 'totalCumulativeQuantity'],
+  equipment: ['equipmentTypeName', 'equipmentSpecName', 'cumulativeCount', 'todayCount', 'totalCumulativeCount'],
+}
+
+const SECTION_COLUMN_LABELS: Record<string, Record<string, string>> = {
+  todayWork: { workTypeName: '공종명', workName: '작업명' },
+  tomorrowWork: { workTypeName: '공종명', workName: '작업명' },
+  attendance: { workTypeDisplayName: '공종명', companyDisplayName: '업체명', cumulativeCount: '전일까지총인원', todayCount: '금일인원', totalCumulativeCount: '누적인원' },
+  material: { materialTypeName: '자재종류', materialSpecName: '규격명', unit: '단위', cumulativeQuantity: '전일까지총수량', todayQuantity: '금일수량', totalCumulativeQuantity: '누적수량' },
+  equipment: { equipmentTypeName: '장비종류', equipmentSpecName: '규격명', cumulativeCount: '전일까지총대수', todayCount: '금일대수', totalCumulativeCount: '누적대수' },
+}
+
+function createDefaultColumns(sectionKey: string): Record<string, string> {
+  const keys = SECTION_COLUMN_KEYS[sectionKey] ?? []
+  const cols: Record<string, string> = {}
+  for (const k of keys) cols[k] = ''
+  return cols
+}
+
+function createDefaultSection(sectionKey: string): SectionEdit {
+  return { startCell: '', maxRows: '', overflow: [], columns: createDefaultColumns(sectionKey) }
 }
 
 function createDefaultCellRef(): CellRefEditState {
@@ -52,11 +76,11 @@ function createDefaultCellRef(): CellRefEditState {
       maxTemperature: '',
       tomorrowDate: '',
     },
-    todayWork: createDefaultSection(),
-    tomorrowWork: createDefaultSection(),
-    attendance: createDefaultSection(),
-    material: createDefaultSection(),
-    equipment: createDefaultSection(),
+    todayWork: createDefaultSection('todayWork'),
+    tomorrowWork: createDefaultSection('tomorrowWork'),
+    attendance: createDefaultSection('attendance'),
+    material: createDefaultSection('material'),
+    equipment: createDefaultSection('equipment'),
     photos: {
       work: { cells: '', descriptionOffsetRow: '', descriptionOffsetCol: '' },
     },
@@ -106,6 +130,13 @@ export function useDailyReportSetting() {
             const s = cellData[key] as Record<string, unknown>
             cellRef[key].startCell = (s.startCell as string) ?? ''
             cellRef[key].maxRows = s.maxRows != null ? String(s.maxRows) : ''
+            if (s.columns) {
+              const c = s.columns as Record<string, number | undefined>
+              const colKeys = SECTION_COLUMN_KEYS[key] ?? []
+              for (const ck of colKeys) {
+                cellRef[key].columns[ck] = c[ck] != null ? String(c[ck]) : ''
+              }
+            }
             if (Array.isArray(s.overflow)) {
               cellRef[key].overflow = (s.overflow as { startCell: string; maxRows: number }[]).map((o) => ({
                 startCell: o.startCell ?? '',
@@ -166,6 +197,11 @@ export function useDailyReportSetting() {
           startCell: section.startCell,
         }
         if (section.maxRows !== '') sectionObj.maxRows = Number(section.maxRows)
+        const cols: Record<string, number> = {}
+        for (const [ck, cv] of Object.entries(section.columns)) {
+          if (cv !== '') cols[ck] = Number(cv)
+        }
+        if (Object.keys(cols).length > 0) sectionObj.columns = cols
         const validOverflows = section.overflow.filter((o) => o.startCell)
         if (validOverflows.length > 0) {
           sectionObj.overflow = validOverflows.map((o) => ({
@@ -245,6 +281,8 @@ export function useDailyReportSetting() {
     isSaving,
     cellRef,
     dailyReportTemplateUrl,
+    sectionColumnKeys: SECTION_COLUMN_KEYS,
+    sectionColumnLabels: SECTION_COLUMN_LABELS,
     load,
     save,
     uploadTemplate,

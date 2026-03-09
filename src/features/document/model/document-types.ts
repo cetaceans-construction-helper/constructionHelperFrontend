@@ -115,10 +115,7 @@ export interface DailyReportResponse {
 
 export interface ValidateDailyReportSectionItem {
   index: number
-  groupName: string
-  itemName: string
-  value1: string
-  value2: string
+  values: (string | number | null)[]
 }
 
 export interface ValidateDailyReportSection {
@@ -126,6 +123,7 @@ export interface ValidateDailyReportSection {
   totalMaxRows: number
   dataRowCount: number
   exceeded: boolean
+  columns: Record<string, number>
   items: ValidateDailyReportSectionItem[]
 }
 

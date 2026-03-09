@@ -10,7 +10,26 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/shared/ui/dialog'
-import type { ValidateDailyReportResponse } from '@/features/document/public'
+import type {
+  ValidateDailyReportResponse,
+  ValidateDailyReportSection,
+} from '@/features/document/public'
+
+const sectionLabels: Record<string, string> = {
+  todayWork: '금일작업',
+  tomorrowWork: '익일작업',
+  attendance: '출역인원',
+  material: '자재입고',
+  equipment: '장비투입',
+}
+
+function formatItemValues(section: ValidateDailyReportSection, values: (string | number | null)[]) {
+  const entries = Object.entries(section.columns).sort((a, b) => a[1] - b[1])
+  return entries
+    .map(([, idx]) => values[idx])
+    .filter((v) => v != null && v !== '')
+    .join(' / ')
+}
 
 const props = defineProps<{
   open: boolean
@@ -98,7 +117,7 @@ function onConfirm() {
         <!-- 섹션별 초과 항목 -->
         <div v-for="section in exceededSections" :key="section.sectionName" class="space-y-2">
           <div class="flex items-center justify-between">
-            <h4 class="text-sm font-semibold">{{ section.sectionName }}</h4>
+            <h4 class="text-sm font-semibold">{{ sectionLabels[section.sectionName] ?? section.sectionName }}</h4>
             <span class="text-xs text-muted-foreground">
               {{ section.dataRowCount }}행 / 최대 {{ section.totalMaxRows }}행
               (최소 {{ getMinExcludeCount(section) }}개 제외 필요,
@@ -115,12 +134,8 @@ function onConfirm() {
                 :model-value="(excludedSectionIndices[section.sectionName] ?? []).includes(item.index)"
                 @update:model-value="toggleSectionItem(section.sectionName, item.index)"
               />
-              <span class="text-sm flex-1">
-                <span class="font-medium">{{ item.groupName }}</span>
-                <span class="text-muted-foreground"> - {{ item.itemName }}</span>
-              </span>
-              <span class="text-xs text-muted-foreground shrink-0">
-                {{ item.value1 }}{{ item.value2 ? ` / ${item.value2}` : '' }}
+              <span class="text-sm flex-1 truncate">
+                {{ formatItemValues(section, item.values) }}
               </span>
             </label>
           </div>
