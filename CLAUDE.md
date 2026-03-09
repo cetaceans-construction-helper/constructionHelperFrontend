@@ -40,34 +40,77 @@ npm run build-only      # Build without type-checking
 3. **Areas** (`AreaCard` component): Content cards with optional tabs
 4. **Tabs** (browser-tab style): Within area cards
 
-Routes are nested under `/helper` with lazy-loading:
+Routes are nested under `/helper` with lazy-loading. Each feature exports route components via `public.ts`, and `app/routing/index.ts` imports them:
 ```typescript
-component: () => import('@/pages/helper/schedule/Schedule2dPage.vue')
+// app/routing/index.ts
+import { schedule2dRouteComponents } from '@/features/schedule/schedule-2d/public'
+
+// route definition
+{ path: '2d', name: 'schedule-2d', component: schedule2dRouteComponents.Schedule2dPage }
 ```
 
-**ConstructionHelperPage** acts as layout wrapper containing header + sidebar + RouterView.
+**ConstructionHelperPage** (`app/shell/ui/`) acts as layout wrapper containing header + sidebar + RouterView.
 
 ### Directory Structure
 
 ```
 src/
-├── pages/                    # Route target components (feature-based)
-│   └── helper/
-│       ├── schedule/        # 공정관리: nodeConfig.ts, groupLogic.ts, layout.ts
-│       ├── material/        # 자재관리
-│       ├── document/        # 문서관리
-│       ├── safety/          # 안전관리
-│       └── functions/       # 유용한 기능
-├── components/
-│   ├── ui/                  # shadcn-vue (Reka UI + Tailwind)
-│   └── helper/              # Business components (PageContainer, AreaCard)
-├── stores/                  # Pinia stores (composition API style)
-├── composables/             # Vue 3 composition utilities
-├── utils/
-│   └── three/              # Three.js utilities (separation of concerns)
-├── router/                  # Vue Router config
-└── lib/                     # Library utilities (cn() for class merging)
+├── main.ts                         # App entry point
+├── app/                            # App shell (non-domain)
+│   ├── bootstrap/                  # App initialization
+│   ├── routing/                    # Vue Router config (imports from feature public.ts)
+│   ├── shell/                      # Layout wrapper (ConstructionHelperPage)
+│   ├── context/                    # App-level context providers
+│   └── public-home/                # Landing/main page
+├── features/                       # Domain features (each with standard layers)
+│   ├── attendance/                 # 출석
+│   ├── auth/                       # 인증
+│   ├── dashboard/                  # 대시보드
+│   ├── document/                   # 문서관리
+│   ├── material/                   # 자재관리
+│   ├── schedule/                   # 공정관리 (Wrapper+Sub)
+│   │   ├── schedule-2d/            #   2D 공정표
+│   │   └── schedule-3d/            #   3D 공정표
+│   ├── project-admin/              # 현장설정 (Wrapper+Sub)
+│   │   ├── master-data/            #   기초정보
+│   │   ├── resource/               #   인력/장비
+│   │   ├── document-setting/       #   문서 설정
+│   │   └── holiday/                #   휴일
+│   └── system-admin/               # 시스템 관리
+└── shared/                         # Cross-feature shared code
+    ├── ui/                         # shadcn-vue components (Reka UI + Tailwind)
+    ├── helper-ui/                  # Business layout components (PageContainer, AreaCard)
+    ├── network-core/               # API access layer & contract types
+    │   ├── apis/
+    │   └── contracts/
+    ├── analytics/                  # Analytics/tracking
+    ├── theme/                      # Global theme state
+    └── utils/                      # General utilities
 ```
+
+### Feature Architecture
+
+Each feature (or sub-feature) follows a standard layered structure:
+
+```
+feature/
+├── ui/           # Vue components — rendering, events, display logic. No direct API calls.
+├── view-model/   # Screen state management, use-case orchestration. No external I/O.
+├── use-cases/    # User scenario flows. No Vue/DOM/router dependencies.
+├── model/        # Domain types, rules, validation. No external API/DOM dependencies.
+├── infra/        # API integration, repository impl, DTO mapping. No UI state decisions.
+└── public.ts     # External interface — only symbols exported here are accessible to other features.
+```
+
+**Feature modes:**
+- **Top 단일 모드**: Feature has layers directly (`features/material/ui/`, etc.). Used by: attendance, auth, dashboard, document, material, system-admin.
+- **Wrapper+Sub 모드**: Feature contains sub-features, each with its own layers. The wrapper itself has no layers. Used by: schedule (2d, 3d), project-admin (master-data, resource, document-setting, holiday).
+
+**Import boundary rules:**
+- Feature 간 import는 대상 feature의 `public.ts`만 허용
+- `app/` 및 `shared/`에서 feature 접근 시에도 `public.ts`만 허용
+- Deep relative chain (`../../../`) 금지 — `@/` alias 사용
+- `shared/`로 승격 조건: 2개 이상 feature 재사용 + 도메인 독립 + 인터페이스 안정
 
 ### State Management (Pinia)
 
@@ -87,13 +130,13 @@ export const useThemeStore = defineStore('theme', () => {
 
 ### Three.js Integration Pattern
 
-**Separation of concerns:**
+Three.js code lives in `features/schedule/schedule-3d/` following feature layers:
 
-1. **Composables** (`useThreeScene.ts`): Lifecycle management (init/cleanup)
-2. **Utils** (`utils/three/`):
-   - `sceneSetup.ts`: Factory functions (createScene, createCamera, createRenderer)
-   - `objectFactory.ts`: 3D object creation
-   - `animationLoop.ts`: requestAnimationFrame wrappers
+1. **view-model** (`useEngine.ts`): Lifecycle management, Vue integration
+2. **infra/three/**: Engine, controllers, loaders
+   - `Engine.ts`: Scene/camera/renderer setup
+   - `control/`: CameraController, ClippingController, SelectionController, etc.
+   - `loader/`: Model loading from API
 
 **Resource management:**
 - Initialize in `onMounted()`
@@ -117,7 +160,7 @@ controls.dispose()
 
 ### Component Patterns
 
-**Page structure:**
+**Page structure** (using `@/shared/helper-ui/` components):
 ```vue
 <PageContainer title="2D공정표">
   <AreaCard height="flex-1" min-height="400px">
@@ -127,8 +170,12 @@ controls.dispose()
 ```
 
 **UI components:**
-- Import from `@/components/ui/` via index exports
-- Example: `import { Button } from '@/components/ui/button'`
+- Import from `@/shared/ui/` via index exports
+- Example: `import { Button } from '@/shared/ui/button'`
+
+**Business layout components:**
+- Import from `@/shared/helper-ui/`
+- Example: `import PageContainer from '@/shared/helper-ui/PageContainer.vue'`
 
 **All components use:**
 - `<script setup lang="ts">` syntax
@@ -214,7 +261,7 @@ interface ApiError {
 ## Development Notes
 
 **ESLint special rules:**
-- UI components allow single-word names (multi-word rule disabled for `components/ui/**`)
+- UI components allow single-word names (multi-word rule disabled for `shared/ui/**`)
 
 **Type safety:**
 - `vue-tsc` replaces `tsc` for `.vue` file type checking

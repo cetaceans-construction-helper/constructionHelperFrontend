@@ -98,7 +98,7 @@ export function useDocumentSetting() {
 
       const res = await projectDocumentCodeApi.getProjectDocumentCode()
       exists.value = true
-      mirTemplateUrl.value = res.templateUrl
+      mirTemplateUrl.value = res.mirTemplateUrl
 
       const numCode: MirDocumentNumberCode = JSON.parse(res.mirDocumentNumberCode)
       separator.value = numCode.separator || '-'
@@ -294,7 +294,7 @@ export function useDocumentSetting() {
   async function uploadTemplate(file: File) {
     try {
       const res = await projectDocumentCodeApi.uploadMirTemplate(file)
-      mirTemplateUrl.value = res.templateUrl
+      mirTemplateUrl.value = res.mirTemplateUrl
       alert('템플릿이 업로드되었습니다.')
     } catch (error: unknown) {
       console.error('템플릿 업로드 실패:', error)

@@ -135,9 +135,13 @@ async function confirmDelete() {
           :selected-id="selectedWorkTypeId"
           :disabled="isDeleting"
           :empty-message="selectedDivisionId ? '항목 없음' : '분류를 선택하세요'"
+          unit-editable
+          unit-key="displayName"
+          unit-label="표시이름"
+          :display-suffix="(wt: any) => wt.displayName ? `(${wt.displayName})` : ''"
           @select="selectWorkType"
           @delete="(id, name) => openDeleteDialog(id, name, deleteWorkType)"
-          @update-name="({ id, name }) => updateWorkTypeName(id, name)"
+          @update-name="({ id, name, unit }) => updateWorkTypeName(id, name, unit)"
           @reorder="reorderWorkTypes"
         />
       </div>

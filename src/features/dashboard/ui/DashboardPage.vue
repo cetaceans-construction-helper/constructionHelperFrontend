@@ -3,29 +3,37 @@ import { useRouter } from 'vue-router'
 import AreaCard from '@/shared/helper-ui/AreaCard.vue'
 import { Button } from '@/shared/ui/button'
 import WorkPhotoDialog from '@/features/dashboard/ui/components/WorkPhotoDialog.vue'
+import DailyReportExcludeDialog from '@/features/dashboard/ui/components/DailyReportExcludeDialog.vue'
 import { useDashboardPage } from '@/features/dashboard/view-model/useDashboardPage'
 
 const router = useRouter()
 const {
   allTodayPhotos,
   attendanceByGroup,
+  confirmExcludeAndCreate,
   deliveryByWorkType,
   equipmentByGroup,
   fileInputRef,
+  generateDailyReport,
+  isCreatingDailyReport,
   isLoading,
   onPhotoFileChange,
-  nextWorkDateLabel,
   onPhotoUpdated,
   openPhotoDialog,
   photoDialogRef,
   photoObjectUrls,
+  showExcludeDialog,
   today,
   todayWeather,
   todayDayName,
   todayString,
   todayWorksByType,
-  tomorrowWorksByType,
+  tomorrowWorkMode,
+  activeTomorrowWorksByType,
+  activeTomorrowDateLabel,
+  toggleTomorrowWorkMode,
   triggerPhotoUpload,
+  validateResult,
 } = useDashboardPage()
 </script>
 
@@ -36,9 +44,19 @@ const {
       <AreaCard height="flex-none" min-height="auto" class="dashboard-col-main dashboard-order-1">
         <div class="flex items-center justify-between mb-3">
           <h3 class="text-lg font-semibold">작업일보</h3>
-          <Button variant="outline" size="sm" @click="router.push('/helper/schedule/2d')">
-            공정표 수정
-          </Button>
+          <div class="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              :disabled="isCreatingDailyReport"
+              @click="generateDailyReport"
+            >
+              {{ isCreatingDailyReport ? '생성 중...' : '작업일보생성' }}
+            </Button>
+            <Button variant="outline" size="sm" @click="router.push('/helper/schedule/2d')">
+              공정표 수정
+            </Button>
+          </div>
         </div>
 
         <div v-if="isLoading" class="text-sm text-muted-foreground">로딩 중...</div>
@@ -53,7 +71,13 @@ const {
             </div>
             <div class="text-right text-sm text-muted-foreground">
               <p>{{ todayWeather?.weather ?? '-' }}</p>
-              <p>{{ todayWeather ? `${todayWeather.minTemperature}°C / ${todayWeather.maxTemperature}°C` : '-' }}</p>
+              <p>
+                {{
+                  todayWeather
+                    ? `${todayWeather.minTemperature}°C / ${todayWeather.maxTemperature}°C`
+                    : '-'
+                }}
+              </p>
             </div>
           </div>
 
@@ -114,14 +138,25 @@ const {
 
           <!-- 내일 작업 -->
           <div class="border border-border rounded-lg p-3">
-            <h4 class="text-sm font-semibold mb-2 text-foreground">
-              다음 작업일{{ nextWorkDateLabel ? ` - ${nextWorkDateLabel}` : '' }}
-            </h4>
-            <div v-if="tomorrowWorksByType.size === 0" class="text-sm text-muted-foreground">
+            <div class="flex items-center gap-2 mb-2">
+              <h4 class="text-sm font-semibold text-foreground w-52 shrink-0">
+                {{ tomorrowWorkMode === 1 ? '다음 작업일' : '내일'
+                }}{{ activeTomorrowDateLabel ? ` - ${activeTomorrowDateLabel}` : '' }}
+              </h4>
+              <Button
+                variant="secondary"
+                size="sm"
+                class="h-6 px-2 text-xs"
+                @click="toggleTomorrowWorkMode"
+              >
+                {{ tomorrowWorkMode === 1 ? '내일로 변경' : '다음 작업일로 변경' }}
+              </Button>
+            </div>
+            <div v-if="activeTomorrowWorksByType.size === 0" class="text-sm text-muted-foreground">
               내일 예정된 작업이 없습니다.
             </div>
             <div v-else class="space-y-3">
-              <div v-for="[workType, works] in tomorrowWorksByType" :key="workType">
+              <div v-for="[workType, works] in activeTomorrowWorksByType" :key="workType">
                 <p class="text-sm font-medium mb-1">&#9632; {{ workType }}</p>
                 <div class="space-y-0.5">
                   <p v-for="work in works" :key="work.workId" class="text-sm text-muted-foreground">
@@ -226,15 +261,18 @@ const {
           <h3 class="text-lg font-semibold">Release Note</h3>
           <div class="mt-4 flex-1 min-h-0">
             <div class="border border-border rounded-lg p-3 h-full overflow-y-auto">
-              <p class="text-sm font-medium">26.03.05 목요일</p>
+              <p class="text-sm font-medium">26.03.09 월요일</p>
               <p class="text-sm font-bold text-red-500 mt-1">
                 1. 오늘 작업 각각 클릭해서 사진입력 가능.
               </p>
               <p class="text-sm text-muted-foreground mt-1">
                 2. 공정표 작업 패스로 연결하면 기본적으로 따라다님.
               </p>
-              <p class="text-sm text-muted-foreground mt-1">
+              <p class="text-sm font-bold text-red-500 mt-1">
                 3. 대시보드 날씨 잘못 출력하는 버그 해결.
+              </p>
+              <p class="text-sm font-bold text-red-500 mt-1">
+                4. 대시보드작업일보 -> 내일작업 / 다음 작업일 선택가능.
               </p>
               <br />
               <p class="text-sm font-medium">26.02.27 금요일</p>
@@ -341,6 +379,13 @@ const {
     />
 
     <WorkPhotoDialog ref="photoDialogRef" @updated="onPhotoUpdated" />
+
+    <DailyReportExcludeDialog
+      :open="showExcludeDialog"
+      :validate-result="validateResult"
+      @confirm="confirmExcludeAndCreate"
+      @cancel="showExcludeDialog = false"
+    />
   </div>
 </template>
 

@@ -3,4 +3,5 @@ import type { MaterialOrderRepository } from '@/features/material/use-cases/mate
 
 export const materialOrderRepository: MaterialOrderRepository = {
   getMaterialOrderList: () => materialOrderApi.getMaterialOrderList(),
+  deleteMaterialOrder: (orderId) => materialOrderApi.deleteMaterialOrder(orderId),
 }

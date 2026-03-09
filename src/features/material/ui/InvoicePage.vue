@@ -44,7 +44,7 @@ import { useMaterialOrder } from '@/features/material/view-model/useMaterialOrde
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 const router = useRouter()
-const { orders, isLoading, loadOrders } = useMaterialOrder()
+const { orders, isLoading, loadOrders, deleteOrder } = useMaterialOrder()
 const expandedOrders = reactive<Record<number, boolean>>({})
 
 // 송장입력 다이얼로그 상태
@@ -74,7 +74,7 @@ async function confirmDeleteOrder() {
   if (deleteTargetId.value == null) return
   isDeletingOrder.value = true
   try {
-    await materialOrderApi.deleteMaterialOrder(deleteTargetId.value)
+    await deleteOrder(deleteTargetId.value)
     showDeleteDialog.value = false
     analyticsClient.trackAction('material_order', 'delete_order', 'success')
     loadOrders()
@@ -231,19 +231,46 @@ onMounted(() => {
         >
           <!-- 카드 헤더 (클릭으로 펼치기/접기) -->
           <div
-            class="flex items-center gap-3 px-4 py-3 bg-muted/30 cursor-pointer select-none"
+            class="bg-muted/30 cursor-pointer select-none"
             @click="toggleOrder(order.id)"
           >
-            <span class="text-xs text-muted-foreground">{{ expandedOrders[order.id] ? '▲' : '▼' }}</span>
-            <Badge :class="['text-sm px-3 py-1', getStatusColor(order.orderStatus)]">
-              {{ getStatusLabel(order.orderStatus) }}
-            </Badge>
-            <span class="text-sm font-medium">{{ order.orderNo }}</span>
-            <span class="text-xs text-muted-foreground">{{ order.workTypeName }}</span>
-            <span class="text-sm font-medium bg-muted/30 border border-foreground px-2 py-0.5 rounded">
-              {{ order.totalQuantity }} {{ order.unit }}
-            </span>
-            <div v-if="order.specSummary?.length > 0" class="flex items-center gap-2 flex-wrap">
+            <div class="flex items-center gap-3 px-4 py-3">
+              <span class="text-xs text-muted-foreground">{{ expandedOrders[order.id] ? '▲' : '▼' }}</span>
+              <Badge :class="['text-sm px-3 py-1', getStatusColor(order.orderStatus)]">
+                {{ getStatusLabel(order.orderStatus) }}
+              </Badge>
+              <span class="text-sm font-medium">{{ order.orderNo }}</span>
+              <span class="text-xs text-muted-foreground">{{ order.workTypeName }}</span>
+              <span class="text-sm font-medium bg-muted/30 border border-foreground px-2 py-0.5 rounded">
+                {{ order.totalQuantity }} {{ order.unit }}
+              </span>
+              <div class="flex items-center gap-2 ml-auto" @click.stop>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  :disabled="order.orderStatus === 'ORDER_COMPLETED' || order.orderStatus === 'RECEIPT_COMPLETED'"
+                >
+                  발주하기
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  :disabled="order.orderStatus !== 'ORDER_COMPLETED'"
+                  @click="openDeliveryDialog(order)"
+                >
+                  송장입력
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  class="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                  @click="openDeleteDialog(order.id, order.orderNo)"
+                >
+                  <X class="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            <div v-if="order.specSummary?.length > 0" class="flex items-center gap-2 flex-wrap px-4 pb-3">
               <Badge
                 v-for="spec in order.specSummary"
                 :key="spec.materialSpecId"
@@ -254,31 +281,6 @@ onMounted(() => {
                 <span class="font-semibold ml-1">{{ spec.quantity }}</span>
                 <span class="text-muted-foreground ml-0.5">{{ order.unit }}</span>
               </Badge>
-            </div>
-            <div class="flex items-center gap-2 ml-auto" @click.stop>
-              <Button
-                variant="outline"
-                size="sm"
-                :disabled="order.orderStatus === 'ORDER_COMPLETED' || order.orderStatus === 'RECEIPT_COMPLETED'"
-              >
-                발주하기
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                :disabled="order.orderStatus !== 'ORDER_COMPLETED'"
-                @click="openDeliveryDialog(order)"
-              >
-                송장입력
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                class="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                @click="openDeleteDialog(order.id, order.orderNo)"
-              >
-                <X class="h-4 w-4" />
-              </Button>
             </div>
           </div>
 

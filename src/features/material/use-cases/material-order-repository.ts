@@ -2,4 +2,5 @@ import type { MaterialOrderResponse } from '@/features/material/model/material-o
 
 export interface MaterialOrderRepository {
   getMaterialOrderList(): Promise<MaterialOrderResponse[]>
+  deleteMaterialOrder(orderId: number): Promise<void>
 }

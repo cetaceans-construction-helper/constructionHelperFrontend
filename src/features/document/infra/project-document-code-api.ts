@@ -23,8 +23,9 @@ export const projectDocumentCodeApi = {
   },
 
   async createProjectDocumentCode(body: {
-    mirDocumentNumberCode: string
-    mirCellReference: string
+    mirDocumentNumberCode?: string
+    mirCellReference?: string
+    dailyReportCellReference?: string
   }): Promise<ProjectDocumentCodeResponse> {
     const { data } = await apiClient.post<ProjectDocumentCodeResponse>(
       '/projectDocumentCode/createProjectDocumentCode',
@@ -34,8 +35,9 @@ export const projectDocumentCodeApi = {
   },
 
   async updateProjectDocumentCode(body: {
-    mirDocumentNumberCode: string
-    mirCellReference: string
+    mirDocumentNumberCode?: string
+    mirCellReference?: string
+    dailyReportCellReference?: string
   }): Promise<ProjectDocumentCodeResponse> {
     const { data } = await apiClient.put<ProjectDocumentCodeResponse>(
       '/projectDocumentCode/updateProjectDocumentCode',
@@ -44,11 +46,25 @@ export const projectDocumentCodeApi = {
     return data
   },
 
-  async uploadMirTemplate(file: File): Promise<{ templateUrl: string }> {
+  async uploadMirTemplate(file: File): Promise<ProjectDocumentCodeResponse> {
     const formData = new FormData()
     formData.append('file', file)
-    const { data } = await apiClient.post<{ templateUrl: string }>(
+    const { data } = await apiClient.post<ProjectDocumentCodeResponse>(
       '/projectDocumentCode/uploadMirTemplate',
+      formData,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 60000,
+      },
+    )
+    return data
+  },
+
+  async uploadDailyReportTemplate(file: File): Promise<ProjectDocumentCodeResponse> {
+    const formData = new FormData()
+    formData.append('file', file)
+    const { data } = await apiClient.post<ProjectDocumentCodeResponse>(
+      '/projectDocumentCode/uploadDailyReportTemplate',
       formData,
       {
         headers: { 'Content-Type': 'multipart/form-data' },

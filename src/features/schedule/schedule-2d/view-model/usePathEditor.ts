@@ -1,6 +1,6 @@
 import { ref, computed, type Ref } from 'vue'
 import type { Node, Edge } from '@vue-flow/core'
-import { workPathApi, type PathResponse, type PathEdge } from '@/shared/network-core/apis/workPath'
+import { workPathApi, type PathResponse, type PathEdge, type UpdateWorkPathPayload } from '@/shared/network-core/apis/workPath'
 import type { WorkResponse, MutationResponse } from '@/shared/network-core/apis/work'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
@@ -274,6 +274,37 @@ export function usePathEditor(
     }
   }
 
+  // 패스 속성 수정 (이름, 색상, critical, edges 등)
+  const updatePath = async (pathId: number, payload: UpdateWorkPathPayload): Promise<MutationResponse | null> => {
+    if (Object.keys(payload).length === 0) return null
+    try {
+      const mutation = await workPathApi.updateWorkPath(pathId, payload)
+      onPathUpdated(mutation)
+      analyticsClient.trackAction('schedule_2d', 'update_path', 'success')
+      return mutation
+    } catch (error: unknown) {
+      console.error('패스 수정 실패:', error)
+      analyticsClient.trackAction('schedule_2d', 'update_path', 'fail')
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+      return null
+    }
+  }
+
+  // lagDays 수정
+  const updateLagDays = async (pathId: number, targetWorkId: number, days: number | null) => {
+    try {
+      const mutation = await workPathApi.updateWorkPathLagDays(pathId, { workId: targetWorkId, lagDays: days })
+      onPathUpdated(mutation)
+      analyticsClient.trackAction('schedule_2d', 'update_path_lag_days', 'success')
+    } catch (error: unknown) {
+      console.error('lagDays 수정 실패:', error)
+      analyticsClient.trackAction('schedule_2d', 'update_path_lag_days', 'fail')
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+    }
+  }
+
   // 패스 편집 취소
   const cancelPathEdit = () => {
     selectedPathId.value = null
@@ -394,6 +425,8 @@ export function usePathEditor(
     togglePathSelection,
     submitPathUpdate,
     savePathEdges,
+    updatePath,
+    updateLagDays,
     cancelPathEdit,
     onConnect,
     removeNodeFromPath,

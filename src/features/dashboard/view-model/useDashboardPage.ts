@@ -1,17 +1,11 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import {
-  attendanceApi,
-  equipmentApi,
-  type AttendanceByDateItem,
-  type EquipmentDeploymentByDateItem,
+import { useRouter } from 'vue-router'
+import type {
+  AttendanceByDateItem,
+  EquipmentDeploymentByDateItem,
 } from '@/features/attendance/public'
-import { materialOrderApi, type DeliveryQuantityByDate } from '@/features/material/public'
-import {
-  workApi,
-  type WorkPhotoResponse,
-  type WorkResponse,
-} from '@/shared/network-core/apis/work'
-import { calendarApi } from '@/shared/network-core/apis/calendar'
+import type { DeliveryQuantityByDate } from '@/features/material/public'
+import type { WorkPhotoResponse, WorkResponse } from '@/shared/network-core/apis/work'
 import { useProjectStore } from '@/app/context/stores/project'
 import type { WeatherByDateResponse } from '@/shared/network-core/contracts/calendar'
 import type {
@@ -21,15 +15,27 @@ import type {
   WorkPhotoDialogExpose,
 } from '@/features/dashboard/model/dashboard-types'
 import { getDashboardDateContext } from '@/features/dashboard/use-cases/dashboard-date'
+import { loadDashboardData } from '@/features/dashboard/use-cases/load-dashboard-data'
+import { dashboardRepository } from '@/features/dashboard/infra/dashboard-repository'
+import {
+  validateDailyReport,
+  createDailyReport,
+} from '@/features/document/public'
+import type { ValidateDailyReportResponse } from '@/features/document/public'
+import { dailyReportRepository } from '@/features/document/public'
 
 export const useDashboardPage = () => {
   const projectStore = useProjectStore()
+  const router = useRouter()
   const { today, todayDayName, todayString } = getDashboardDateContext()
 
   // 데이터 상태
   const todayWorks = ref<WorkResponse[]>([])
   const tomorrowWorks = ref<WorkResponse[]>([])
   const nextWorkDateLabel = ref('')
+  const simpleTomorrowWorks = ref<WorkResponse[]>([])
+  const simpleTomorrowDateLabel = ref('')
+  const tomorrowWorkMode = ref<1 | 2>(1)
   const todayAttendance = ref<AttendanceByDateItem[]>([])
   const todayDeliveryQuantities = ref<DeliveryQuantityByDate[]>([])
   const todayEquipment = ref<EquipmentDeploymentByDateItem[]>([])
@@ -56,7 +62,7 @@ export const useDashboardPage = () => {
       if (!work.photos) continue
       for (const photo of work.photos) {
         try {
-          newUrls.set(photo.photoId, await workApi.downloadWorkPhoto(photo.thumbnailUrl))
+          newUrls.set(photo.photoId, await dashboardRepository.downloadWorkPhoto(photo.thumbnailUrl))
         } catch {
           // 개별 사진 로드 실패는 무시
         }
@@ -76,8 +82,8 @@ export const useDashboardPage = () => {
     if (files.length === 0 || !selectedWorkForPhoto.value) return
 
     try {
-      await workApi.createWorkPhoto(selectedWorkForPhoto.value.workId, todayString, files)
-      todayWorks.value = await workApi.getWorkListByDate(todayString)
+      await dashboardRepository.createWorkPhoto(selectedWorkForPhoto.value.workId, todayString, files)
+      todayWorks.value = await dashboardRepository.getWorkListByDate(todayString)
       await loadAllPhotos()
     } catch (error: unknown) {
       console.error('사진 업로드 실패:', error)
@@ -103,12 +109,12 @@ export const useDashboardPage = () => {
   const openPhotoDialog = async (photo: WorkPhotoResponse) => {
     const thumbnailUrl = photoObjectUrls.value.get(photo.photoId)
     if (!thumbnailUrl) return
-    const originalUrl = await workApi.downloadWorkPhoto(photo.url)
+    const originalUrl = await dashboardRepository.downloadWorkPhoto(photo.url)
     photoDialogRef.value?.openDialog(photo, originalUrl)
   }
 
   const onPhotoUpdated = async () => {
-    todayWorks.value = await workApi.getWorkListByDate(todayString)
+    todayWorks.value = await dashboardRepository.getWorkListByDate(todayString)
     await loadAllPhotos()
   }
 
@@ -122,15 +128,27 @@ export const useDashboardPage = () => {
     return grouped
   })
 
-  const tomorrowWorksByType = computed(() => {
+  const activeTomorrowWorks = computed(() =>
+    tomorrowWorkMode.value === 1 ? tomorrowWorks.value : simpleTomorrowWorks.value,
+  )
+
+  const activeTomorrowDateLabel = computed(() =>
+    tomorrowWorkMode.value === 1 ? nextWorkDateLabel.value : simpleTomorrowDateLabel.value,
+  )
+
+  const activeTomorrowWorksByType = computed(() => {
     const grouped = new Map<string, WorkResponse[]>()
-    for (const work of tomorrowWorks.value) {
+    for (const work of activeTomorrowWorks.value) {
       const workType = work.workType || '미분류'
       if (!grouped.has(workType)) grouped.set(workType, [])
       grouped.get(workType)?.push(work)
     }
     return grouped
   })
+
+  const toggleTomorrowWorkMode = () => {
+    tomorrowWorkMode.value = tomorrowWorkMode.value === 1 ? 2 : 1
+  }
 
   const deliveryByWorkType = computed(() => {
     const grouped = new Map<string, DeliveryQuantityByDate[]>()
@@ -193,34 +211,72 @@ export const useDashboardPage = () => {
     return groups
   })
 
+  // 작업일보 생성
+  const isCreatingDailyReport = ref(false)
+  const showExcludeDialog = ref(false)
+  const validateResult = ref<ValidateDailyReportResponse | null>(null)
+
+  const generateDailyReport = async () => {
+    isCreatingDailyReport.value = true
+    try {
+      const result = await validateDailyReport(dailyReportRepository, todayString, tomorrowWorkMode.value)
+      const hasExceeded = result.sections.some((s) => s.exceeded) || (result.photos?.exceeded ?? false)
+
+      if (hasExceeded) {
+        validateResult.value = result
+        showExcludeDialog.value = true
+      } else {
+        await createDailyReport(dailyReportRepository, { date: todayString, tomorrowWorkMode: tomorrowWorkMode.value })
+        router.push('/helper/document/daily-report')
+      }
+    } catch (error: unknown) {
+      console.error('작업일보 생성 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+    } finally {
+      isCreatingDailyReport.value = false
+    }
+  }
+
+  const confirmExcludeAndCreate = async (
+    excludedSectionIndices: Record<string, number[]>,
+    excludedPhotoIndices: number[],
+  ) => {
+    isCreatingDailyReport.value = true
+    showExcludeDialog.value = false
+    try {
+      await createDailyReport(dailyReportRepository, {
+        date: todayString,
+        excludedSectionIndices,
+        excludedPhotoIndices,
+        tomorrowWorkMode: tomorrowWorkMode.value,
+      })
+      router.push('/helper/document/daily-report')
+    } catch (error: unknown) {
+      console.error('작업일보 생성 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+    } finally {
+      isCreatingDailyReport.value = false
+    }
+  }
+
   onMounted(async () => {
     if (!projectStore.selectedProjectId) return
 
     isLoading.value = true
     try {
-      const [weather, twoDaysWork, attendance, deliveryQuantities, equipment] =
-        await Promise.all([
-          calendarApi.getWeatherByDate(todayString).catch(() => null),
-          workApi.get2DaysWorkListByDate(todayString),
-          attendanceApi.getAttendanceListByDate(todayString),
-          materialOrderApi.getTotalDeliveryQuantityByDate(todayString),
-          equipmentApi.getEquipmentDeploymentListByDate(todayString),
-        ])
+      const data = await loadDashboardData(dashboardRepository, todayString)
 
-      todayWeather.value = weather
-
-      todayWorks.value = twoDaysWork.dates[0]?.works ?? []
-      tomorrowWorks.value = twoDaysWork.dates[1]?.works ?? []
-
-      const nextDateStr = twoDaysWork.dates[1]?.date
-      if (nextDateStr) {
-        const dayNames = ['일', '월', '화', '수', '목', '금', '토']
-        const d = new Date(nextDateStr)
-        nextWorkDateLabel.value = `${d.getMonth() + 1}월 ${d.getDate()}일 (${dayNames[d.getDay()]})`
-      }
-      todayAttendance.value = attendance
-      todayDeliveryQuantities.value = deliveryQuantities
-      todayEquipment.value = equipment
+      todayWeather.value = data.weather
+      todayWorks.value = data.todayWorks
+      tomorrowWorks.value = data.tomorrowWorks
+      nextWorkDateLabel.value = data.nextWorkDateLabel
+      simpleTomorrowWorks.value = data.simpleTomorrowWorks
+      simpleTomorrowDateLabel.value = data.simpleTomorrowDateLabel
+      todayAttendance.value = data.attendance
+      todayDeliveryQuantities.value = data.deliveryQuantities
+      todayEquipment.value = data.equipment
 
       await loadAllPhotos()
     } catch (error) {
@@ -237,22 +293,30 @@ export const useDashboardPage = () => {
   return {
     allTodayPhotos,
     attendanceByGroup,
+    confirmExcludeAndCreate,
     deliveryByWorkType,
     equipmentByGroup,
     fileInputRef,
+    generateDailyReport,
+    isCreatingDailyReport,
     isLoading,
     onPhotoFileChange,
     onPhotoUpdated,
     openPhotoDialog,
     photoDialogRef,
     photoObjectUrls,
+    showExcludeDialog,
     today,
     todayWeather,
     todayDayName,
     todayString,
     nextWorkDateLabel,
     todayWorksByType,
-    tomorrowWorksByType,
+    tomorrowWorkMode,
+    activeTomorrowWorksByType,
+    activeTomorrowDateLabel,
+    toggleTomorrowWorkMode,
     triggerPhotoUpload,
+    validateResult,
   }
 }

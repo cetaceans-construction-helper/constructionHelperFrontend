@@ -638,15 +638,48 @@ onUnmounted(() => {
         >
           <!-- 카드 헤더 (클릭으로 펼치기/접기) -->
           <div
-            class="flex items-center gap-3 px-4 py-3 bg-muted/30 cursor-pointer select-none"
+            class="bg-muted/30 cursor-pointer select-none"
             @click="toggleDelivery(delivery)"
           >
-            <span class="text-xs text-muted-foreground">{{ expandedDeliveries[delivery.materialDeliveryId] ? '▲' : '▼' }}</span>
-            <span class="text-sm font-medium">{{ delivery.materialOrderNumber }}</span>
-            <span class="text-sm text-muted-foreground">{{ delivery.supplier }}</span>
-            <span class="text-sm text-muted-foreground">{{ delivery.deliveryDate }}</span>
-            <span v-if="delivery.location" class="text-sm text-muted-foreground">{{ delivery.location }}</span>
-            <div v-if="delivery.specQuantities?.length > 0" class="flex items-center gap-2 flex-wrap">
+            <div class="flex items-center gap-3 px-4 py-3">
+              <span class="text-xs text-muted-foreground">{{ expandedDeliveries[delivery.materialDeliveryId] ? '▲' : '▼' }}</span>
+              <span class="text-sm font-medium">{{ delivery.materialOrderNumber }}</span>
+              <span class="text-sm text-muted-foreground">{{ delivery.supplier }}</span>
+              <span class="text-sm text-muted-foreground">{{ delivery.deliveryDate }}</span>
+              <span v-if="delivery.location" class="text-sm text-muted-foreground">{{ delivery.location }}</span>
+              <div class="flex items-center gap-1 ml-auto" @click.stop>
+                <Button
+                  v-if="!mirDeliveryIds.has(delivery.materialDeliveryId)"
+                  variant="outline"
+                  size="sm"
+                  :disabled="isGeneratingMir[delivery.materialDeliveryId]"
+                  @click="generateMir(delivery.materialDeliveryId)"
+                >
+                  {{ isGeneratingMir[delivery.materialDeliveryId] ? '생성 중...' : '자재반입검수요청서' }}
+                </Button>
+                <template v-else>
+                  <Badge variant="secondary">검수요청 완료</Badge>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    class="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                    @click="openMirDeleteDialog(getMirForDelivery(delivery.materialDeliveryId)!.id, delivery.materialOrderNumber)"
+                  >
+                    <X class="h-3 w-3" />
+                  </Button>
+                </template>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  class="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                  :disabled="mirDeliveryIds.has(delivery.materialDeliveryId)"
+                  @click="openDeleteDialog(delivery.materialDeliveryId, delivery.materialOrderNumber)"
+                >
+                  <X class="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            <div v-if="delivery.specQuantities?.length > 0" class="flex items-center gap-2 flex-wrap px-4 pb-3">
               <Badge
                 v-for="sq in delivery.specQuantities"
                 :key="sq.materialSpecId"
@@ -657,37 +690,6 @@ onUnmounted(() => {
                 <span class="font-semibold ml-1">{{ sq.quantity }}</span>
                 <span class="text-muted-foreground ml-0.5">{{ delivery.unit }}</span>
               </Badge>
-            </div>
-            <div class="flex items-center gap-1 ml-auto" @click.stop>
-              <Button
-                v-if="!mirDeliveryIds.has(delivery.materialDeliveryId)"
-                variant="outline"
-                size="sm"
-                :disabled="isGeneratingMir[delivery.materialDeliveryId]"
-                @click="generateMir(delivery.materialDeliveryId)"
-              >
-                {{ isGeneratingMir[delivery.materialDeliveryId] ? '생성 중...' : '자재반입검수요청서' }}
-              </Button>
-              <template v-else>
-                <Badge variant="secondary">검수요청 완료</Badge>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  class="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
-                  @click="openMirDeleteDialog(getMirForDelivery(delivery.materialDeliveryId)!.id, delivery.materialOrderNumber)"
-                >
-                  <X class="h-3 w-3" />
-                </Button>
-              </template>
-              <Button
-                variant="ghost"
-                size="sm"
-                class="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                :disabled="mirDeliveryIds.has(delivery.materialDeliveryId)"
-                @click="openDeleteDialog(delivery.materialDeliveryId, delivery.materialOrderNumber)"
-              >
-                <X class="h-4 w-4" />
-              </Button>
             </div>
           </div>
 

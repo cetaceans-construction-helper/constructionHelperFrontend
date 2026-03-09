@@ -1,14 +1,34 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import { Button } from '@/shared/ui/button'
-import { Sun, Moon } from 'lucide-vue-next'
+import {
+  Sun,
+  Moon,
+  Grid2x2,
+  Box,
+  UserPlus,
+  UserCog,
+  FileText,
+  PackagePlus,
+  PackageMinus,
+  Package,
+  Shield,
+  FolderOpen,
+  CalendarCheck,
+  ClipboardCheck,
+  Wrench,
+  Database,
+  Users,
+  FileCheck,
+  CalendarOff,
+} from 'lucide-vue-next'
+import type { Component } from 'vue'
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -49,37 +69,46 @@ const sections = [
 ]
 
 // 각 Section별 Menu 정의 (2단계 구조)
-const menusBySection: Record<string, { id: string; label: string; path: string }[]> = {
+interface MenuItem {
+  id: string
+  label: string
+  path: string
+  icon: Component
+}
+
+const menusBySection: Record<string, MenuItem[]> = {
   process: [
-    { id: '2d-schedule', label: '2D공정표', path: '/helper/schedule/2d' },
-    { id: '3d-schedule', label: '3D공정표', path: '/helper/schedule/3d' },
+    { id: '2d-schedule', label: '2D공정표', path: '/helper/schedule/2d', icon: Grid2x2 },
+    { id: '3d-schedule', label: '3D공정표', path: '/helper/schedule/3d', icon: Box },
   ],
   attendance: [
-    { id: 'attendance-input', label: '출역입력', path: '/helper/attendance/input' },
-    { id: 'worker-register', label: '작업자등록', path: '/helper/attendance/register' },
+    { id: 'attendance-input', label: '출역입력', path: '/helper/attendance/input', icon: UserPlus },
+    { id: 'worker-register', label: '작업자등록', path: '/helper/attendance/register', icon: UserCog },
   ],
   material: [
-    { id: 'order', label: '자재발주서', path: '/helper/material/order' },
-    { id: 'incoming', label: '반입자재', path: '/helper/material/incoming' },
-    { id: 'outgoing', label: '반출자재', path: '/helper/material/outgoing' },
-    { id: 'remaining', label: '잔여자재', path: '/helper/material/remaining' },
+    { id: 'order', label: '자재발주서', path: '/helper/material/order', icon: FileText },
+    { id: 'incoming', label: '반입자재', path: '/helper/material/incoming', icon: PackagePlus },
+    { id: 'outgoing', label: '반출자재', path: '/helper/material/outgoing', icon: PackageMinus },
+    { id: 'remaining', label: '잔여자재', path: '/helper/material/remaining', icon: Package },
   ],
-  safety: [{ id: 'placeholder', label: '(구현예정)', path: '/helper/safety' }],
+  safety: [{ id: 'placeholder', label: '(구현예정)', path: '/helper/safety', icon: Shield }],
   document: [
-    { id: 'manager', label: '문서관리', path: '/helper/document/manager' },
-    { id: 'daily-report', label: '일일작업일보', path: '/helper/document/daily-report' },
+    { id: 'manager', label: '문서관리', path: '/helper/document/manager', icon: FolderOpen },
+    { id: 'daily-report', label: '일일작업일보', path: '/helper/document/daily-report', icon: CalendarCheck },
     {
       id: 'inspection',
       label: '자재반입검수요청서',
       path: '/helper/document/material-inspection',
+      icon: ClipboardCheck,
     },
   ],
-  utility: [{ id: 'placeholder', label: '(구현예정)', path: '/helper/functions' }],
+  utility: [{ id: 'placeholder', label: '(구현예정)', path: '/helper/functions', icon: Wrench }],
   admin: [
-    { id: 'master-data', label: '기준정보 관리', path: '/helper/admin' },
-    { id: 'resource-info', label: '자원정보 관리', path: '/helper/admin/resource' },
-    { id: 'document-setting', label: '자재검수요청서', path: '/helper/admin/document' },
-    { id: 'holiday', label: '휴일관리', path: '/helper/admin/holiday' },
+    { id: 'master-data', label: '기준정보 관리', path: '/helper/admin', icon: Database },
+    { id: 'resource-info', label: '자원정보 관리', path: '/helper/admin/resource', icon: Users },
+    { id: 'document-setting', label: '자재검수요청서', path: '/helper/admin/document', icon: FileCheck },
+    { id: 'daily-report-setting', label: '작업일보', path: '/helper/admin/daily-report', icon: FileText },
+    { id: 'holiday', label: '휴일관리', path: '/helper/admin/holiday', icon: CalendarOff },
   ],
 }
 
@@ -274,9 +303,6 @@ onUnmounted(() => {
         <Sidebar v-if="currentSection !== 'dashboard'" collapsible="none" class="border-r shadow-lg">
           <SidebarContent>
             <SidebarGroup>
-              <SidebarGroupLabel>{{
-                sections.find((s) => s.id === currentSection)?.label
-              }}</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
                   <SidebarMenuItem v-for="menu in currentMenus" :key="menu.id">
@@ -284,7 +310,8 @@ onUnmounted(() => {
                       :is-active="$route.path === menu.path"
                       @click="handleMenuClick(menu.path)"
                     >
-                      <span>{{ menu.label }}</span>
+                      <component :is="menu.icon" class="sidebar-menu-icon" />
+                      <span class="sidebar-menu-label">{{ menu.label }}</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 </SidebarMenu>
@@ -315,3 +342,27 @@ onUnmounted(() => {
     </div>
   </SidebarProvider>
 </template>
+
+<style>
+.sidebar-menu-icon {
+  display: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
+}
+
+@media (max-aspect-ratio: 1/1) {
+  [data-slot="sidebar-wrapper"] {
+    --sidebar-width: 3.5rem !important;
+  }
+
+  .sidebar-menu-icon {
+    display: block;
+  }
+
+  .sidebar-menu-label {
+    display: none;
+  }
+
+}
+</style>

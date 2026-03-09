@@ -83,7 +83,7 @@ onMounted(async () => {
     </div>
 
     <!-- 중앙: 3컬럼 레이아웃 -->
-    <div class="flex-1 overflow-hidden grid grid-cols-3 gap-4 p-4">
+    <div class="flex-1 overflow-hidden grid grid-cols-3 [@media(max-aspect-ratio:1/1)]:grid-cols-1 gap-4 p-4">
       <!-- 왼쪽: 오늘 출역 (읽기 전용) -->
       <div class="flex flex-col overflow-hidden border border-border rounded-lg bg-card">
         <div class="px-4 py-3 border-b border-border bg-muted/50">

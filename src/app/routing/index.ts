@@ -4,6 +4,7 @@ import { attendanceRouteComponents } from '@/features/attendance/public'
 import { dashboardRouteComponents } from '@/features/dashboard/public'
 import { documentRouteComponents } from '@/features/document/public'
 import { materialRouteComponents } from '@/features/material/public'
+import { projectAdminDailyReportSettingRouteComponents } from '@/features/project-admin/daily-report-setting/public'
 import { projectAdminDocumentSettingRouteComponents } from '@/features/project-admin/document-setting/public'
 import { projectAdminHolidayRouteComponents } from '@/features/project-admin/holiday/public'
 import { projectAdminMasterDataRouteComponents } from '@/features/project-admin/master-data/public'
@@ -126,6 +127,11 @@ const router = createRouter({
           path: 'admin/document',
           name: 'admin-document',
           component: projectAdminDocumentSettingRouteComponents.DocumentSettingPage,
+        },
+        {
+          path: 'admin/daily-report',
+          name: 'admin-daily-report',
+          component: projectAdminDailyReportSettingRouteComponents.DailyReportSettingPage,
         },
         {
           path: 'admin/holiday',

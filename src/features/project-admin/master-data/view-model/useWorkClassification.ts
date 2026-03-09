@@ -266,11 +266,17 @@ export function useWorkClassification() {
     }
   }
 
-  const updateWorkTypeName = async (id: number, name: string) => {
+  const updateWorkTypeName = async (id: number, name: string, displayName?: string) => {
     try {
       await referenceApi.updateWorkType({ id, name })
+      if (displayName != null) {
+        await referenceApi.updateWorkTypeDisplayName(id, displayName)
+      }
       const item = workTypes.value.find((wt) => wt.id === id)
-      if (item) item.name = name
+      if (item) {
+        item.name = name
+        if (displayName != null) item.displayName = displayName
+      }
       analyticsClient.trackAction('admin_master_data', 'update_work_type', 'success')
     } catch (error: unknown) {
       console.error('WorkType 이름 수정 실패:', error)

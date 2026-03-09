@@ -368,17 +368,8 @@ const calendarData = computed(() => calendarStore.calendarData)
 
 // lagDays 수정
 const updateEdgeOverlap = async (pathId: number, _sourceWorkId: number, targetWorkId: number, days: number | null) => {
-  try {
-    const mutation = await workPathApi.updateWorkPathLagDays(pathId, { workId: targetWorkId, lagDays: days })
-    applyMutation(mutation)
-    tooltip.value.visible = false
-    analyticsClient.trackAction('schedule_2d', 'update_path_lag_days', 'success')
-  } catch (error: unknown) {
-    console.error('lagDays 수정 실패:', error)
-    analyticsClient.trackAction('schedule_2d', 'update_path_lag_days', 'fail')
-    const err = error as { response?: { data?: { message?: string } }; message?: string }
-    alert(err.response?.data?.message || err.message)
-  }
+  await updateLagDays(pathId, targetWorkId, days)
+  tooltip.value.visible = false
 }
 
 // lagDays 로컬 업데이트 (API 호출 없이 computed 재계산용)
@@ -592,6 +583,8 @@ const {
   onConnect,
   removeNodeFromPath,
   savePathEdges,
+  updatePath,
+  updateLagDays,
 } = usePathEditor(nodes, edges, paths, applyMutation)
 
 // 패스 모드 플래그 (패스 선택 없이도 모드 전환 가능)
@@ -698,15 +691,8 @@ const savePathChanges = async () => {
 
   isSavingPath.value = true
   try {
-    const mutation = await workPathApi.updateWorkPath(selectedPathId.value, payload)
-    applyMutation(mutation)
+    await updatePath(selectedPathId.value, payload)
     cancelPathEdit()
-    analyticsClient.trackAction('schedule_2d', 'update_path', 'success')
-  } catch (error: unknown) {
-    console.error('패스 수정 실패:', error)
-    analyticsClient.trackAction('schedule_2d', 'update_path', 'fail')
-    const err = error as { response?: { data?: { message?: string } }; message?: string }
-    alert(err.response?.data?.message || err.message)
   } finally {
     isSavingPath.value = false
   }

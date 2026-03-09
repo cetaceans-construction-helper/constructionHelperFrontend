@@ -127,6 +127,15 @@ export const workApi = {
     return data
   },
 
+  // 오늘 + 내일(단순 date+1) 2일치 작업 목록 조회
+  async get2DaysWorkListByDateWithNoCheck(date: string): Promise<TwoDaysWorkListResponse> {
+    const { data } = await apiClient.get<TwoDaysWorkListResponse>(
+      '/work/get2DaysWorkListByDateWithNoCheck',
+      { params: { date } },
+    )
+    return data
+  },
+
   // 작업 사진 업로드
   async createWorkPhoto(
     workId: number,
