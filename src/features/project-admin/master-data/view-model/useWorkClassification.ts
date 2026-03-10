@@ -86,9 +86,10 @@ export function useWorkClassification() {
 
     isCreating.value = true
     try {
-      await referenceApi.createDivision(name)
+      const result = await referenceApi.createDivision(name)
       newDivisionName.value = ''
       await loadDivisions()
+      selectDivision(result.id)
       analyticsClient.trackAction('admin_master_data', 'create_division', 'success')
     } catch (error: unknown) {
       console.error('Division 추가 실패:', error)
@@ -107,9 +108,10 @@ export function useWorkClassification() {
 
     isCreating.value = true
     try {
-      await referenceApi.createWorkType(selectedDivisionId.value, name)
+      const result = await referenceApi.createWorkType(selectedDivisionId.value, name)
       newWorkTypeName.value = ''
       await loadWorkTypes(selectedDivisionId.value)
+      selectWorkType(result.id)
       analyticsClient.trackAction('admin_master_data', 'create_work_type', 'success')
     } catch (error: unknown) {
       console.error('WorkType 추가 실패:', error)
@@ -128,9 +130,10 @@ export function useWorkClassification() {
 
     isCreating.value = true
     try {
-      await referenceApi.createSubWorkType(selectedWorkTypeId.value, name)
+      const result = await referenceApi.createSubWorkType(selectedWorkTypeId.value, name)
       newSubWorkTypeName.value = ''
       await loadSubWorkTypes(selectedWorkTypeId.value)
+      selectSubWorkType(result.id)
       analyticsClient.trackAction('admin_master_data', 'create_sub_work_type', 'success')
     } catch (error: unknown) {
       console.error('SubWorkType 추가 실패:', error)

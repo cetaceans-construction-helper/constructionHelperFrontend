@@ -36,6 +36,25 @@ export interface Contractor {
   eligible: boolean
 }
 
+// 누적 집계 응답 타입
+export interface AttendanceCumulativeLaborType {
+  laborTypeId: number
+  laborTypeName: string
+  count: number
+}
+
+export interface AttendanceCumulativeWorkType {
+  workTypeId: number
+  workTypeName: string
+  totalCount: number
+  laborTypes: AttendanceCumulativeLaborType[]
+}
+
+export interface AttendanceCumulativeResponse {
+  grandTotalCount: number
+  workTypes: AttendanceCumulativeWorkType[]
+}
+
 export const attendanceApi = {
   // 날짜별 출역 가능 업체 목록 조회
   async getContractorList(date: string): Promise<Contractor[]> {
@@ -57,6 +76,18 @@ export const attendanceApi = {
   // 출역인원 저장
   async updateAttendance(payload: UpdateAttendancePayload): Promise<void> {
     await apiClient.post('/attendance/updateAttendance', payload)
+  },
+
+  // 기간별 출역 누적 집계
+  async getAttendanceCumulativeList(
+    startDate: string,
+    endDate: string,
+  ): Promise<AttendanceCumulativeResponse> {
+    const { data } = await apiClient.get<AttendanceCumulativeResponse>(
+      '/attendance/getAttendanceCumulativeList',
+      { params: { startDate, endDate } },
+    )
+    return data
   },
 
   // 날짜별 출역인원 일괄 삭제

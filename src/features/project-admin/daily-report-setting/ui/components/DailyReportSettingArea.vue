@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, reactive, ref, watchEffect } from 'vue'
 import { Button } from '@/shared/ui/button'
+import { Checkbox } from '@/shared/ui/checkbox'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
 import { Separator } from '@/shared/ui/separator'
@@ -15,12 +16,176 @@ const {
   dailyReportTemplateUrl,
   sectionColumnKeys,
   sectionColumnLabels,
+  divisions,
+  workTypes,
+  laborTypes,
+  materialTypes,
+  materialSpecs,
+  equipmentTypes,
+  equipmentSpecs,
   load,
   save,
   uploadTemplate,
   addOverflow,
   removeOverflow,
+  toggleAttendanceDetailLaborType,
+  toggleId,
 } = useDailyReportSetting()
+
+function getLaborTypesForWorkType(workTypeId: string) {
+  return laborTypes.value.filter((lt) => lt.workTypeId === Number(workTypeId))
+}
+
+function getWorkTypesForDivision(divisionId: number) {
+  return workTypes.value.filter((wt) => wt.divisionId === divisionId)
+}
+
+function getMaterialSpecsForType(materialTypeId: number) {
+  return materialSpecs.value.filter((ms) => ms.materialTypeId === materialTypeId)
+}
+
+function getEquipmentSpecsForType(equipmentTypeId: number) {
+  return equipmentSpecs.value.filter((es) => es.equipmentTypeId === equipmentTypeId)
+}
+
+function isAllWorkTypesExcluded(sectionKey: 'todayWork' | 'tomorrowWork', divisionId: number) {
+  const wtIds = getWorkTypesForDivision(divisionId).map((wt) => wt.id)
+  if (wtIds.length === 0) return false
+  return wtIds.every((id) => cellRef.excluded[sectionKey].workTypeIds.includes(id))
+}
+
+function toggleAllWorkTypes(sectionKey: 'todayWork' | 'tomorrowWork', divisionId: number) {
+  const wtIds = getWorkTypesForDivision(divisionId).map((wt) => wt.id)
+  if (isAllWorkTypesExcluded(sectionKey, divisionId)) {
+    cellRef.excluded[sectionKey].workTypeIds = cellRef.excluded[sectionKey].workTypeIds.filter((id) => !wtIds.includes(id))
+  } else {
+    const existing = cellRef.excluded[sectionKey].workTypeIds
+    cellRef.excluded[sectionKey].workTypeIds = [...new Set([...existing, ...wtIds])]
+  }
+}
+
+function isAllLaborTypesExcluded(wtId: number) {
+  const lts = getLaborTypesForWorkType(String(wtId))
+  return lts.length > 0 && lts.every((lt) => cellRef.excluded.attendance.laborTypeIds.includes(lt.id))
+}
+
+function toggleAllLaborTypes(wtId: number) {
+  const ltIds = getLaborTypesForWorkType(String(wtId)).map((lt) => lt.id)
+  if (isAllLaborTypesExcluded(wtId)) {
+    cellRef.excluded.attendance.laborTypeIds = cellRef.excluded.attendance.laborTypeIds.filter((id) => !ltIds.includes(id))
+  } else {
+    cellRef.excluded.attendance.laborTypeIds = [...new Set([...cellRef.excluded.attendance.laborTypeIds, ...ltIds])]
+  }
+}
+
+function isAllMaterialSpecsExcluded(mtId: number) {
+  const specs = getMaterialSpecsForType(mtId)
+  return specs.length > 0 && specs.every((s) => cellRef.excluded.material.materialSpecIds.includes(s.id))
+}
+
+function toggleAllMaterialSpecs(mtId: number) {
+  const specIds = getMaterialSpecsForType(mtId).map((s) => s.id)
+  if (isAllMaterialSpecsExcluded(mtId)) {
+    cellRef.excluded.material.materialSpecIds = cellRef.excluded.material.materialSpecIds.filter((id) => !specIds.includes(id))
+  } else {
+    cellRef.excluded.material.materialSpecIds = [...new Set([...cellRef.excluded.material.materialSpecIds, ...specIds])]
+  }
+}
+
+function isAllEquipmentSpecsExcluded(etId: number) {
+  const specs = getEquipmentSpecsForType(etId)
+  return specs.length > 0 && specs.every((s) => cellRef.excluded.equipment.equipmentSpecIds.includes(s.id))
+}
+
+function toggleAllEquipmentSpecs(etId: number) {
+  const specIds = getEquipmentSpecsForType(etId).map((s) => s.id)
+  if (isAllEquipmentSpecsExcluded(etId)) {
+    cellRef.excluded.equipment.equipmentSpecIds = cellRef.excluded.equipment.equipmentSpecIds.filter((id) => !specIds.includes(id))
+  } else {
+    cellRef.excluded.equipment.equipmentSpecIds = [...new Set([...cellRef.excluded.equipment.equipmentSpecIds, ...specIds])]
+  }
+}
+
+function hasDivisionExcludedWorkTypes(sectionKey: 'todayWork' | 'tomorrowWork', divisionId: number) {
+  return getWorkTypesForDivision(divisionId).some((wt) => cellRef.excluded[sectionKey].workTypeIds.includes(wt.id))
+}
+
+function hasDivisionExcludedLaborTypes(divisionId: number) {
+  return getWorkTypesForDivision(divisionId).some((wt) =>
+    getLaborTypesForWorkType(String(wt.id)).some((lt) => cellRef.excluded.attendance.laborTypeIds.includes(lt.id)),
+  )
+}
+
+function hasWorkTypeExcludedLaborTypes(wtId: number) {
+  return getLaborTypesForWorkType(String(wtId)).some((lt) => cellRef.excluded.attendance.laborTypeIds.includes(lt.id))
+}
+
+function hasMaterialTypeExcludedSpecs(mtId: number) {
+  return getMaterialSpecsForType(mtId).some((s) => cellRef.excluded.material.materialSpecIds.includes(s.id))
+}
+
+function hasDivisionDetailLaborTypes(divisionId: number) {
+  return getWorkTypesForDivision(divisionId).some((wt) =>
+    getLaborTypesForWorkType(String(wt.id)).some((lt) => cellRef.attendanceDetail.includes(lt.id)),
+  )
+}
+
+function hasWorkTypeDetailLaborTypes(wtId: number) {
+  return getLaborTypesForWorkType(String(wtId)).some((lt) => cellRef.attendanceDetail.includes(lt.id))
+}
+
+function isAllDetailLaborTypes(wtId: number) {
+  const lts = getLaborTypesForWorkType(String(wtId))
+  return lts.length > 0 && lts.every((lt) => cellRef.attendanceDetail.includes(lt.id))
+}
+
+function toggleAllDetailLaborTypes(wtId: number) {
+  const ltIds = getLaborTypesForWorkType(String(wtId)).map((lt) => lt.id)
+  if (isAllDetailLaborTypes(wtId)) {
+    cellRef.attendanceDetail = cellRef.attendanceDetail.filter((id) => !ltIds.includes(id))
+  } else {
+    cellRef.attendanceDetail = [...new Set([...cellRef.attendanceDetail, ...ltIds])]
+  }
+}
+
+function hasEquipmentTypeExcludedSpecs(etId: number) {
+  return getEquipmentSpecsForType(etId).some((s) => cellRef.excluded.equipment.equipmentSpecIds.includes(s.id))
+}
+
+const stickyOpenKeys = reactive(new Set<string>())
+
+watchEffect(() => {
+  for (const div of divisions.value) {
+    for (const sk of ['todayWork', 'tomorrowWork'] as const) {
+      if (hasDivisionExcludedWorkTypes(sk, div.id)) stickyOpenKeys.add(`${sk}-div-${div.id}`)
+    }
+    if (hasDivisionExcludedLaborTypes(div.id)) stickyOpenKeys.add(`att-div-${div.id}`)
+    if (hasDivisionDetailLaborTypes(div.id)) stickyOpenKeys.add(`det-div-${div.id}`)
+    for (const wt of getWorkTypesForDivision(div.id)) {
+      if (hasWorkTypeExcludedLaborTypes(wt.id)) stickyOpenKeys.add(`att-wt-${wt.id}`)
+      if (hasWorkTypeDetailLaborTypes(wt.id)) stickyOpenKeys.add(`det-wt-${wt.id}`)
+    }
+  }
+  for (const mt of materialTypes.value) {
+    if (hasMaterialTypeExcludedSpecs(mt.id)) stickyOpenKeys.add(`mat-${mt.id}`)
+  }
+  for (const et of equipmentTypes.value) {
+    if (hasEquipmentTypeExcludedSpecs(et.id)) stickyOpenKeys.add(`eq-${et.id}`)
+  }
+})
+
+function handleSummaryClick(event: Event, key: string, hasItems: boolean) {
+  const details = (event.target as HTMLElement).closest('details')
+  if (details?.open) {
+    if (hasItems) {
+      event.preventDefault()
+    } else {
+      stickyOpenKeys.delete(key)
+    }
+  } else {
+    stickyOpenKeys.add(key)
+  }
+}
 
 onMounted(() => {
   load()
@@ -197,6 +362,225 @@ const sectionKeys = ['todayWork', 'tomorrowWork', 'attendance', 'material', 'equ
             </div>
             <Button variant="outline" size="sm" @click="addOverflow(sectionKey)">+ 오버플로우 추가</Button>
           </div>
+
+          <!-- 제외 항목 -->
+          <p class="text-xs text-muted-foreground mt-3 mb-1">제외 항목</p>
+          <div class="space-y-1 pl-1">
+            <!-- 공종 제외 (todayWork, tomorrowWork) — Division → WorkType 계층 -->
+            <template v-if="sectionKey === 'todayWork' || sectionKey === 'tomorrowWork'">
+              <p class="text-xs text-muted-foreground mb-1">제외 공종</p>
+              <details
+                v-for="div in divisions"
+                :key="div.id"
+                :open="stickyOpenKeys.has(`${sectionKey}-div-${div.id}`) || undefined"
+                class="border rounded px-2 py-1 mb-1"
+              >
+                <summary
+                  class="text-xs font-medium cursor-pointer select-none"
+                  @click="handleSummaryClick($event, `${sectionKey}-div-${div.id}`, hasDivisionExcludedWorkTypes(sectionKey, div.id))"
+                >{{ div.name }}</summary>
+                <div class="flex flex-wrap gap-3 pl-3 py-1.5">
+                  <label class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <Checkbox
+                      :model-value="isAllWorkTypesExcluded(sectionKey, div.id)"
+                      @update:model-value="toggleAllWorkTypes(sectionKey, div.id)"
+                    />
+                    모든 공종
+                  </label>
+                  <label
+                    v-for="wt in getWorkTypesForDivision(div.id)"
+                    :key="wt.id"
+                    class="flex items-center gap-1.5 text-xs"
+                  >
+                    <Checkbox
+                      :model-value="cellRef.excluded[sectionKey].workTypeIds.includes(wt.id)"
+                      @update:model-value="cellRef.excluded[sectionKey].workTypeIds = toggleId(cellRef.excluded[sectionKey].workTypeIds, wt.id)"
+                    />
+                    {{ wt.name }}
+                  </label>
+                </div>
+              </details>
+            </template>
+
+            <!-- 제외 직종 (attendance) — Division → WorkType → LaborType 계층 -->
+            <template v-if="sectionKey === 'attendance'">
+              <p class="text-xs text-muted-foreground mb-1">제외 직종</p>
+              <details
+                v-for="div in divisions"
+                :key="div.id"
+                :open="stickyOpenKeys.has(`att-div-${div.id}`) || undefined"
+                class="border rounded px-2 py-1 mb-1"
+              >
+                <summary
+                  class="text-xs font-medium cursor-pointer select-none"
+                  @click="handleSummaryClick($event, `att-div-${div.id}`, hasDivisionExcludedLaborTypes(div.id))"
+                >{{ div.name }}</summary>
+                <div class="pl-3 py-1.5 space-y-1">
+                  <details
+                    v-for="wt in getWorkTypesForDivision(div.id)"
+                    :key="wt.id"
+                    :open="stickyOpenKeys.has(`att-wt-${wt.id}`) || undefined"
+                    class="border rounded px-2 py-1"
+                  >
+                    <summary
+                      class="text-xs font-medium cursor-pointer select-none"
+                      @click="handleSummaryClick($event, `att-wt-${wt.id}`, hasWorkTypeExcludedLaborTypes(wt.id))"
+                    >{{ wt.name }}</summary>
+                    <div class="flex flex-wrap gap-3 pl-3 py-1.5">
+                      <label class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                        <Checkbox
+                          :model-value="isAllLaborTypesExcluded(wt.id)"
+                          @update:model-value="toggleAllLaborTypes(wt.id)"
+                        />
+                        모든 직종
+                      </label>
+                      <label
+                        v-for="lt in getLaborTypesForWorkType(String(wt.id))"
+                        :key="lt.id"
+                        class="flex items-center gap-1.5 text-xs"
+                      >
+                        <Checkbox
+                          :model-value="cellRef.excluded.attendance.laborTypeIds.includes(lt.id)"
+                          @update:model-value="cellRef.excluded.attendance.laborTypeIds = toggleId(cellRef.excluded.attendance.laborTypeIds, lt.id)"
+                        />
+                        {{ lt.name }}
+                      </label>
+                      <span v-if="getLaborTypesForWorkType(String(wt.id)).length === 0" class="text-xs text-muted-foreground">직종 없음</span>
+                    </div>
+                  </details>
+                </div>
+              </details>
+            </template>
+
+            <!-- 자재 제외 (material) — MaterialType → MaterialSpec 계층 -->
+            <template v-if="sectionKey === 'material'">
+              <p class="text-xs text-muted-foreground mb-1">제외 자재</p>
+              <details
+                v-for="mt in materialTypes"
+                :key="mt.id"
+                :open="stickyOpenKeys.has(`mat-${mt.id}`) || undefined"
+                class="border rounded px-2 py-1 mb-1"
+              >
+                <summary
+                  class="text-xs font-medium cursor-pointer select-none"
+                  @click="handleSummaryClick($event, `mat-${mt.id}`, hasMaterialTypeExcludedSpecs(mt.id))"
+                >{{ mt.name }}</summary>
+                <div class="flex flex-wrap gap-3 pl-3 py-1.5">
+                  <label class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <Checkbox
+                      :model-value="isAllMaterialSpecsExcluded(mt.id)"
+                      @update:model-value="toggleAllMaterialSpecs(mt.id)"
+                    />
+                    모든 규격
+                  </label>
+                  <label
+                    v-for="ms in getMaterialSpecsForType(mt.id)"
+                    :key="ms.id"
+                    class="flex items-center gap-1.5 text-xs"
+                  >
+                    <Checkbox
+                      :model-value="cellRef.excluded.material.materialSpecIds.includes(ms.id)"
+                      @update:model-value="cellRef.excluded.material.materialSpecIds = toggleId(cellRef.excluded.material.materialSpecIds, ms.id)"
+                    />
+                    {{ ms.name }}
+                  </label>
+                  <span v-if="getMaterialSpecsForType(mt.id).length === 0" class="text-xs text-muted-foreground">규격 없음</span>
+                </div>
+              </details>
+            </template>
+
+            <!-- 장비 제외 (equipment) — EquipmentType → EquipmentSpec 계층 -->
+            <template v-if="sectionKey === 'equipment'">
+              <p class="text-xs text-muted-foreground mb-1">제외 장비</p>
+              <details
+                v-for="et in equipmentTypes"
+                :key="et.id"
+                :open="stickyOpenKeys.has(`eq-${et.id}`) || undefined"
+                class="border rounded px-2 py-1 mb-1"
+              >
+                <summary
+                  class="text-xs font-medium cursor-pointer select-none"
+                  @click="handleSummaryClick($event, `eq-${et.id}`, hasEquipmentTypeExcludedSpecs(et.id))"
+                >{{ et.name }}</summary>
+                <div class="flex flex-wrap gap-3 pl-3 py-1.5">
+                  <label class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <Checkbox
+                      :model-value="isAllEquipmentSpecsExcluded(et.id)"
+                      @update:model-value="toggleAllEquipmentSpecs(et.id)"
+                    />
+                    모든 규격
+                  </label>
+                  <label
+                    v-for="es in getEquipmentSpecsForType(et.id)"
+                    :key="es.id"
+                    class="flex items-center gap-1.5 text-xs"
+                  >
+                    <Checkbox
+                      :model-value="cellRef.excluded.equipment.equipmentSpecIds.includes(es.id)"
+                      @update:model-value="cellRef.excluded.equipment.equipmentSpecIds = toggleId(cellRef.excluded.equipment.equipmentSpecIds, es.id)"
+                    />
+                    {{ es.name }}
+                  </label>
+                  <span v-if="getEquipmentSpecsForType(et.id).length === 0" class="text-xs text-muted-foreground">규격 없음</span>
+                </div>
+              </details>
+            </template>
+          </div>
+
+          <!-- 출역 상세 (attendance only) -->
+          <template v-if="sectionKey === 'attendance'">
+            <p class="text-xs text-muted-foreground mt-3 mb-1">출역 상세 (개별행 표시할 직종)</p>
+            <p class="text-xs text-muted-foreground mb-2">선택된 직종은 개별 행으로, 나머지는 공종별 합산 행으로 표시됩니다.</p>
+            <div class="space-y-1 pl-1">
+              <details
+                v-for="div in divisions"
+                :key="div.id"
+                :open="stickyOpenKeys.has(`det-div-${div.id}`) || undefined"
+                class="border rounded px-2 py-1 mb-1"
+              >
+                <summary
+                  class="text-xs font-medium cursor-pointer select-none"
+                  @click="handleSummaryClick($event, `det-div-${div.id}`, hasDivisionDetailLaborTypes(div.id))"
+                >{{ div.name }}</summary>
+                <div class="pl-3 py-1.5 space-y-1">
+                  <details
+                    v-for="wt in getWorkTypesForDivision(div.id)"
+                    :key="wt.id"
+                    :open="stickyOpenKeys.has(`det-wt-${wt.id}`) || undefined"
+                    class="border rounded px-2 py-1"
+                  >
+                    <summary
+                      class="text-xs font-medium cursor-pointer select-none"
+                      @click="handleSummaryClick($event, `det-wt-${wt.id}`, hasWorkTypeDetailLaborTypes(wt.id))"
+                    >{{ wt.name }}</summary>
+                    <div class="flex flex-wrap gap-3 pl-3 py-1.5">
+                      <label class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                        <Checkbox
+                          :model-value="isAllDetailLaborTypes(wt.id)"
+                          @update:model-value="toggleAllDetailLaborTypes(wt.id)"
+                        />
+                        모든 직종
+                      </label>
+                      <label
+                        v-for="lt in getLaborTypesForWorkType(String(wt.id))"
+                        :key="lt.id"
+                        class="flex items-center gap-1.5 text-xs"
+                      >
+                        <Checkbox
+                          :model-value="cellRef.attendanceDetail.includes(lt.id)"
+                          @update:model-value="toggleAttendanceDetailLaborType(lt.id)"
+                        />
+                        {{ lt.name }}
+                      </label>
+                      <span v-if="getLaborTypesForWorkType(String(wt.id)).length === 0" class="text-xs text-muted-foreground">
+                        직종 없음
+                      </span>
+                    </div>
+                  </details>
+                </div>
+              </details>
+            </div>
+          </template>
         </div>
 
         <Separator class="my-4" />

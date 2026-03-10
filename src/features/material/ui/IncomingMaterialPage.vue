@@ -91,6 +91,25 @@ const directSelectedFloorIds = ref<number[]>([])
 const directSelectedSectionIds = ref<number[]>([])
 const directSelectedUsageIds = ref<number[]>([])
 
+// 송장없이 반입자재입력 다이얼로그 상태
+const quickDeliveryDialogOpen = ref(false)
+const quickSelectedMaterialTypeId = ref<string>('')
+const quickSelectedDivisionId = ref<string>('')
+const quickSelectedWorkTypeId = ref<string>('')
+const quickWorkTypes = ref<WorkTypeResponse[]>([])
+const quickMaterialTypes = ref<MaterialTypeResponse[]>([])
+const quickDivisions = ref<IdNameResponse[]>([])
+const quickZones = ref<IdNameResponse[]>([])
+const quickFloors = ref<IdNameResponse[]>([])
+const quickSections = ref<IdNameResponse[]>([])
+const quickUsages = ref<IdNameResponse[]>([])
+const quickSelectedZoneIds = ref<number[]>([])
+const quickSelectedFloorIds = ref<number[]>([])
+const quickSelectedSectionIds = ref<number[]>([])
+const quickSelectedUsageIds = ref<number[]>([])
+const isLoadingQuickWorkTypes = ref(false)
+const isSavingQuick = ref(false)
+
 // 삭제 다이얼로그 상태
 const showDeleteDialog = ref(false)
 const deleteTargetId = ref<number | null>(null)
@@ -265,6 +284,97 @@ async function saveDirectDelivery() {
     alert(err.response?.data?.message || err.message)
   } finally {
     isSavingDirect.value = false
+  }
+}
+
+async function openQuickDeliveryDialog() {
+  quickSelectedMaterialTypeId.value = ''
+  quickSelectedDivisionId.value = ''
+  quickSelectedWorkTypeId.value = ''
+  quickWorkTypes.value = []
+  quickSelectedZoneIds.value = []
+  quickSelectedFloorIds.value = []
+  quickSelectedSectionIds.value = []
+  quickSelectedUsageIds.value = []
+
+  try {
+    const [mtList, divList, zoneList, floorList, sectionList, usageList] = await Promise.all([
+      referenceApi.getMaterialTypeList(),
+      referenceApi.getDivisionList(),
+      referenceApi.getZoneList(),
+      referenceApi.getFloorList(),
+      referenceApi.getSectionList(),
+      referenceApi.getUsageList(),
+    ])
+    quickMaterialTypes.value = mtList
+    quickDivisions.value = divList
+    quickZones.value = zoneList
+    quickFloors.value = floorList
+    quickSections.value = sectionList
+    quickUsages.value = usageList
+  } catch (error: unknown) {
+    console.error('기초 데이터 로드 실패:', error)
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    alert(err.response?.data?.message || err.message)
+    return
+  }
+
+  quickDeliveryDialogOpen.value = true
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function handleQuickDivisionChange(divisionId: any) {
+  quickSelectedDivisionId.value = String(divisionId ?? '')
+  quickSelectedWorkTypeId.value = ''
+  quickWorkTypes.value = []
+  if (!quickSelectedDivisionId.value) return
+
+  isLoadingQuickWorkTypes.value = true
+  try {
+    quickWorkTypes.value = await referenceApi.getWorkTypeList(Number(quickSelectedDivisionId.value))
+  } catch (error: unknown) {
+    console.error('공종 목록 로드 실패:', error)
+  } finally {
+    isLoadingQuickWorkTypes.value = false
+  }
+}
+
+async function saveQuickDelivery() {
+  const validationError = validateDirectMaterialDeliveryInput({
+    materialTypeId: quickSelectedMaterialTypeId.value,
+  })
+  if (validationError) {
+    alert(validationError)
+    return
+  }
+  isSavingQuick.value = true
+  try {
+    const result = await materialOrderApi.createMaterialDelivery({
+      materialTypeId: Number(quickSelectedMaterialTypeId.value),
+      workTypeId: quickSelectedWorkTypeId.value ? Number(quickSelectedWorkTypeId.value) : undefined,
+      deliveryNotes: [],
+      deliveryPhotos: [],
+      zoneIds: quickSelectedZoneIds.value,
+      floorIds: quickSelectedFloorIds.value,
+      sectionIds: quickSelectedSectionIds.value,
+      usageIds: quickSelectedUsageIds.value,
+    })
+    quickDeliveryDialogOpen.value = false
+    materialSpecs.value = []
+    loadOrders()
+    analyticsClient.trackAction('material_delivery', 'create_quick_delivery', 'success')
+    await loadDeliveries()
+    const newDelivery = deliveries.value.find(d => d.materialDeliveryId === result.materialDeliveryId)
+    if (newDelivery) {
+      await toggleDelivery(newDelivery)
+    }
+  } catch (error: unknown) {
+    console.error('반입자재입력 실패:', error)
+    analyticsClient.trackAction('material_delivery', 'create_quick_delivery', 'fail')
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    alert(err.response?.data?.message || err.message)
+  } finally {
+    isSavingQuick.value = false
   }
 }
 
@@ -610,7 +720,10 @@ onUnmounted(() => {
   <PageContainer title="반입자재">
     <AreaCard height="flex-1" min-height="1100px">
       <!-- 상단 버튼 -->
-      <div class="flex justify-end mb-4">
+      <div class="flex justify-end gap-2 mb-4">
+        <Button variant="outline" size="sm" @click="openQuickDeliveryDialog">
+          송장없이 반입자재입력
+        </Button>
         <Button variant="outline" size="sm" @click="openDirectDeliveryDialog">
           발주서 없이 송장입력
         </Button>
@@ -1066,6 +1179,144 @@ onUnmounted(() => {
           <p v-if="isSavingDirect" class="text-sm text-muted-foreground">
             시간이 좀 걸립니다. 기다려주세요.
           </p>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <!-- 송장없이 반입자재입력 다이얼로그 -->
+    <Dialog v-model:open="quickDeliveryDialogOpen">
+      <DialogContent class="sm:max-w-[520px]">
+        <DialogHeader>
+          <DialogTitle>송장없이 반입자재입력</DialogTitle>
+        </DialogHeader>
+
+        <div class="space-y-5 py-2">
+          <!-- 자재유형 -->
+          <div class="space-y-2">
+            <Label>자재유형</Label>
+            <Select v-model="quickSelectedMaterialTypeId">
+              <SelectTrigger>
+                <SelectValue placeholder="자재유형 선택" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  v-for="mt in quickMaterialTypes"
+                  :key="mt.id"
+                  :value="String(mt.id)"
+                >
+                  {{ mt.name }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <!-- 분류 (선택사항) -->
+          <div class="space-y-2">
+            <Label>분류 (선택사항)</Label>
+            <Select
+              :model-value="quickSelectedDivisionId"
+              @update:model-value="handleQuickDivisionChange"
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="분류 선택" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  v-for="div in quickDivisions"
+                  :key="div.id"
+                  :value="String(div.id)"
+                >
+                  {{ div.name }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <!-- 공종 (선택사항) -->
+          <div class="space-y-2">
+            <Label>공종 (선택사항)</Label>
+            <Select
+              v-model="quickSelectedWorkTypeId"
+              :disabled="!quickSelectedDivisionId || isLoadingQuickWorkTypes"
+            >
+              <SelectTrigger>
+                <SelectValue :placeholder="isLoadingQuickWorkTypes ? '로딩중...' : '공종 선택'" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  v-for="wt in quickWorkTypes"
+                  :key="wt.id"
+                  :value="String(wt.id)"
+                >
+                  {{ wt.name }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <!-- 위치정보 -->
+          <div v-if="quickZones.length > 0" class="space-y-2">
+            <Label>존</Label>
+            <div class="flex flex-wrap gap-3">
+              <div v-for="zone in quickZones" :key="zone.id" class="flex items-center gap-1.5">
+                <Checkbox
+                  :id="`quick-zone-${zone.id}`"
+                  :model-value="quickSelectedZoneIds.includes(zone.id)"
+                  @update:model-value="quickSelectedZoneIds = toggleId(quickSelectedZoneIds, zone.id)"
+                />
+                <label :for="`quick-zone-${zone.id}`" class="text-sm cursor-pointer">{{ zone.name }}</label>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="quickFloors.length > 0" class="space-y-2">
+            <Label>층</Label>
+            <div class="flex flex-wrap gap-3">
+              <div v-for="floor in quickFloors" :key="floor.id" class="flex items-center gap-1.5">
+                <Checkbox
+                  :id="`quick-floor-${floor.id}`"
+                  :model-value="quickSelectedFloorIds.includes(floor.id)"
+                  @update:model-value="quickSelectedFloorIds = toggleId(quickSelectedFloorIds, floor.id)"
+                />
+                <label :for="`quick-floor-${floor.id}`" class="text-sm cursor-pointer">{{ floor.name }}</label>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="quickSections.length > 0" class="space-y-2">
+            <Label>구역</Label>
+            <div class="flex flex-wrap gap-3">
+              <div v-for="section in quickSections" :key="section.id" class="flex items-center gap-1.5">
+                <Checkbox
+                  :id="`quick-section-${section.id}`"
+                  :model-value="quickSelectedSectionIds.includes(section.id)"
+                  @update:model-value="quickSelectedSectionIds = toggleId(quickSelectedSectionIds, section.id)"
+                />
+                <label :for="`quick-section-${section.id}`" class="text-sm cursor-pointer">{{ section.name }}</label>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="quickUsages.length > 0" class="space-y-2">
+            <Label>용도</Label>
+            <div class="flex flex-wrap gap-3">
+              <div v-for="usage in quickUsages" :key="usage.id" class="flex items-center gap-1.5">
+                <Checkbox
+                  :id="`quick-usage-${usage.id}`"
+                  :model-value="quickSelectedUsageIds.includes(usage.id)"
+                  @update:model-value="quickSelectedUsageIds = toggleId(quickSelectedUsageIds, usage.id)"
+                />
+                <label :for="`quick-usage-${usage.id}`" class="text-sm cursor-pointer">{{ usage.name }}</label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" @click="quickDeliveryDialogOpen = false">취소</Button>
+          <Button :disabled="isSavingQuick" @click="saveQuickDelivery">
+            {{ isSavingQuick ? '추가 중...' : '추가' }}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -88,9 +88,10 @@ export function useComponentCode() {
 
     isCreatingType.value = true
     try {
-      await referenceApi.createComponentType(name)
+      const result = await referenceApi.createComponentType(name)
       newComponentTypeName.value = ''
       await loadComponentTypes()
+      selectedComponentTypeId.value = result.id
       analyticsClient.trackAction('admin_master_data', 'create_component_type', 'success')
     } catch (error: unknown) {
       console.error('ComponentType 추가 실패:', error)

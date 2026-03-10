@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { X } from 'lucide-vue-next'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import {
@@ -13,31 +12,29 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/shared/ui/alert-dialog'
+import SortableReferenceList from '@/shared/helper-ui/SortableReferenceList.vue'
 import { useLaborType } from '@/features/project-admin/resource/view-model/useLaborType'
 
 const {
   divisions,
   workTypes,
-  subWorkTypes,
   laborTypes,
   selectedDivisionId,
   selectedWorkTypeId,
-  selectedSubWorkTypeId,
   newLaborTypeName,
   isCreating,
   isDeleting,
   loadDivisions,
-  loadLaborTypes,
   selectDivision,
   selectWorkType,
-  selectSubWorkType,
   addLaborType,
   deleteLaborType,
+  updateLaborTypeName,
+  reorderLaborTypes,
 } = useLaborType()
 
 onMounted(() => {
   loadDivisions()
-  loadLaborTypes()
 })
 
 // 삭제 다이얼로그 상태
@@ -62,102 +59,35 @@ async function confirmDelete() {
 <template>
   <div>
     <h3 class="text-sm font-semibold mb-3">직종 관리 (LaborType)</h3>
-
-    <!-- 직종 추가 폼 -->
-    <div class="grid grid-cols-4 gap-4 mb-4">
+    <div class="grid grid-cols-3 gap-4">
       <!-- Division 컬럼 -->
       <div class="space-y-2">
         <p class="text-xs text-muted-foreground font-medium">분류 (Division)</p>
-        <div class="space-y-1 max-h-36 overflow-y-auto">
-          <div
-            v-for="div in divisions"
-            :key="div.id"
-            class="px-3 py-2 border rounded-md cursor-pointer text-sm transition-colors"
-            :class="{
-              'border-primary bg-primary/10 font-medium': selectedDivisionId === div.id,
-              'border-border hover:bg-muted/50': selectedDivisionId !== div.id,
-            }"
-            @click="selectDivision(div.id)"
-          >
-            {{ div.name }}
-          </div>
-          <p v-if="divisions.length === 0" class="text-xs text-muted-foreground py-2 text-center">
-            항목 없음
-          </p>
-        </div>
+        <SortableReferenceList
+          :items="divisions"
+          :selected-id="selectedDivisionId"
+          :selectable="true"
+          :disabled="isDeleting"
+          @select="selectDivision"
+        />
       </div>
 
       <!-- WorkType 컬럼 -->
       <div class="space-y-2">
-        <p class="text-xs text-muted-foreground font-medium">공종 (WorkType) *필수</p>
-        <div class="space-y-1 max-h-36 overflow-y-auto">
-          <div
-            v-for="wt in workTypes"
-            :key="wt.id"
-            class="px-3 py-2 border rounded-md cursor-pointer text-sm transition-colors"
-            :class="{
-              'border-primary bg-primary/10 font-medium': selectedWorkTypeId === wt.id,
-              'border-border hover:bg-muted/50': selectedWorkTypeId !== wt.id,
-            }"
-            @click="selectWorkType(wt.id)"
-          >
-            {{ wt.name }}
-          </div>
-          <p
-            v-if="selectedDivisionId && workTypes.length === 0"
-            class="text-xs text-muted-foreground py-2 text-center"
-          >
-            항목 없음
-          </p>
-          <p
-            v-if="!selectedDivisionId"
-            class="text-xs text-muted-foreground py-2 text-center"
-          >
-            분류를 선택하세요
-          </p>
-        </div>
+        <p class="text-xs text-muted-foreground font-medium">공종 (WorkType)</p>
+        <SortableReferenceList
+          :items="workTypes"
+          :selected-id="selectedWorkTypeId"
+          :selectable="true"
+          :disabled="isDeleting"
+          :empty-message="selectedDivisionId ? '항목 없음' : '분류를 선택하세요'"
+          @select="selectWorkType"
+        />
       </div>
 
-      <!-- SubWorkType 컬럼 (선택사항) -->
+      <!-- LaborType 컬럼 -->
       <div class="space-y-2">
-        <p class="text-xs text-muted-foreground font-medium">세부공종 (선택사항)</p>
-        <div class="space-y-1 max-h-36 overflow-y-auto">
-          <!-- 선택 안함 옵션 -->
-          <div
-            v-if="selectedWorkTypeId"
-            class="px-3 py-2 border rounded-md cursor-pointer text-sm transition-colors"
-            :class="{
-              'border-primary bg-primary/10 font-medium': selectedSubWorkTypeId === null,
-              'border-border hover:bg-muted/50': selectedSubWorkTypeId !== null,
-            }"
-            @click="selectSubWorkType(null)"
-          >
-            (선택 안함)
-          </div>
-          <div
-            v-for="swt in subWorkTypes"
-            :key="swt.id"
-            class="px-3 py-2 border rounded-md cursor-pointer text-sm transition-colors"
-            :class="{
-              'border-primary bg-primary/10 font-medium': selectedSubWorkTypeId === swt.id,
-              'border-border hover:bg-muted/50': selectedSubWorkTypeId !== swt.id,
-            }"
-            @click="selectSubWorkType(swt.id)"
-          >
-            {{ swt.name }}
-          </div>
-          <p
-            v-if="!selectedWorkTypeId"
-            class="text-xs text-muted-foreground py-2 text-center"
-          >
-            공종을 선택하세요
-          </p>
-        </div>
-      </div>
-
-      <!-- 직종 입력 컬럼 -->
-      <div class="space-y-2">
-        <p class="text-xs text-muted-foreground font-medium">직종명 입력</p>
+        <p class="text-xs text-muted-foreground font-medium">직종 (LaborType)</p>
         <div class="flex gap-1">
           <Input
             v-model="newLaborTypeName"
@@ -175,51 +105,15 @@ async function confirmDelete() {
             추가
           </Button>
         </div>
-        <p v-if="!selectedWorkTypeId" class="text-xs text-muted-foreground">
-          공종을 선택하세요
-        </p>
-      </div>
-    </div>
-
-    <!-- 전체 직종 목록 -->
-    <div class="mt-4">
-      <p class="text-xs text-muted-foreground font-medium mb-2">등록된 직종 목록</p>
-      <div class="border rounded-md max-h-48 overflow-y-auto">
-        <table class="w-full text-sm">
-          <thead class="bg-muted/50 sticky top-0">
-            <tr>
-              <th class="text-left px-3 py-2 font-medium">직종명</th>
-              <th class="text-left px-3 py-2 font-medium">공종</th>
-              <th class="text-left px-3 py-2 font-medium">세부공종</th>
-              <th class="w-10 px-2"></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="lt in laborTypes"
-              :key="lt.id"
-              class="border-t border-border"
-            >
-              <td class="px-3 py-2">{{ lt.name }}</td>
-              <td class="px-3 py-2 text-muted-foreground">{{ lt.workTypeName }}</td>
-              <td class="px-3 py-2 text-muted-foreground">{{ lt.subWorkTypeName || '-' }}</td>
-              <td class="px-2 text-center">
-                <button
-                  class="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
-                  :disabled="isDeleting"
-                  @click="openDeleteDialog(lt.id, lt.name)"
-                >
-                  <X class="w-3 h-3" />
-                </button>
-              </td>
-            </tr>
-            <tr v-if="laborTypes.length === 0">
-              <td colspan="4" class="px-3 py-4 text-center text-muted-foreground">
-                등록된 직종이 없습니다
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <SortableReferenceList
+          :items="laborTypes"
+          :selectable="false"
+          :disabled="isDeleting"
+          :empty-message="selectedWorkTypeId ? '항목 없음' : '공종을 선택하세요'"
+          @delete="(id, name) => openDeleteDialog(id, name)"
+          @update-name="({ id, name }) => updateLaborTypeName(id, name)"
+          @reorder="reorderLaborTypes"
+        />
       </div>
     </div>
 

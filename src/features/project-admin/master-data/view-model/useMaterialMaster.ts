@@ -50,10 +50,11 @@ export function useMaterialMaster() {
     isCreating.value = true
     try {
       const unit = newMaterialTypeUnit.value.trim() || undefined
-      await referenceApi.createMaterialType(name, unit)
+      const result = await referenceApi.createMaterialType(name, unit)
       newMaterialTypeName.value = ''
       newMaterialTypeUnit.value = ''
       await loadMaterialTypes()
+      selectMaterialType(result.id)
       analyticsClient.trackAction('admin_master_data', 'create_material_type', 'success')
     } catch (error: unknown) {
       console.error('MaterialType 추가 실패:', error)

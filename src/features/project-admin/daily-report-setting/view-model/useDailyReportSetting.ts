@@ -1,6 +1,16 @@
 import { reactive, ref } from 'vue'
 import { projectDocumentCodeApi } from '@/features/document/public'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
+import {
+  referenceApi,
+  type IdNameResponse,
+  type WorkTypeResponse,
+  type LaborTypeResponse,
+  type MaterialTypeResponse,
+  type MaterialSpecResponse,
+  type EquipmentTypeResponse,
+  type EquipmentSpecResponse,
+} from '@/shared/network-core/apis/reference'
 
 interface OverflowEdit {
   startCell: string
@@ -12,6 +22,14 @@ interface SectionEdit {
   maxRows: string
   overflow: OverflowEdit[]
   columns: Record<string, string>
+}
+
+interface ExcludedIds {
+  todayWork: { workTypeIds: number[] }
+  tomorrowWork: { workTypeIds: number[] }
+  attendance: { laborTypeIds: number[] }
+  material: { materialSpecIds: number[] }
+  equipment: { equipmentSpecIds: number[] }
 }
 
 interface CellRefEditState {
@@ -29,6 +47,8 @@ interface CellRefEditState {
   attendance: SectionEdit
   material: SectionEdit
   equipment: SectionEdit
+  attendanceDetail: number[]
+  excluded: ExcludedIds
   photos: {
     work: {
       cells: string
@@ -41,7 +61,7 @@ interface CellRefEditState {
 const SECTION_COLUMN_KEYS: Record<string, string[]> = {
   todayWork: ['workTypeName', 'workName'],
   tomorrowWork: ['workTypeName', 'workName'],
-  attendance: ['workTypeDisplayName', 'companyDisplayName', 'cumulativeCount', 'todayCount', 'totalCumulativeCount'],
+  attendance: ['workTypeDisplayName', 'laborTypeName', 'companyDisplayName', 'cumulativeCount', 'todayCount', 'totalCumulativeCount'],
   material: ['materialTypeName', 'materialSpecName', 'unit', 'cumulativeQuantity', 'todayQuantity', 'totalCumulativeQuantity'],
   equipment: ['equipmentTypeName', 'equipmentSpecName', 'cumulativeCount', 'todayCount', 'totalCumulativeCount'],
 }
@@ -49,7 +69,7 @@ const SECTION_COLUMN_KEYS: Record<string, string[]> = {
 const SECTION_COLUMN_LABELS: Record<string, Record<string, string>> = {
   todayWork: { workTypeName: '공종명', workName: '작업명' },
   tomorrowWork: { workTypeName: '공종명', workName: '작업명' },
-  attendance: { workTypeDisplayName: '공종명', companyDisplayName: '업체명', cumulativeCount: '전일까지총인원', todayCount: '금일인원', totalCumulativeCount: '누적인원' },
+  attendance: { workTypeDisplayName: '공종명', laborTypeName: '직종명', companyDisplayName: '업체명', cumulativeCount: '전일까지총인원', todayCount: '금일인원', totalCumulativeCount: '누적인원' },
   material: { materialTypeName: '자재종류', materialSpecName: '규격명', unit: '단위', cumulativeQuantity: '전일까지총수량', todayQuantity: '금일수량', totalCumulativeQuantity: '누적수량' },
   equipment: { equipmentTypeName: '장비종류', equipmentSpecName: '규격명', cumulativeCount: '전일까지총대수', todayCount: '금일대수', totalCumulativeCount: '누적대수' },
 }
@@ -81,6 +101,14 @@ function createDefaultCellRef(): CellRefEditState {
     attendance: createDefaultSection('attendance'),
     material: createDefaultSection('material'),
     equipment: createDefaultSection('equipment'),
+    attendanceDetail: [],
+    excluded: {
+      todayWork: { workTypeIds: [] },
+      tomorrowWork: { workTypeIds: [] },
+      attendance: { laborTypeIds: [] },
+      material: { materialSpecIds: [] },
+      equipment: { equipmentSpecIds: [] },
+    },
     photos: {
       work: { cells: '', descriptionOffsetRow: '', descriptionOffsetCol: '' },
     },
@@ -98,9 +126,44 @@ export function useDailyReportSetting() {
   const cellRef = reactive<CellRefEditState>(createDefaultCellRef())
   const dailyReportTemplateUrl = ref<string | null>(null)
 
+  const divisions = ref<IdNameResponse[]>([])
+  const workTypes = ref<WorkTypeResponse[]>([])
+  const laborTypes = ref<LaborTypeResponse[]>([])
+  const materialTypes = ref<MaterialTypeResponse[]>([])
+  const materialSpecs = ref<MaterialSpecResponse[]>([])
+  const equipmentTypes = ref<EquipmentTypeResponse[]>([])
+  const equipmentSpecs = ref<EquipmentSpecResponse[]>([])
+
+  async function loadReferenceData() {
+    try {
+      const [divList, laborList, matTypes, eqTypes] = await Promise.all([
+        referenceApi.getDivisionList(),
+        referenceApi.getLaborTypeList(),
+        referenceApi.getMaterialTypeList(),
+        referenceApi.getEquipmentTypeList(),
+      ])
+      divisions.value = divList
+      laborTypes.value = laborList
+      materialTypes.value = matTypes
+      equipmentTypes.value = eqTypes
+
+      const [wtLists, msLists, esList] = await Promise.all([
+        Promise.all(divList.map((d) => referenceApi.getWorkTypeList(d.id))),
+        Promise.all(matTypes.map((mt) => referenceApi.getMaterialSpecList(mt.id))),
+        referenceApi.getEquipmentSpecList(),
+      ])
+      workTypes.value = wtLists.flat()
+      materialSpecs.value = msLists.flat()
+      equipmentSpecs.value = esList
+    } catch (error) {
+      console.error('참조 데이터 로드 실패:', error)
+    }
+  }
+
   async function load() {
     isLoading.value = true
     try {
+      await loadReferenceData()
       const res = await projectDocumentCodeApi.getProjectDocumentCode()
       exists.value = true
       dailyReportTemplateUrl.value = res.dailyReportTemplateUrl
@@ -142,6 +205,33 @@ export function useDailyReportSetting() {
                 startCell: o.startCell ?? '',
                 maxRows: o.maxRows != null ? String(o.maxRows) : '',
               }))
+            }
+
+            // attendanceDetail (attendance 섹션만)
+            if (key === 'attendance' && Array.isArray(s.attendanceDetail)) {
+              cellRef.attendanceDetail = [...(s.attendanceDetail as number[])]
+            }
+
+            // excluded IDs
+            if (key === 'todayWork' || key === 'tomorrowWork') {
+              if (Array.isArray(s.excludedWorkTypeIds)) {
+                cellRef.excluded[key].workTypeIds = [...(s.excludedWorkTypeIds as number[])]
+              }
+            }
+            if (key === 'attendance') {
+              if (Array.isArray(s.excludedLaborTypeIds)) {
+                cellRef.excluded.attendance.laborTypeIds = [...(s.excludedLaborTypeIds as number[])]
+              }
+            }
+            if (key === 'material') {
+              if (Array.isArray(s.excludedMaterialSpecIds)) {
+                cellRef.excluded.material.materialSpecIds = [...(s.excludedMaterialSpecIds as number[])]
+              }
+            }
+            if (key === 'equipment') {
+              if (Array.isArray(s.excludedEquipmentSpecIds)) {
+                cellRef.excluded.equipment.equipmentSpecIds = [...(s.excludedEquipmentSpecIds as number[])]
+              }
             }
           }
         }
@@ -209,6 +299,29 @@ export function useDailyReportSetting() {
             maxRows: Number(o.maxRows) || 0,
           }))
         }
+        // excluded IDs
+        if (key === 'todayWork' || key === 'tomorrowWork') {
+          const exc = cellRef.excluded[key]
+          if (exc.workTypeIds.length > 0) sectionObj.excludedWorkTypeIds = [...exc.workTypeIds]
+        }
+        if (key === 'attendance') {
+          const exc = cellRef.excluded.attendance
+          if (exc.laborTypeIds.length > 0) sectionObj.excludedLaborTypeIds = [...exc.laborTypeIds]
+
+          // attendanceDetail
+          if (cellRef.attendanceDetail.length > 0) {
+            sectionObj.attendanceDetail = [...cellRef.attendanceDetail]
+          }
+        }
+        if (key === 'material') {
+          const exc = cellRef.excluded.material
+          if (exc.materialSpecIds.length > 0) sectionObj.excludedMaterialSpecIds = [...exc.materialSpecIds]
+        }
+        if (key === 'equipment') {
+          const exc = cellRef.excluded.equipment
+          if (exc.equipmentSpecIds.length > 0) sectionObj.excludedEquipmentSpecIds = [...exc.equipmentSpecIds]
+        }
+
         cellResult[key] = sectionObj
       }
     }
@@ -275,6 +388,16 @@ export function useDailyReportSetting() {
     cellRef[sectionKey].overflow.splice(index, 1)
   }
 
+  function toggleAttendanceDetailLaborType(ltId: number) {
+    cellRef.attendanceDetail = cellRef.attendanceDetail.includes(ltId)
+      ? cellRef.attendanceDetail.filter((v) => v !== ltId)
+      : [...cellRef.attendanceDetail, ltId]
+  }
+
+  function toggleId(list: number[], id: number): number[] {
+    return list.includes(id) ? list.filter((v) => v !== id) : [...list, id]
+  }
+
   return {
     exists,
     isLoading,
@@ -283,10 +406,19 @@ export function useDailyReportSetting() {
     dailyReportTemplateUrl,
     sectionColumnKeys: SECTION_COLUMN_KEYS,
     sectionColumnLabels: SECTION_COLUMN_LABELS,
+    divisions,
+    workTypes,
+    laborTypes,
+    materialTypes,
+    materialSpecs,
+    equipmentTypes,
+    equipmentSpecs,
     load,
     save,
     uploadTemplate,
     addOverflow,
     removeOverflow,
+    toggleAttendanceDetailLaborType,
+    toggleId,
   }
 }

@@ -59,7 +59,7 @@ function handleInputChange(laborTypeId: number, val: string | number) {
           </SelectTrigger>
           <SelectContent>
             <SelectItem
-              v-for="company in contractors.filter(c => c.eligible)"
+              v-for="company in contractors /* TODO: eligible 필터링 임시 비활성 (.filter(c => c.eligible)) */"
               :key="company.companyId"
               :value="company.companyId"
             >
