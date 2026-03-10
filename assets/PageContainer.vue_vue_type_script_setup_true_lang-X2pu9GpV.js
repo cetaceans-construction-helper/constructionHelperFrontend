@@ -1,0 +1,1 @@
+import{d as o,c as t,o as s,r as a}from"./index-BHIDt-OO.js";const n={class:"flex-1 flex flex-col gap-4"},p=o({__name:"PageContainer",props:{title:{}},setup(r){return(e,l)=>(s(),t("div",n,[a(e.$slots,"default")]))}});export{p as _};
