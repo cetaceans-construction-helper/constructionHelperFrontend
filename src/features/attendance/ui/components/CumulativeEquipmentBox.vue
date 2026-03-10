@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import type { AttendanceCumulativeWorkType } from '@/features/attendance/infra/attendance-api'
+import type { EquipmentCumulativeType } from '@/features/attendance/infra/attendance-api'
 
 defineProps<{
-  cumulativeList: AttendanceCumulativeWorkType[]
+  cumulativeList: EquipmentCumulativeType[]
   isLoading: boolean
   grandTotal: number
 }>()
@@ -25,31 +25,31 @@ defineProps<{
 
     <!-- 누적 집계 -->
     <div v-else class="space-y-3">
-      <h4 class="text-sm font-medium">인원 누적 집계</h4>
+      <h4 class="text-sm font-medium">장비 누적 집계</h4>
       <!-- 총합 -->
       <div class="flex items-center justify-between px-3 py-2 bg-primary/10 rounded-md">
-        <span class="text-sm font-semibold">총 출역인원</span>
-        <span class="text-lg font-bold text-primary">{{ grandTotal }}명</span>
+        <span class="text-sm font-semibold">총 투입장비</span>
+        <span class="text-lg font-bold text-primary">{{ grandTotal }}대</span>
       </div>
 
-      <!-- 공종별 -->
+      <!-- 장비종류별 -->
       <div
         v-for="item in cumulativeList"
-        :key="item.workTypeId"
+        :key="item.equipmentTypeId"
         class="border border-border rounded-md overflow-hidden"
       >
         <div class="flex items-center justify-between px-3 py-2 bg-muted/50">
-          <span class="text-sm font-medium">{{ item.workTypeName }}</span>
-          <span class="text-sm font-semibold">{{ item.totalCount }}명</span>
+          <span class="text-sm font-medium">{{ item.equipmentTypeName }}</span>
+          <span class="text-sm font-semibold">{{ item.totalCount }}대</span>
         </div>
         <div class="divide-y divide-border">
           <div
-            v-for="labor in item.laborTypes"
-            :key="labor.laborTypeId"
+            v-for="spec in item.equipmentSpecs"
+            :key="spec.equipmentSpecId"
             class="flex items-center justify-between px-3 py-1.5 text-sm"
           >
-            <span class="text-muted-foreground">{{ labor.laborTypeName }}</span>
-            <span>{{ labor.count }}명</span>
+            <span class="text-muted-foreground">{{ spec.equipmentSpecName }}</span>
+            <span>{{ spec.count }}대</span>
           </div>
         </div>
       </div>

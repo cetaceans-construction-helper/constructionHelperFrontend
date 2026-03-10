@@ -10,6 +10,7 @@ import LaborCountBox from '@/features/attendance/ui/components/LaborCountBox.vue
 import EquipmentCountBox from '@/features/attendance/ui/components/EquipmentCountBox.vue'
 import TodayAttendanceBox from '@/features/attendance/ui/components/TodayAttendanceBox.vue'
 import CumulativeAttendanceBox from '@/features/attendance/ui/components/CumulativeAttendanceBox.vue'
+import CumulativeEquipmentBox from '@/features/attendance/ui/components/CumulativeEquipmentBox.vue'
 
 const {
   selectedDate,
@@ -62,6 +63,8 @@ const {
   cumulativeList,
   isLoading: isLoadingCumulative,
   grandTotal,
+  equipmentCumulativeList,
+  equipmentGrandTotal,
   initDates: initCumulativeDates,
   fetchCumulative,
 } = useAttendanceCumulative()
@@ -247,11 +250,18 @@ onMounted(async () => {
 
         <!-- 집계 내용 -->
         <div class="flex-1 overflow-y-auto p-4">
-          <CumulativeAttendanceBox
-            :cumulative-list="cumulativeList"
-            :is-loading="isLoadingCumulative"
-            :grand-total="grandTotal"
-          />
+          <div class="grid grid-cols-2 gap-4 h-full">
+            <CumulativeAttendanceBox
+              :cumulative-list="cumulativeList"
+              :is-loading="isLoadingCumulative"
+              :grand-total="grandTotal"
+            />
+            <CumulativeEquipmentBox
+              :cumulative-list="equipmentCumulativeList"
+              :is-loading="isLoadingCumulative"
+              :grand-total="equipmentGrandTotal"
+            />
+          </div>
         </div>
       </div>
     </div>

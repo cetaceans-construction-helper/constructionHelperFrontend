@@ -21,6 +21,7 @@ import {
   Users,
   FileCheck,
   CalendarOff,
+  Upload,
 } from 'lucide-vue-next'
 import type { Component } from 'vue'
 import {
@@ -109,6 +110,7 @@ const menusBySection: Record<string, MenuItem[]> = {
     { id: 'document-setting', label: '자재검수요청서', path: '/helper/admin/document', icon: FileCheck },
     { id: 'daily-report-setting', label: '작업일보', path: '/helper/admin/daily-report', icon: FileText },
     { id: 'holiday', label: '휴일관리', path: '/helper/admin/holiday', icon: CalendarOff },
+    { id: 'bulk-deployment', label: '대량 출역 입력', path: '/helper/admin/bulk-deployment', icon: Upload },
   ],
 }
 

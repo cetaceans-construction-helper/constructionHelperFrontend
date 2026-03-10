@@ -2,8 +2,10 @@ import { ref } from 'vue'
 import {
   attendanceApi,
   type AttendanceCumulativeWorkType,
+  type EquipmentCumulativeType,
 } from '@/features/attendance/infra/attendance-api'
 import { projectApi } from '@/shared/network-core/apis/project'
+import { useProjectStore } from '@/app/context/stores/project'
 
 export function useAttendanceCumulative() {
   const startDate = ref('')
@@ -11,11 +13,14 @@ export function useAttendanceCumulative() {
   const cumulativeList = ref<AttendanceCumulativeWorkType[]>([])
   const isLoading = ref(false)
   const grandTotal = ref(0)
+  const equipmentCumulativeList = ref<EquipmentCumulativeType[]>([])
+  const equipmentGrandTotal = ref(0)
 
   async function initDates() {
     try {
+      const projectStore = useProjectStore()
       const projects = await projectApi.getProjects()
-      const project = projects[0]
+      const project = projects.find((p) => p.id === projectStore.selectedProjectId) ?? projects[0]
       if (project) {
         startDate.value = project.startDate
         endDate.value = project.completionDate
@@ -36,12 +41,14 @@ export function useAttendanceCumulative() {
     if (!startDate.value || !endDate.value) return
     isLoading.value = true
     try {
-      const data = await attendanceApi.getAttendanceCumulativeList(
-        startDate.value,
-        endDate.value,
-      )
-      cumulativeList.value = data.workTypes
-      grandTotal.value = data.grandTotalCount
+      const [attendanceData, equipmentData] = await Promise.all([
+        attendanceApi.getAttendanceCumulativeList(startDate.value, endDate.value),
+        attendanceApi.getEquipmentCumulativeList(startDate.value, endDate.value),
+      ])
+      cumulativeList.value = attendanceData.workTypes
+      grandTotal.value = attendanceData.grandTotalCount
+      equipmentCumulativeList.value = equipmentData.equipmentTypes
+      equipmentGrandTotal.value = equipmentData.grandTotalCount
     } catch (error: any) {
       console.error('누적 집계 조회 실패:', error)
       const errorMessage = error.response?.data?.message || error.message
@@ -57,6 +64,8 @@ export function useAttendanceCumulative() {
     cumulativeList,
     isLoading,
     grandTotal,
+    equipmentCumulativeList,
+    equipmentGrandTotal,
     initDates,
     fetchCumulative,
   }
