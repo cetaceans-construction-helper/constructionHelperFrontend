@@ -102,8 +102,16 @@ onMounted(async () => {
     <div class="flex-1 overflow-hidden grid grid-cols-4 [@media(max-aspect-ratio:1/1)]:grid-cols-1 gap-4 p-4">
       <!-- 왼쪽: 오늘 출역 (읽기 전용) -->
       <div class="flex flex-col overflow-hidden border border-border rounded-lg bg-card">
-        <div class="px-4 py-3 border-b border-border bg-muted/50">
+        <div class="px-4 py-3 border-b border-border bg-muted/50 flex items-center">
           <h3 class="text-sm font-medium">오늘 출역</h3>
+          <div class="ml-auto flex items-center gap-3">
+            <span class="text-xs text-muted-foreground">
+              총 인원 : <span class="font-semibold text-foreground">{{ todayAttendance.reduce((s, i) => s + i.count, 0) }}명</span>
+            </span>
+            <span class="text-xs text-muted-foreground">
+              총 장비 : <span class="font-semibold text-foreground">{{ todayEquipment.reduce((s, i) => s + i.count, 0) }}대</span>
+            </span>
+          </div>
         </div>
         <div class="flex-1 overflow-y-auto p-4">
           <TodayAttendanceBox
