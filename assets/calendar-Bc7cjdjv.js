@@ -1,0 +1,1 @@
+import{I as e}from"./index-Bcbgzljh.js";const c={async getProjectCalendar(t){const{data:a}=await e.get(`/project/getProjectCalendar/${t}`);return a},async getWeatherByDate(t){const{data:a}=await e.get("/project/getWeatherByDate",{params:{date:t}});return a}};export{c};
