@@ -54,8 +54,9 @@ const deliveryNotes = ref<File[]>([])
 const deliveryPhotos = ref<File[]>([])
 const selectedZoneIds = ref<number[]>([])
 const selectedFloorIds = ref<number[]>([])
-const selectedSectionIds = ref<number[]>([])
-const selectedUsageIds = ref<number[]>([])
+// TODO: section/usage 임시 비활성화
+// const selectedSectionIds = ref<number[]>([])
+// const selectedUsageIds = ref<number[]>([])
 const isSaving = ref(false)
 
 // 삭제 다이얼로그 상태
@@ -111,27 +112,28 @@ const uniqueFloors = computed(() => {
   return Array.from(map, ([id, name]) => ({ id, name }))
 })
 
-const uniqueSections = computed(() => {
-  if (!selectedOrder.value) return []
-  const map = new Map<number, string>()
-  selectedOrder.value.orderLines.forEach((line) => {
-    if (line.sectionId != null && line.sectionName) {
-      map.set(line.sectionId, line.sectionName)
-    }
-  })
-  return Array.from(map, ([id, name]) => ({ id, name }))
-})
+// TODO: section/usage 임시 비활성화
+// const uniqueSections = computed(() => {
+//   if (!selectedOrder.value) return []
+//   const map = new Map<number, string>()
+//   selectedOrder.value.orderLines.forEach((line) => {
+//     if (line.sectionId != null && line.sectionName) {
+//       map.set(line.sectionId, line.sectionName)
+//     }
+//   })
+//   return Array.from(map, ([id, name]) => ({ id, name }))
+// })
 
-const uniqueUsages = computed(() => {
-  if (!selectedOrder.value) return []
-  const map = new Map<number, string>()
-  selectedOrder.value.orderLines.forEach((line) => {
-    if (line.usageId != null && line.usageName) {
-      map.set(line.usageId, line.usageName)
-    }
-  })
-  return Array.from(map, ([id, name]) => ({ id, name }))
-})
+// const uniqueUsages = computed(() => {
+//   if (!selectedOrder.value) return []
+//   const map = new Map<number, string>()
+//   selectedOrder.value.orderLines.forEach((line) => {
+//     if (line.usageId != null && line.usageName) {
+//       map.set(line.usageId, line.usageName)
+//     }
+//   })
+//   return Array.from(map, ([id, name]) => ({ id, name }))
+// })
 
 function toggleOrder(orderId: number) {
   if (expandedOrders[orderId]) {
@@ -152,8 +154,9 @@ async function openDeliveryDialog(order: MaterialOrderResponse) {
   await nextTick()
   selectedZoneIds.value = uniqueZones.value.map((z) => z.id)
   selectedFloorIds.value = uniqueFloors.value.map((f) => f.id)
-  selectedSectionIds.value = uniqueSections.value.map((s) => s.id)
-  selectedUsageIds.value = uniqueUsages.value.map((u) => u.id)
+  // TODO: section/usage 임시 비활성화
+  // selectedSectionIds.value = uniqueSections.value.map((s) => s.id)
+  // selectedUsageIds.value = uniqueUsages.value.map((u) => u.id)
   deliveryDialogOpen.value = true
 }
 
@@ -183,8 +186,9 @@ async function saveDelivery() {
       deliveryPhotos: deliveryPhotos.value,
       zoneIds: selectedZoneIds.value,
       floorIds: selectedFloorIds.value,
-      sectionIds: selectedSectionIds.value,
-      usageIds: selectedUsageIds.value,
+      // TODO: section/usage 임시 비활성화
+      // sectionIds: selectedSectionIds.value,
+      // usageIds: selectedUsageIds.value,
     })
     deliveryDialogOpen.value = false
     analyticsClient.trackAction('material_delivery', 'create_delivery', 'success')
@@ -374,7 +378,8 @@ onMounted(() => {
             </div>
           </div>
 
-          <div v-if="uniqueSections.length > 0" class="space-y-2">
+          <!-- TODO: section/usage 임시 비활성화 -->
+          <!-- <div v-if="uniqueSections.length > 0" class="space-y-2">
             <Label>구역</Label>
             <div class="flex flex-wrap gap-3">
               <div v-for="section in uniqueSections" :key="section.id" class="flex items-center gap-1.5">
@@ -400,7 +405,7 @@ onMounted(() => {
                 <label :for="`usage-${usage.id}`" class="text-sm cursor-pointer">{{ usage.name }}</label>
               </div>
             </div>
-          </div>
+          </div> -->
         </div>
 
         <DialogFooter class="flex-col items-end gap-2">

@@ -1,0 +1,42 @@
+<script setup lang="ts">
+import { computed } from 'vue'
+import { Handle, Position, type NodeProps } from '@vue-flow/core'
+
+const props = defineProps<NodeProps>()
+
+function splitLabel(label: string): [string, string | null] {
+  const spaces: number[] = []
+  for (let i = 0; i < label.length; i++) {
+    if (label[i] === ' ') spaces.push(i)
+  }
+  if (spaces.length === 0) return [label, null]
+
+  const mid = label.length / 2
+  let bestIdx = spaces[0]!
+  let bestDist = Math.abs(spaces[0]! - mid)
+  for (let i = 1; i < spaces.length; i++) {
+    const dist = Math.abs(spaces[i]! - mid)
+    if (dist < bestDist) {
+      bestDist = dist
+      bestIdx = spaces[i]!
+    }
+  }
+
+  return [label.slice(0, bestIdx), label.slice(bestIdx + 1)]
+}
+
+const labelText = computed(() => {
+  return (props.data?.label as string) || ''
+})
+
+const lines = computed(() => splitLabel(labelText.value))
+</script>
+
+<template>
+  <Handle type="target" :position="Position.Left" />
+  <div v-if="!props.selected" class="flex flex-col items-center justify-center w-full h-full px-1 leading-tight text-center overflow-visible whitespace-nowrap">
+    <span class="text-[11px]">{{ lines[0] }}</span>
+    <span v-if="lines[1]" class="text-[11px]">{{ lines[1] }}</span>
+  </div>
+  <Handle type="source" :position="Position.Right" />
+</template>

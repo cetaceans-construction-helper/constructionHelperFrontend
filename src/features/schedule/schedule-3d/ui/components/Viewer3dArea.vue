@@ -513,8 +513,9 @@ const groupedDailyWorks = computed<GroupedWorks>(() => {
                       <div class="flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-muted-foreground mt-1">
                         <span v-if="work.zoneNames?.length">{{ work.zoneNames.join(', ') }}</span>
                         <span v-if="work.floorNames?.length">{{ work.floorNames.join(', ') }}</span>
-                        <span v-if="work.sectionNames?.length">{{ work.sectionNames.join(', ') }}</span>
-                        <span v-if="work.usageNames?.length">{{ work.usageNames.join(', ') }}</span>
+                        <!-- TODO: section/usage 임시 비활성화 -->
+                        <!-- <span v-if="work.sectionNames?.length">{{ work.sectionNames.join(', ') }}</span>
+                        <span v-if="work.usageNames?.length">{{ work.usageNames.join(', ') }}</span> -->
                       </div>
                       <p class="text-xs text-muted-foreground mt-0.5">
                         {{ work.startDate }} ~ {{ work.completionDate }}

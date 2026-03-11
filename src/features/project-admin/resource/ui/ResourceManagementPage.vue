@@ -4,6 +4,7 @@ import AreaCard from '@/shared/helper-ui/AreaCard.vue'
 import { Separator } from '@/shared/ui/separator'
 import LaborTypeArea from '@/features/project-admin/resource/ui/components/LaborTypeArea.vue'
 import EquipmentMasterArea from '@/features/project-admin/resource/ui/components/EquipmentMasterArea.vue'
+import MaterialMasterArea from '@/features/project-admin/master-data/ui/components/MaterialMasterArea.vue'
 </script>
 
 <template>
@@ -13,6 +14,8 @@ import EquipmentMasterArea from '@/features/project-admin/resource/ui/components
         <LaborTypeArea />
         <Separator />
         <EquipmentMasterArea />
+        <Separator />
+        <MaterialMasterArea />
       </div>
     </AreaCard>
   </PageContainer>

@@ -11,7 +11,7 @@ export const appConfig = {
   apiBaseUrl: apiBaseUrls[env],
 
   chart: {
-    pixelPerDay: 40,
+    pixelPerDay: 60,
     nodeHeight: 50,
     nodePaddingX: 10,
     nodePaddingY: 10,

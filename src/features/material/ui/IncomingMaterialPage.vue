@@ -84,12 +84,14 @@ const directDeliveryPhotos = ref<File[]>([])
 // 발주서 없이 송장입력 - 위치 선택
 const directZones = ref<IdNameResponse[]>([])
 const directFloors = ref<IdNameResponse[]>([])
-const directSections = ref<IdNameResponse[]>([])
-const directUsages = ref<IdNameResponse[]>([])
+// TODO: section/usage 임시 비활성화
+// const directSections = ref<IdNameResponse[]>([])
+// const directUsages = ref<IdNameResponse[]>([])
 const directSelectedZoneIds = ref<number[]>([])
 const directSelectedFloorIds = ref<number[]>([])
-const directSelectedSectionIds = ref<number[]>([])
-const directSelectedUsageIds = ref<number[]>([])
+// TODO: section/usage 임시 비활성화
+// const directSelectedSectionIds = ref<number[]>([])
+// const directSelectedUsageIds = ref<number[]>([])
 
 // 송장없이 반입자재입력 다이얼로그 상태
 const quickDeliveryDialogOpen = ref(false)
@@ -101,12 +103,14 @@ const quickMaterialTypes = ref<MaterialTypeResponse[]>([])
 const quickDivisions = ref<IdNameResponse[]>([])
 const quickZones = ref<IdNameResponse[]>([])
 const quickFloors = ref<IdNameResponse[]>([])
-const quickSections = ref<IdNameResponse[]>([])
-const quickUsages = ref<IdNameResponse[]>([])
+// TODO: section/usage 임시 비활성화
+// const quickSections = ref<IdNameResponse[]>([])
+// const quickUsages = ref<IdNameResponse[]>([])
 const quickSelectedZoneIds = ref<number[]>([])
 const quickSelectedFloorIds = ref<number[]>([])
-const quickSelectedSectionIds = ref<number[]>([])
-const quickSelectedUsageIds = ref<number[]>([])
+// TODO: section/usage 임시 비활성화
+// const quickSelectedSectionIds = ref<number[]>([])
+// const quickSelectedUsageIds = ref<number[]>([])
 const isLoadingQuickWorkTypes = ref(false)
 const isSavingQuick = ref(false)
 
@@ -197,24 +201,27 @@ async function openDirectDeliveryDialog() {
   directWorkTypes.value = []
   directSelectedZoneIds.value = []
   directSelectedFloorIds.value = []
-  directSelectedSectionIds.value = []
-  directSelectedUsageIds.value = []
+  // TODO: section/usage 임시 비활성화
+  // directSelectedSectionIds.value = []
+  // directSelectedUsageIds.value = []
 
   try {
-    const [mtList, divList, zoneList, floorList, sectionList, usageList] = await Promise.all([
+    // TODO: section/usage 임시 비활성화
+    const [mtList, divList, zoneList, floorList] = await Promise.all([
       referenceApi.getMaterialTypeList(),
       referenceApi.getDivisionList(),
       referenceApi.getZoneList(),
       referenceApi.getFloorList(),
-      referenceApi.getSectionList(),
-      referenceApi.getUsageList(),
+      // referenceApi.getSectionList(),
+      // referenceApi.getUsageList(),
     ])
     directMaterialTypes.value = mtList
     directDivisions.value = divList
     directZones.value = zoneList
     directFloors.value = floorList
-    directSections.value = sectionList
-    directUsages.value = usageList
+    // TODO: section/usage 임시 비활성화
+    // directSections.value = sectionList
+    // directUsages.value = usageList
   } catch (error: unknown) {
     console.error('기초 데이터 로드 실패:', error)
     const err = error as { response?: { data?: { message?: string } }; message?: string }
@@ -269,8 +276,9 @@ async function saveDirectDelivery() {
       deliveryPhotos: directDeliveryPhotos.value,
       zoneIds: directSelectedZoneIds.value,
       floorIds: directSelectedFloorIds.value,
-      sectionIds: directSelectedSectionIds.value,
-      usageIds: directSelectedUsageIds.value,
+      // TODO: section/usage 임시 비활성화
+      // sectionIds: directSelectedSectionIds.value,
+      // usageIds: directSelectedUsageIds.value,
     })
     directDeliveryDialogOpen.value = false
     materialSpecs.value = []
@@ -294,24 +302,27 @@ async function openQuickDeliveryDialog() {
   quickWorkTypes.value = []
   quickSelectedZoneIds.value = []
   quickSelectedFloorIds.value = []
-  quickSelectedSectionIds.value = []
-  quickSelectedUsageIds.value = []
+  // TODO: section/usage 임시 비활성화
+  // quickSelectedSectionIds.value = []
+  // quickSelectedUsageIds.value = []
 
   try {
-    const [mtList, divList, zoneList, floorList, sectionList, usageList] = await Promise.all([
+    // TODO: section/usage 임시 비활성화
+    const [mtList, divList, zoneList, floorList] = await Promise.all([
       referenceApi.getMaterialTypeList(),
       referenceApi.getDivisionList(),
       referenceApi.getZoneList(),
       referenceApi.getFloorList(),
-      referenceApi.getSectionList(),
-      referenceApi.getUsageList(),
+      // referenceApi.getSectionList(),
+      // referenceApi.getUsageList(),
     ])
     quickMaterialTypes.value = mtList
     quickDivisions.value = divList
     quickZones.value = zoneList
     quickFloors.value = floorList
-    quickSections.value = sectionList
-    quickUsages.value = usageList
+    // TODO: section/usage 임시 비활성화
+    // quickSections.value = sectionList
+    // quickUsages.value = usageList
   } catch (error: unknown) {
     console.error('기초 데이터 로드 실패:', error)
     const err = error as { response?: { data?: { message?: string } }; message?: string }
@@ -356,8 +367,9 @@ async function saveQuickDelivery() {
       deliveryPhotos: [],
       zoneIds: quickSelectedZoneIds.value,
       floorIds: quickSelectedFloorIds.value,
-      sectionIds: quickSelectedSectionIds.value,
-      usageIds: quickSelectedUsageIds.value,
+      // TODO: section/usage 임시 비활성화
+      // sectionIds: quickSelectedSectionIds.value,
+      // usageIds: quickSelectedUsageIds.value,
     })
     quickDeliveryDialogOpen.value = false
     materialSpecs.value = []
@@ -1140,7 +1152,8 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <div v-if="directSections.length > 0" class="space-y-2">
+          <!-- TODO: section/usage 임시 비활성화 -->
+          <!-- <div v-if="directSections.length > 0" class="space-y-2">
             <Label>구역</Label>
             <div class="flex flex-wrap gap-3">
               <div v-for="section in directSections" :key="section.id" class="flex items-center gap-1.5">
@@ -1166,7 +1179,7 @@ onUnmounted(() => {
                 <label :for="`direct-usage-${usage.id}`" class="text-sm cursor-pointer">{{ usage.name }}</label>
               </div>
             </div>
-          </div>
+          </div> -->
         </div>
 
         <DialogFooter class="flex-col items-end gap-2">
@@ -1283,7 +1296,8 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <div v-if="quickSections.length > 0" class="space-y-2">
+          <!-- TODO: section/usage 임시 비활성화 -->
+          <!-- <div v-if="quickSections.length > 0" class="space-y-2">
             <Label>구역</Label>
             <div class="flex flex-wrap gap-3">
               <div v-for="section in quickSections" :key="section.id" class="flex items-center gap-1.5">
@@ -1309,7 +1323,7 @@ onUnmounted(() => {
                 <label :for="`quick-usage-${usage.id}`" class="text-sm cursor-pointer">{{ usage.name }}</label>
               </div>
             </div>
-          </div>
+          </div> -->
         </div>
 
         <DialogFooter>

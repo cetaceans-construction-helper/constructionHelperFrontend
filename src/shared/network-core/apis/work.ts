@@ -166,6 +166,12 @@ export const workApi = {
     await apiClient.delete(`/work/deleteWorkPhoto/${photoId}`)
   },
 
+  // 공정명 재생성 (임시)
+  async rebuildAllWorkNames(): Promise<string> {
+    const { data } = await apiClient.post<string>('/work/rebuildAllWorkNames')
+    return data
+  },
+
   // 작업 사진 다운로드 (ObjectURL 반환)
   async downloadWorkPhoto(url: string): Promise<string> {
     const { data } = await apiClient.get<Blob>('/materialDelivery/downloadFile', {

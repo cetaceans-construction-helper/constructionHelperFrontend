@@ -9,6 +9,7 @@ import { projectAdminDocumentSettingRouteComponents } from '@/features/project-a
 import { projectAdminHolidayRouteComponents } from '@/features/project-admin/holiday/public'
 import { projectAdminMasterDataRouteComponents } from '@/features/project-admin/master-data/public'
 import { projectAdminBulkDeploymentRouteComponents } from '@/features/project-admin/bulk-deployment/public'
+import { rebuildWorkNamesRouteComponents } from '@/features/project-admin/rebuild-work-names/public'
 import { projectAdminResourceRouteComponents } from '@/features/project-admin/resource/public'
 import { schedule2dRouteComponents } from '@/features/schedule/schedule-2d/public'
 import { schedule3dRouteComponents } from '@/features/schedule/schedule-3d/public'
@@ -143,6 +144,11 @@ const router = createRouter({
           path: 'admin/bulk-deployment',
           name: 'admin-bulk-deployment',
           component: projectAdminBulkDeploymentRouteComponents.BulkDeploymentPage,
+        },
+        {
+          path: 'admin/rebuild-work-names',
+          name: 'admin-rebuild-work-names',
+          component: rebuildWorkNamesRouteComponents.RebuildWorkNamesPage,
         },
       ],
     },

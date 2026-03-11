@@ -39,7 +39,7 @@ export function computeNodeWidthFromDates(startDate: string, completionDate: str
 }
 
 // Work → Node 변환 함수
-export function workToNode(work: WorkResponse): Node {
+export function workToNode(work: WorkResponse, yOverride?: number): Node {
   const computedWidth = computeNodeWidthFromDates(work.startDate, work.completionDate)
   const computedHeight = CHART_CONFIG.nodeHeight
 
@@ -58,8 +58,8 @@ export function workToNode(work: WorkResponse): Node {
 
   return {
     id: `work-${work.workId}`,
-    type: 'default',
-    position: { x: computeNodeX(work.startDate), y: work.positionY },
+    type: 'work',
+    position: { x: computeNodeX(work.startDate), y: yOverride ?? work.positionY },
     data: {
       label: work.workName,
       work,
