@@ -8,7 +8,7 @@ import { projectAdminDocumentSettingRouteComponents } from '@/features/project-a
 import { projectAdminHolidayRouteComponents } from '@/features/project-admin/holiday/public'
 import { projectAdminMasterDataRouteComponents } from '@/features/project-admin/master-data/public'
 import { projectAdminResourceRouteComponents } from '@/features/project-admin/resource/public'
-import { schedule2dRouteComponents } from '@/features/schedule/schedule-2d/public'
+import { schedule2dRebuildRouteComponents } from '@/features/schedule/schedule-2d-rebuild/public'
 import { schedule3dRouteComponents } from '@/features/schedule/schedule-3d/public'
 import { systemAdminRouteComponents } from '@/features/system-admin/public'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
@@ -53,7 +53,7 @@ const router = createRouter({
             {
               path: '2d',
               name: 'schedule-2d',
-              component: schedule2dRouteComponents.Schedule2dPage,
+              component: schedule2dRebuildRouteComponents.Schedule2dRebuildPage,
             },
           ],
         },

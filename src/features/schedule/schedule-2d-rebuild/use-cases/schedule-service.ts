@@ -1,12 +1,18 @@
 import type {
   ScheduleContractState,
+  ScheduleBarLayout,
   ScheduleDependency,
   ScheduleItem,
   SchedulePendingContract,
   ScheduleRow,
+  ScheduleShellLayout,
+  ScheduleShellRow,
   ScheduleSnapshot,
   ScheduleSourceBundle,
   ScheduleSourceTask,
+  ScheduleTimelineCell,
+  ScheduleTimelineGroup,
+  ScheduleTimelineLayout,
 } from '@/features/schedule/schedule-2d-rebuild/model/schedule-rebuild-types'
 
 interface ParentRowDraft {
@@ -28,6 +34,28 @@ interface ChildRowDraft {
 export interface ScheduleSnapshotRepository {
   getScheduleSnapshot(): Promise<ScheduleSnapshot>
 }
+
+interface TimelineOptions {
+  dayWidth?: number
+  paddingBeforeDays?: number
+  paddingAfterDays?: number
+}
+
+interface ShellLayoutOptions {
+  rowHeight?: number
+  barHeight?: number
+}
+
+export const SCHEDULE_TIMELINE_DEFAULTS = {
+  dayWidth: 36,
+  paddingBeforeDays: 7,
+  paddingAfterDays: 14,
+} as const
+
+export const SCHEDULE_SHELL_DEFAULTS = {
+  rowHeight: 44,
+  barHeight: 24,
+} as const
 
 const nativeContract: ScheduleContractState = { status: 'native' }
 
@@ -80,6 +108,66 @@ function compareTasks(a: ScheduleSourceTask, b: ScheduleSourceTask) {
     a.name.localeCompare(b.name, 'ko') ||
     a.workId - b.workId
   )
+}
+
+function parseLocalDate(value: string): Date {
+  const [year, month, day] = value.split('-').map(Number)
+  return new Date(year ?? 1970, (month ?? 1) - 1, day ?? 1)
+}
+
+function formatLocalDate(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+function addDays(date: Date, days: number): Date {
+  const next = new Date(date)
+  next.setDate(next.getDate() + days)
+  return next
+}
+
+function diffDays(startDate: string, endDate: string): number {
+  const start = parseLocalDate(startDate)
+  const end = parseLocalDate(endDate)
+  start.setHours(0, 0, 0, 0)
+  end.setHours(0, 0, 0, 0)
+  return Math.round((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000))
+}
+
+function buildTimelineGroups(
+  days: ScheduleTimelineCell[],
+  keySelector: (cell: ScheduleTimelineCell) => string,
+  labelSelector: (cell: ScheduleTimelineCell) => string,
+): ScheduleTimelineGroup[] {
+  if (days.length === 0) return []
+
+  const groups: ScheduleTimelineGroup[] = []
+  let currentKey = keySelector(days[0]!)
+  let startIndex = 0
+
+  for (let index = 1; index <= days.length; index += 1) {
+    const cell = days[index]
+    const nextKey = cell ? keySelector(cell) : null
+
+    if (currentKey !== nextKey) {
+      const startCell = days[startIndex]!
+      const span = index - startIndex
+      groups.push({
+        key: `${currentKey}:${startIndex}`,
+        label: labelSelector(startCell),
+        startIndex,
+        span,
+        left: startCell.left,
+        width: span * startCell.width,
+      })
+
+      if (cell) {
+        currentKey = nextKey as string
+        startIndex = index
+      }
+    }
+  }
+
+  return groups
 }
 
 function buildRows(tasks: ScheduleSourceTask[]): ScheduleRow[] {
@@ -240,7 +328,121 @@ async function loadSnapshot(repository: ScheduleSnapshotRepository): Promise<Sch
   return repository.getScheduleSnapshot()
 }
 
+function buildTimeline(snapshot: ScheduleSnapshot, options: TimelineOptions = {}): ScheduleTimelineLayout {
+  const dayWidth = options.dayWidth ?? SCHEDULE_TIMELINE_DEFAULTS.dayWidth
+  const paddingBeforeDays = options.paddingBeforeDays ?? SCHEDULE_TIMELINE_DEFAULTS.paddingBeforeDays
+  const paddingAfterDays = options.paddingAfterDays ?? SCHEDULE_TIMELINE_DEFAULTS.paddingAfterDays
+
+  const itemDates = snapshot.items.flatMap((item) => [item.startDate, item.endDate])
+  const todayString = formatLocalDate(new Date())
+
+  const baseStartDate = itemDates.length > 0
+    ? itemDates.reduce((min, value) => (value < min ? value : min), itemDates[0]!)
+    : todayString
+  const baseEndDate = itemDates.length > 0
+    ? itemDates.reduce((max, value) => (value > max ? value : max), itemDates[0]!)
+    : todayString
+
+  const startDate = formatLocalDate(addDays(parseLocalDate(baseStartDate), -paddingBeforeDays))
+  const endDate = formatLocalDate(addDays(parseLocalDate(baseEndDate), paddingAfterDays))
+  const totalDays = diffDays(startDate, endDate) + 1
+
+  const days: ScheduleTimelineCell[] = Array.from({ length: totalDays }, (_, index) => {
+    const date = addDays(parseLocalDate(startDate), index)
+    const dateString = formatLocalDate(date)
+    const dayOfWeek = date.getDay()
+
+    return {
+      key: dateString,
+      index,
+      date: dateString,
+      label: String(date.getDate()),
+      dayOfMonth: date.getDate(),
+      dayName: ['일', '월', '화', '수', '목', '금', '토'][dayOfWeek]!,
+      monthLabel: `${date.getMonth() + 1}월`,
+      yearLabel: `${date.getFullYear()}년`,
+      left: index * dayWidth,
+      width: dayWidth,
+      isToday: dateString === todayString,
+      isWeekend: dayOfWeek === 0 || dayOfWeek === 6,
+    }
+  })
+
+  return {
+    startDate,
+    endDate,
+    dayWidth,
+    chartWidth: totalDays * dayWidth,
+    days,
+    monthGroups: buildTimelineGroups(days, (cell) => `${cell.yearLabel}-${cell.monthLabel}`, (cell) => cell.monthLabel),
+    yearGroups: buildTimelineGroups(days, (cell) => cell.yearLabel, (cell) => cell.yearLabel),
+  }
+}
+
+function buildShellLayout(
+  snapshot: ScheduleSnapshot,
+  timeline: ScheduleTimelineLayout,
+  options: ShellLayoutOptions = {},
+): ScheduleShellLayout {
+  const rowHeight = options.rowHeight ?? SCHEDULE_SHELL_DEFAULTS.rowHeight
+  const barHeight = options.barHeight ?? SCHEDULE_SHELL_DEFAULTS.barHeight
+  const rowIndexMap = new Map<string, number>()
+  const itemCountByRow = new Map<string, number>()
+
+  snapshot.items.forEach((item) => {
+    itemCountByRow.set(item.rowId, (itemCountByRow.get(item.rowId) ?? 0) + 1)
+  })
+
+  const rows: ScheduleShellRow[] = [...snapshot.rows]
+    .sort((a, b) => a.order - b.order)
+    .map((row, index) => {
+      rowIndexMap.set(row.id, index)
+      return {
+        id: row.id,
+        name: row.name,
+        kind: row.kind,
+        depth: row.depth,
+        order: row.order,
+        top: index * rowHeight,
+        height: rowHeight,
+        itemCount: itemCountByRow.get(row.id) ?? 0,
+      }
+    })
+
+  const bars: ScheduleBarLayout[] = snapshot.items
+    .map((item) => {
+      const rowIndex = rowIndexMap.get(item.rowId)
+      if (rowIndex === undefined) return null
+
+      const left = diffDays(timeline.startDate, item.startDate) * timeline.dayWidth
+      return {
+        id: `bar:${item.id}`,
+        itemId: item.id,
+        rowId: item.rowId,
+        name: item.name,
+        left,
+        top: rowIndex * rowHeight + (rowHeight - barHeight) / 2,
+        width: Math.max(item.durationDays * timeline.dayWidth - 6, timeline.dayWidth * 0.65),
+        height: barHeight,
+        startDate: item.startDate,
+        endDate: item.endDate,
+        durationDays: item.durationDays,
+        appearance: item.appearance,
+      }
+    })
+    .filter((bar): bar is ScheduleBarLayout => bar !== null)
+
+  return {
+    rows,
+    bars,
+    chartHeight: rows.length * rowHeight,
+    rowHeight,
+  }
+}
+
 export const scheduleService = {
   buildSnapshot,
   loadSnapshot,
+  buildTimeline,
+  buildShellLayout,
 }

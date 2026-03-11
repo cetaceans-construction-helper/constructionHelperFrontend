@@ -130,3 +130,70 @@ export interface ScheduleSnapshot {
   pendingContracts: SchedulePendingContract[]
   metadata: ScheduleSnapshotMetadata
 }
+
+export interface ScheduleTimelineCell {
+  key: string
+  index: number
+  date: string
+  label: string
+  dayOfMonth: number
+  dayName: string
+  monthLabel: string
+  yearLabel: string
+  left: number
+  width: number
+  isToday: boolean
+  isWeekend: boolean
+}
+
+export interface ScheduleTimelineGroup {
+  key: string
+  label: string
+  startIndex: number
+  span: number
+  left: number
+  width: number
+}
+
+export interface ScheduleShellRow {
+  id: string
+  name: string
+  kind: ScheduleRowKind
+  depth: number
+  order: number
+  top: number
+  height: number
+  itemCount: number
+}
+
+export interface ScheduleBarLayout {
+  id: string
+  itemId: string
+  rowId: string
+  name: string
+  left: number
+  top: number
+  width: number
+  height: number
+  startDate: string
+  endDate: string
+  durationDays: number
+  appearance: ScheduleItemAppearance
+}
+
+export interface ScheduleTimelineLayout {
+  startDate: string
+  endDate: string
+  dayWidth: number
+  chartWidth: number
+  days: ScheduleTimelineCell[]
+  monthGroups: ScheduleTimelineGroup[]
+  yearGroups: ScheduleTimelineGroup[]
+}
+
+export interface ScheduleShellLayout {
+  rows: ScheduleShellRow[]
+  bars: ScheduleBarLayout[]
+  chartHeight: number
+  rowHeight: number
+}

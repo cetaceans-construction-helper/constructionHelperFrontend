@@ -72,22 +72,23 @@
   - [x] `npm run build`
   - [x] work 수와 bar 수, 기존 path 수와 dependency 수가 adapter 결과에서 일치한다.
 
-### [ ] Batch 2. VueFlow 의존 제거 + 좌측 패널/우측 차트 셸 구축
+### [x] Batch 2. VueFlow 의존 제거 + 좌측 패널/우측 차트 셸 구축
 
 - 범위
   - `VueFlow` 중심 렌더링을 벗어나 좌측 row panel, 상단 time header, 우측 chart canvas를 가진 새 레이아웃을 만든다.
   - 좌측 패널의 세로 스크롤과 우측 차트의 세로 스크롤을 동기화한다.
   - 상단 헤더의 가로 스크롤과 차트 body의 가로 스크롤을 동기화한다.
+  - `/helper/schedule/2d` route가 새 `schedule-2d-rebuild` 읽기 전용 셸을 렌더링하게 연결한다.
   - Export 대응을 위해 좌측 row panel이 실제 DOM 구조로 유지되게 만든다.
 - 완료 기준
-  - [ ] 좌측 패널에 공정 / 세부공정 row가 표시된다.
-  - [ ] 헤더, 좌측 패널, 차트 body가 서로 스크롤 기준을 공유한다.
-  - [ ] 기존 route에서 읽기 전용 Gantt가 깨지지 않고 렌더링된다.
+  - [x] 좌측 패널에 공정 / 세부공정 row가 표시된다.
+  - [x] 헤더, 좌측 패널, 차트 body가 서로 스크롤 기준을 공유한다.
+  - [x] 기존 route에서 읽기 전용 Gantt가 깨지지 않고 렌더링된다.
 - 검증
-  - [ ] `npm run type-check`
-  - [ ] `npm run build`
-  - [ ] 좌측 row와 우측 막대의 세로 정렬이 유지된다.
-  - [ ] 브라우저 확대/축소와 관계없이 header/body/left panel이 어긋나지 않는다.
+  - [x] `npm run type-check`
+  - [x] `npm run build`
+  - [x] 좌측 row와 우측 막대의 세로 정렬이 유지된다.
+  - [x] 브라우저 확대/축소와 관계없이 header/body/left panel이 어긋나지 않는다.
 
 ### [ ] Batch 3. 상호작용 재설계: 선택, 패닝, 스크롤, 좌클릭 편집
 
@@ -193,12 +194,11 @@
 ### [ ] Batch 9. 마이그레이션 정리, 분석 이벤트 보강, QA 시나리오 고정
 
 - 범위
-  - route를 `schedule-2d-rebuild` 기준으로 최종 전환하고, 구형 `schedule-2d` 전용 상태와 dead code를 정리한다.
+  - 이미 전환된 `schedule-2d-rebuild` route 기준으로 구형 `schedule-2d` 전용 상태와 dead code를 정리한다.
   - analytics 이벤트를 새 UX 기준으로 정리한다.
   - 핵심 수동 QA 시나리오와 회귀 테스트 포인트를 문서화한다.
   - Export 대응에 필요한 DOM/print 구조가 유지되는지 최종 점검한다.
 - 완료 기준
-  - [ ] `/helper/schedule/2d`가 `schedule-2d-rebuild`를 바라본다.
   - [ ] 구형 모드 전환 UI와 중복 로직이 제거된다.
   - [ ] 새 기능 기준의 액션 추적 포인트가 정리된다.
   - [ ] 테스트/문서 없이 남는 핵심 동작이 없게 정리된다.
