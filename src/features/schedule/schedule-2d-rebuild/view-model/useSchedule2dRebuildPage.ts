@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue'
 import { schedule2dRebuildRepository } from '@/features/schedule/schedule-2d-rebuild/infra/schedule-rebuild-repository'
-import type { ScheduleSnapshot } from '@/features/schedule/schedule-2d-rebuild/model/schedule-rebuild-types'
+import type { ScheduleItem, ScheduleSnapshot } from '@/features/schedule/schedule-2d-rebuild/model/schedule-rebuild-types'
 import {
   SCHEDULE_SHELL_DEFAULTS,
   SCHEDULE_TIMELINE_DEFAULTS,
@@ -11,8 +11,25 @@ import {
   createEmptyScheduleSelectionState,
 } from '@/features/schedule/schedule-2d-rebuild/view-model/schedule-interaction-state'
 
+type MoveSession = {
+  type: 'move'
+  itemIds: string[]
+  baseItems: ScheduleItem[]
+  baseLaneByItemId: Record<string, number>
+  maxLaneIndexByRowId: Record<string, number>
+  pinnedLaneByItemId: Record<string, number>
+}
+
+type ResizeSession = {
+  type: 'resize'
+  itemId: string
+  edge: 'left' | 'right'
+  baseItems: ScheduleItem[]
+}
+
 export function useSchedule2dRebuildPage() {
   const snapshot = ref<ScheduleSnapshot | null>(null)
+  const workingItems = ref<ScheduleItem[]>([])
   const isLoading = ref(false)
   const errorMessage = ref('')
   const chartScrollTop = ref(0)
@@ -21,6 +38,8 @@ export function useSchedule2dRebuildPage() {
   const contextMenuState = ref(createClosedScheduleContextMenuState())
   const dayWidth = ref(SCHEDULE_TIMELINE_DEFAULTS.dayWidth)
   const rowHeight = ref(SCHEDULE_SHELL_DEFAULTS.rowHeight)
+  const interactionSession = ref<MoveSession | ResizeSession | null>(null)
+  const lanePreferenceByItemId = ref<Record<string, number>>({})
 
   const summary = computed(() => {
     if (!snapshot.value) {
@@ -36,7 +55,7 @@ export function useSchedule2dRebuildPage() {
 
     return {
       rows: snapshot.value.rows.length,
-      items: snapshot.value.items.length,
+      items: workingItems.value.length,
       dependencies: snapshot.value.dependencies.length,
       groups: snapshot.value.groups.length,
       milestones: snapshot.value.milestones.length,
@@ -44,17 +63,20 @@ export function useSchedule2dRebuildPage() {
     }
   })
 
-  const previewRows = computed(() => snapshot.value?.rows.slice(0, 8) ?? [])
-  const previewItems = computed(() => snapshot.value?.items.slice(0, 8) ?? [])
-  const previewDependencies = computed(() => snapshot.value?.dependencies.slice(0, 8) ?? [])
   const timeline = computed(() => (
-    snapshot.value
-      ? scheduleService.buildTimeline(snapshot.value, { dayWidth: dayWidth.value })
+    workingItems.value.length > 0
+      ? scheduleService.buildTimeline(workingItems.value, { dayWidth: dayWidth.value })
       : null
   ))
   const shellLayout = computed(() => (
     snapshot.value && timeline.value
-      ? scheduleService.buildShellLayout(snapshot.value, timeline.value, { rowHeight: rowHeight.value })
+      ? scheduleService.buildShellLayout(snapshot.value.rows, workingItems.value, timeline.value, {
+          rowHeight: rowHeight.value,
+          preferredLaneByItemId: lanePreferenceByItemId.value,
+          pinnedLaneByItemId: interactionSession.value?.type === 'move'
+            ? interactionSession.value.pinnedLaneByItemId
+            : undefined,
+        })
       : null
   ))
 
@@ -64,6 +86,10 @@ export function useSchedule2dRebuildPage() {
 
     try {
       snapshot.value = await scheduleService.loadSnapshot(schedule2dRebuildRepository)
+      workingItems.value = snapshot.value.items.map((item) => ({ ...item }))
+      lanePreferenceByItemId.value = {}
+      selectionState.value = createEmptyScheduleSelectionState()
+      interactionSession.value = null
     } catch (error: unknown) {
       console.error('2D 공정표 리빌드 snapshot 로드 실패:', error)
       const err = error as { response?: { data?: { message?: string } }; message?: string }
@@ -82,8 +108,155 @@ export function useSchedule2dRebuildPage() {
     chartScrollTop.value = top
   }
 
+  function clearSelection() {
+    selectionState.value = createEmptyScheduleSelectionState()
+  }
+
+  function selectItems(itemIds: string[]) {
+    selectionState.value = {
+      ...selectionState.value,
+      rowIds: [],
+      itemIds,
+      dependencyIds: [],
+      groupIds: [],
+      milestoneIds: [],
+    }
+  }
+
+  function startMoveSession(itemId: string) {
+    const selectedIds = selectionState.value.itemIds.includes(itemId)
+      ? selectionState.value.itemIds
+      : [itemId]
+    const baseLaneByItemId = Object.fromEntries(
+      (shellLayout.value?.bars ?? [])
+        .filter((bar) => selectedIds.includes(bar.itemId))
+        .map((bar) => [bar.itemId, bar.laneIndex]),
+    )
+    const maxLaneIndexByRowId = Object.fromEntries(
+      Object.entries(
+        (shellLayout.value?.bars ?? []).reduce<Record<string, number>>((acc, bar) => {
+          acc[bar.rowId] = Math.max(acc[bar.rowId] ?? 0, bar.laneIndex)
+          return acc
+        }, {}),
+      ),
+    )
+
+    selectItems(selectedIds)
+    interactionSession.value = {
+      type: 'move',
+      itemIds: selectedIds,
+      baseItems: workingItems.value.map((item) => ({ ...item })),
+      baseLaneByItemId,
+      maxLaneIndexByRowId,
+      pinnedLaneByItemId: baseLaneByItemId,
+    }
+  }
+
+  function previewMoveSession(payload: { deltaDays: number; deltaLanes: number }) {
+    const session = interactionSession.value
+    if (!session || session.type !== 'move') return
+
+    const rowIdByItemId = new Map(
+      session.baseItems
+        .filter((item) => session.itemIds.includes(item.id))
+        .map((item) => [item.id, item.rowId] as const),
+    )
+    const laneBoundsByRowId = Object.entries(session.baseLaneByItemId).reduce<
+      Record<string, { minLane: number; maxLane: number }>
+    >((acc, [itemId, laneIndex]) => {
+      const rowId = rowIdByItemId.get(itemId)
+      if (!rowId) return acc
+
+      const existing = acc[rowId]
+      if (!existing) {
+        acc[rowId] = { minLane: laneIndex, maxLane: laneIndex }
+        return acc
+      }
+
+      existing.minLane = Math.min(existing.minLane, laneIndex)
+      existing.maxLane = Math.max(existing.maxLane, laneIndex)
+      return acc
+    }, {})
+
+    interactionSession.value = {
+      ...session,
+      pinnedLaneByItemId: Object.fromEntries(
+        Object.entries(session.baseLaneByItemId).map(([itemId, laneIndex]) => {
+          const rowId = rowIdByItemId.get(itemId)
+          if (!rowId) return [itemId, laneIndex] as const
+
+          const rowBounds = laneBoundsByRowId[rowId]
+          const maxLaneIndex = session.maxLaneIndexByRowId[rowId] ?? rowBounds?.maxLane ?? laneIndex
+          const clampedDeltaLanes = Math.min(
+            Math.max(payload.deltaLanes, -(rowBounds?.minLane ?? laneIndex)),
+            maxLaneIndex - (rowBounds?.maxLane ?? laneIndex),
+          )
+
+          return [itemId, laneIndex + clampedDeltaLanes] as const
+        }),
+      ),
+    }
+
+    workingItems.value = scheduleService.moveItems(
+      session.baseItems,
+      session.itemIds,
+      payload.deltaDays,
+    )
+  }
+
+  function endMoveSession() {
+    const session = interactionSession.value
+    if (!session || session.type !== 'move') return
+
+    const affectedRowIds = new Set(
+      workingItems.value
+        .filter((item) => session.itemIds.includes(item.id))
+        .map((item) => item.rowId),
+    )
+
+    lanePreferenceByItemId.value = {
+      ...lanePreferenceByItemId.value,
+      ...Object.fromEntries(
+        (shellLayout.value?.bars ?? [])
+          .filter((bar) => affectedRowIds.has(bar.rowId))
+          .map((bar) => [bar.itemId, bar.laneIndex]),
+      ),
+    }
+
+    interactionSession.value = null
+  }
+
+  function startResizeSession(payload: { itemId: string; edge: 'left' | 'right' }) {
+    selectItems([payload.itemId])
+    interactionSession.value = {
+      type: 'resize',
+      itemId: payload.itemId,
+      edge: payload.edge,
+      baseItems: workingItems.value.map((item) => ({ ...item })),
+    }
+  }
+
+  function previewResizeSession(payload: { deltaDays: number }) {
+    const session = interactionSession.value
+    if (!session || session.type !== 'resize') return
+
+    workingItems.value = scheduleService.resizeItem(
+      session.baseItems,
+      session.itemId,
+      session.edge,
+      payload.deltaDays,
+    )
+  }
+
+  function endResizeSession() {
+    if (interactionSession.value?.type === 'resize') {
+      interactionSession.value = null
+    }
+  }
+
   return {
     snapshot,
+    workingItems,
     isLoading,
     errorMessage,
     summary,
@@ -95,10 +268,15 @@ export function useSchedule2dRebuildPage() {
     shellLayout,
     chartScrollTop,
     chartScrollLeft,
-    previewRows,
-    previewItems,
-    previewDependencies,
     loadSnapshot,
+    clearSelection,
+    selectItems,
+    startMoveSession,
+    previewMoveSession,
+    endMoveSession,
+    startResizeSession,
+    previewResizeSession,
+    endResizeSession,
     syncChartScroll,
     syncRowPanelScroll,
   }

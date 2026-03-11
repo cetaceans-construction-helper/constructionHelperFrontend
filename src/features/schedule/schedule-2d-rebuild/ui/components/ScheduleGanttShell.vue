@@ -13,10 +13,19 @@ const props = defineProps<{
   viewportHeight?: number
   scrollTop: number
   scrollLeft: number
+  selectedItemIds: string[]
 }>()
 
 const emit = defineEmits<{
   'scroll-sync': [position: { top: number; left: number }]
+  'clear-selection': []
+  'select-items': [itemIds: string[]]
+  'move-start': [itemId: string]
+  'move-preview': [payload: { deltaDays: number; deltaLanes: number }]
+  'move-end': []
+  'resize-start': [payload: { itemId: string; edge: 'left' | 'right' }]
+  'resize-preview': [payload: { deltaDays: number }]
+  'resize-end': []
 }>()
 
 function handleRowPanelScroll(scrollTop: number) {
@@ -62,7 +71,16 @@ const bodyViewportHeight = computed(() => Math.max(shellHeight.value - SHELL_HEA
           :viewport-height="bodyViewportHeight"
           :scroll-top="scrollTop"
           :scroll-left="scrollLeft"
+          :selected-item-ids="selectedItemIds"
           @scroll-change="handleChartScroll"
+          @clear-selection="emit('clear-selection')"
+          @select-items="emit('select-items', $event)"
+          @move-start="emit('move-start', $event)"
+          @move-preview="emit('move-preview', $event)"
+          @move-end="emit('move-end')"
+          @resize-start="emit('resize-start', $event)"
+          @resize-preview="emit('resize-preview', $event)"
+          @resize-end="emit('resize-end')"
         />
       </div>
     </div>

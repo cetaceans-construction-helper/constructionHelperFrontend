@@ -170,6 +170,7 @@ export interface ScheduleBarLayout {
   id: string
   itemId: string
   rowId: string
+  laneIndex: number
   name: string
   left: number
   top: number

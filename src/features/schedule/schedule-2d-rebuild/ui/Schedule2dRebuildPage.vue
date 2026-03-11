@@ -1,40 +1,61 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
+import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import PageContainer from '@/shared/helper-ui/PageContainer.vue'
 import AreaCard from '@/shared/helper-ui/AreaCard.vue'
 import { Button } from '@/shared/ui/button'
 import ScheduleGanttShell from '@/features/schedule/schedule-2d-rebuild/ui/components/ScheduleGanttShell.vue'
+import { scheduleService } from '@/features/schedule/schedule-2d-rebuild/use-cases/schedule-service'
 import { useSchedule2dRebuildPage } from '@/features/schedule/schedule-2d-rebuild/view-model/useSchedule2dRebuildPage'
+
+const ROW_PANEL_WIDTH = 320
 
 const {
   isLoading,
   errorMessage,
+  selectionState,
   timeline,
   shellLayout,
   chartScrollTop,
   chartScrollLeft,
   loadSnapshot,
+  clearSelection,
+  selectItems,
+  startMoveSession,
+  previewMoveSession,
+  endMoveSession,
+  startResizeSession,
+  previewResizeSession,
+  endResizeSession,
   syncChartScroll,
 } = useSchedule2dRebuildPage()
 
 const shellHostRef = ref<HTMLElement | null>(null)
 const shellViewportHeight = ref(640)
+const chartViewportWidth = ref(0)
+const shouldApplyInitialTimelineScroll = ref(true)
 let resizeObserver: ResizeObserver | null = null
 
-function syncShellHeight() {
+function syncShellViewport() {
   if (!shellHostRef.value) return
+
   shellViewportHeight.value = Math.max(shellHostRef.value.clientHeight, 320)
+  chartViewportWidth.value = Math.max(shellHostRef.value.clientWidth - ROW_PANEL_WIDTH, 0)
+}
+
+async function reloadSnapshot() {
+  shouldApplyInitialTimelineScroll.value = true
+  await loadSnapshot()
 }
 
 onMounted(() => {
-  loadSnapshot()
+  void reloadSnapshot()
 
   if (shellHostRef.value) {
     resizeObserver = new ResizeObserver(() => {
-      syncShellHeight()
+      syncShellViewport()
     })
     resizeObserver.observe(shellHostRef.value)
-    syncShellHeight()
+    syncShellViewport()
   }
 })
 
@@ -42,6 +63,20 @@ onUnmounted(() => {
   resizeObserver?.disconnect()
   resizeObserver = null
 })
+
+watch(
+  () => [timeline.value, chartViewportWidth.value] as const,
+  async ([nextTimeline, nextChartViewportWidth]) => {
+    if (!shouldApplyInitialTimelineScroll.value || !nextTimeline || nextChartViewportWidth <= 0) return
+
+    await nextTick()
+    syncChartScroll({
+      top: 0,
+      left: scheduleService.getInitialScrollLeftForYesterday(nextTimeline, nextChartViewportWidth),
+    })
+    shouldApplyInitialTimelineScroll.value = false
+  },
+)
 </script>
 
 <template>
@@ -56,7 +91,16 @@ onUnmounted(() => {
           :viewport-height="shellViewportHeight"
           :scroll-top="chartScrollTop"
           :scroll-left="chartScrollLeft"
+          :selected-item-ids="selectionState.itemIds"
           @scroll-sync="syncChartScroll"
+          @clear-selection="clearSelection"
+          @select-items="selectItems"
+          @move-start="startMoveSession"
+          @move-preview="previewMoveSession"
+          @move-end="endMoveSession"
+          @resize-start="startResizeSession"
+          @resize-preview="previewResizeSession"
+          @resize-end="endResizeSession"
         />
 
         <div
@@ -76,7 +120,7 @@ onUnmounted(() => {
         </div>
 
         <div class="absolute right-4 top-4 z-20">
-          <Button variant="outline" size="sm" :disabled="isLoading" @click="loadSnapshot">
+          <Button variant="outline" size="sm" :disabled="isLoading" @click="reloadSnapshot">
             {{ isLoading ? '불러오는 중...' : '새로고침' }}
           </Button>
         </div>

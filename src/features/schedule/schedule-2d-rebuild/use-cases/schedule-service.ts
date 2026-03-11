@@ -3,6 +3,7 @@ import type {
   ScheduleBarLayout,
   ScheduleDependency,
   ScheduleItem,
+  ScheduleItemAppearance,
   SchedulePendingContract,
   ScheduleRow,
   ScheduleShellLayout,
@@ -44,7 +45,26 @@ interface TimelineOptions {
 interface ShellLayoutOptions {
   rowHeight?: number
   barHeight?: number
+  preferredLaneByItemId?: Readonly<Record<string, number>>
+  pinnedLaneByItemId?: Readonly<Record<string, number>>
 }
+
+interface RowBarDraft {
+  id: string
+  itemId: string
+  rowId: string
+  laneIndex: number
+  name: string
+  left: number
+  width: number
+  height: number
+  startDate: string
+  endDate: string
+  durationDays: number
+  appearance: ScheduleItemAppearance
+}
+
+type ResizeEdge = 'left' | 'right'
 
 export const SCHEDULE_TIMELINE_DEFAULTS = {
   dayWidth: 36,
@@ -131,6 +151,14 @@ function diffDays(startDate: string, endDate: string): number {
   start.setHours(0, 0, 0, 0)
   end.setHours(0, 0, 0, 0)
   return Math.round((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000))
+}
+
+function shiftDateString(date: string, days: number): string {
+  return formatLocalDate(addDays(parseLocalDate(date), days))
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max)
 }
 
 function buildTimelineGroups(
@@ -328,12 +356,12 @@ async function loadSnapshot(repository: ScheduleSnapshotRepository): Promise<Sch
   return repository.getScheduleSnapshot()
 }
 
-function buildTimeline(snapshot: ScheduleSnapshot, options: TimelineOptions = {}): ScheduleTimelineLayout {
+function buildTimeline(items: ScheduleItem[], options: TimelineOptions = {}): ScheduleTimelineLayout {
   const dayWidth = options.dayWidth ?? SCHEDULE_TIMELINE_DEFAULTS.dayWidth
   const paddingBeforeDays = options.paddingBeforeDays ?? SCHEDULE_TIMELINE_DEFAULTS.paddingBeforeDays
   const paddingAfterDays = options.paddingAfterDays ?? SCHEDULE_TIMELINE_DEFAULTS.paddingAfterDays
 
-  const itemDates = snapshot.items.flatMap((item) => [item.startDate, item.endDate])
+  const itemDates = items.flatMap((item) => [item.startDate, item.endDate])
   const todayString = formatLocalDate(new Date())
 
   const baseStartDate = itemDates.length > 0
@@ -380,64 +408,246 @@ function buildTimeline(snapshot: ScheduleSnapshot, options: TimelineOptions = {}
 }
 
 function buildShellLayout(
-  snapshot: ScheduleSnapshot,
+  rowsSource: ScheduleRow[],
+  items: ScheduleItem[],
   timeline: ScheduleTimelineLayout,
   options: ShellLayoutOptions = {},
 ): ScheduleShellLayout {
   const rowHeight = options.rowHeight ?? SCHEDULE_SHELL_DEFAULTS.rowHeight
   const barHeight = options.barHeight ?? SCHEDULE_SHELL_DEFAULTS.barHeight
-  const rowIndexMap = new Map<string, number>()
   const itemCountByRow = new Map<string, number>()
+  const itemsByRow = new Map<string, ScheduleItem[]>()
+  const rowBarDraftsById = new Map<string, RowBarDraft[]>()
+  const rowHeightById = new Map<string, number>()
+  const rowTopById = new Map<string, number>()
+  const verticalPadding = Math.max((rowHeight - barHeight) / 2, 6)
+  const laneGap = 6
+  const preferredLaneByItemId = options.preferredLaneByItemId ?? {}
+  const pinnedLaneByItemId = options.pinnedLaneByItemId ?? {}
 
-  snapshot.items.forEach((item) => {
+  items.forEach((item) => {
     itemCountByRow.set(item.rowId, (itemCountByRow.get(item.rowId) ?? 0) + 1)
+    const rowItems = itemsByRow.get(item.rowId) ?? []
+    rowItems.push(item)
+    itemsByRow.set(item.rowId, rowItems)
   })
 
-  const rows: ScheduleShellRow[] = [...snapshot.rows]
-    .sort((a, b) => a.order - b.order)
-    .map((row, index) => {
-      rowIndexMap.set(row.id, index)
-      return {
-        id: row.id,
-        name: row.name,
-        kind: row.kind,
-        depth: row.depth,
-        order: row.order,
-        top: index * rowHeight,
-        height: rowHeight,
-        itemCount: itemCountByRow.get(row.id) ?? 0,
-      }
-    })
+  const orderedRows = [...rowsSource].sort((a, b) => a.order - b.order)
 
-  const bars: ScheduleBarLayout[] = snapshot.items
-    .map((item) => {
-      const rowIndex = rowIndexMap.get(item.rowId)
-      if (rowIndex === undefined) return null
+  orderedRows.forEach((row) => {
+    const rowItems = [...(itemsByRow.get(row.id) ?? [])]
+      .sort((a, b) => (
+        a.startDate.localeCompare(b.startDate) ||
+        a.endDate.localeCompare(b.endDate) ||
+        a.name.localeCompare(b.name, 'ko') ||
+        a.workId - b.workId
+      ))
 
+    const laneIntervals = new Map<number, Array<{ left: number; right: number }>>()
+    const rowBarDrafts: RowBarDraft[] = []
+
+    function buildBarDraft(item: ScheduleItem, laneIndex: number): RowBarDraft {
       const left = diffDays(timeline.startDate, item.startDate) * timeline.dayWidth
+      const width = Math.max(item.durationDays * timeline.dayWidth, timeline.dayWidth)
       return {
         id: `bar:${item.id}`,
         itemId: item.id,
         rowId: item.rowId,
+        laneIndex,
         name: item.name,
         left,
-        top: rowIndex * rowHeight + (rowHeight - barHeight) / 2,
-        width: Math.max(item.durationDays * timeline.dayWidth - 6, timeline.dayWidth * 0.65),
+        width,
         height: barHeight,
         startDate: item.startDate,
         endDate: item.endDate,
         durationDays: item.durationDays,
         appearance: item.appearance,
       }
-    })
-    .filter((bar): bar is ScheduleBarLayout => bar !== null)
+    }
+
+    function isLaneAvailable(laneIndex: number, draft: RowBarDraft): boolean {
+      const intervals = laneIntervals.get(laneIndex) ?? []
+      const draftRight = draft.left + draft.width
+      return intervals.every((interval) => draft.left >= interval.right || draftRight <= interval.left)
+    }
+
+    function reserveLane(laneIndex: number, draft: RowBarDraft) {
+      const intervals = laneIntervals.get(laneIndex) ?? []
+      intervals.push({ left: draft.left, right: draft.left + draft.width })
+      laneIntervals.set(laneIndex, intervals)
+      rowBarDrafts.push(draft)
+    }
+
+    function findFirstAvailableLaneForDraft(draft: RowBarDraft, startLaneIndex = 0): number {
+      let laneIndex = startLaneIndex
+      while (!isLaneAvailable(laneIndex, draft)) {
+        laneIndex += 1
+      }
+      return laneIndex
+    }
+
+    rowItems
+      .filter((item) => pinnedLaneByItemId[item.id] !== undefined)
+      .sort((a, b) => (
+        (pinnedLaneByItemId[a.id] ?? 0) - (pinnedLaneByItemId[b.id] ?? 0) ||
+        a.startDate.localeCompare(b.startDate) ||
+        a.workId - b.workId
+      ))
+      .forEach((item) => {
+        const requestedLaneIndex = pinnedLaneByItemId[item.id]!
+        const draft = buildBarDraft(item, requestedLaneIndex)
+
+        if (isLaneAvailable(requestedLaneIndex, draft)) {
+          reserveLane(requestedLaneIndex, draft)
+          return
+        }
+
+        let fallbackLaneIndex = 0
+        fallbackLaneIndex = findFirstAvailableLaneForDraft(draft, 0)
+        reserveLane(fallbackLaneIndex, { ...draft, laneIndex: fallbackLaneIndex })
+      })
+
+    rowItems
+      .filter((item) => pinnedLaneByItemId[item.id] === undefined && preferredLaneByItemId[item.id] !== undefined)
+      .sort((a, b) => (
+        (preferredLaneByItemId[a.id] ?? 0) - (preferredLaneByItemId[b.id] ?? 0) ||
+        a.startDate.localeCompare(b.startDate) ||
+        a.workId - b.workId
+      ))
+      .forEach((item) => {
+        const draft = buildBarDraft(item, preferredLaneByItemId[item.id] ?? 0)
+        const laneIndex = findFirstAvailableLaneForDraft(draft, 0)
+
+        reserveLane(laneIndex, { ...draft, laneIndex })
+      })
+
+    rowItems
+      .filter((item) => pinnedLaneByItemId[item.id] === undefined && preferredLaneByItemId[item.id] === undefined)
+      .forEach((item) => {
+        const draft = buildBarDraft(item, 0)
+        const laneIndex = findFirstAvailableLaneForDraft(draft, 0)
+
+        reserveLane(laneIndex, { ...draft, laneIndex })
+      })
+
+    const laneCount = Math.max(
+      rowBarDrafts.reduce((maxLaneIndex, draft) => Math.max(maxLaneIndex, draft.laneIndex), -1) + 1,
+      1,
+    )
+    const stackedRowHeight = verticalPadding * 2 + laneCount * barHeight + Math.max(laneCount - 1, 0) * laneGap
+
+    rowBarDraftsById.set(row.id, rowBarDrafts)
+    rowHeightById.set(row.id, row.kind === 'child-process' ? Math.max(rowHeight, stackedRowHeight) : rowHeight)
+  })
+
+  let accumulatedTop = 0
+  const rows: ScheduleShellRow[] = orderedRows.map((row) => {
+    const nextRowHeight = rowHeightById.get(row.id) ?? rowHeight
+    rowTopById.set(row.id, accumulatedTop)
+
+    const shellRow = {
+      id: row.id,
+      name: row.name,
+      kind: row.kind,
+      depth: row.depth,
+      order: row.order,
+      top: accumulatedTop,
+      height: nextRowHeight,
+      itemCount: itemCountByRow.get(row.id) ?? 0,
+    }
+    accumulatedTop += nextRowHeight
+    return shellRow
+  })
+
+  const bars: ScheduleBarLayout[] = orderedRows.flatMap((row) => {
+    const rowTop = rowTopById.get(row.id)
+    if (rowTop === undefined) return []
+
+    return (rowBarDraftsById.get(row.id) ?? []).map((barDraft) => ({
+      id: barDraft.id,
+      itemId: barDraft.itemId,
+      rowId: barDraft.rowId,
+      laneIndex: barDraft.laneIndex,
+      name: barDraft.name,
+      left: barDraft.left,
+      top: rowTop + verticalPadding + barDraft.laneIndex * (barHeight + laneGap),
+      width: barDraft.width,
+      height: barDraft.height,
+      startDate: barDraft.startDate,
+      endDate: barDraft.endDate,
+      durationDays: barDraft.durationDays,
+      appearance: barDraft.appearance,
+    }))
+  })
 
   return {
     rows,
     bars,
-    chartHeight: rows.length * rowHeight,
+    chartHeight: accumulatedTop,
     rowHeight,
   }
+}
+
+function getInitialScrollLeftForYesterday(timeline: ScheduleTimelineLayout, viewportWidth: number): number {
+  if (viewportWidth <= 0) return 0
+
+  const yesterday = formatLocalDate(addDays(new Date(), -1))
+  const maxScrollLeft = Math.max(timeline.chartWidth - viewportWidth, 0)
+
+  if (yesterday <= timeline.startDate) return 0
+  if (yesterday >= timeline.endDate) return maxScrollLeft
+
+  const yesterdayRight = (diffDays(timeline.startDate, yesterday) + 1) * timeline.dayWidth
+  return clamp(yesterdayRight - viewportWidth, 0, maxScrollLeft)
+}
+
+function moveItems(
+  baseItems: ScheduleItem[],
+  itemIds: string[],
+  deltaDays: number,
+): ScheduleItem[] {
+  if (itemIds.length === 0) return baseItems
+
+  const selectedIds = new Set(itemIds)
+
+  return baseItems.map((item) => {
+    if (!selectedIds.has(item.id)) return item
+
+    return {
+      ...item,
+      startDate: shiftDateString(item.startDate, deltaDays),
+      endDate: shiftDateString(item.endDate, deltaDays),
+    }
+  })
+}
+
+function resizeItem(
+  baseItems: ScheduleItem[],
+  itemId: string,
+  edge: ResizeEdge,
+  deltaDays: number,
+): ScheduleItem[] {
+  return baseItems.map((item) => {
+    if (item.id !== itemId) return item
+
+    if (edge === 'left') {
+      const clampedDelta = Math.min(deltaDays, item.durationDays - 1)
+      return {
+        ...item,
+        startDate: shiftDateString(item.startDate, clampedDelta),
+        durationDays: item.durationDays - clampedDelta,
+      }
+    }
+
+    const nextDurationDays = Math.max(item.durationDays + deltaDays, 1)
+    const endDateDelta = nextDurationDays - item.durationDays
+
+    return {
+      ...item,
+      durationDays: nextDurationDays,
+      endDate: shiftDateString(item.endDate, endDateDelta),
+    }
+  })
 }
 
 export const scheduleService = {
@@ -445,4 +655,7 @@ export const scheduleService = {
   loadSnapshot,
   buildTimeline,
   buildShellLayout,
+  getInitialScrollLeftForYesterday,
+  moveItems,
+  resizeItem,
 }
