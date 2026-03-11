@@ -261,6 +261,25 @@ const {
           <h3 class="text-lg font-semibold">Release Note</h3>
           <div class="mt-4 flex-1 min-h-0">
             <div class="border border-border rounded-lg p-3 h-full overflow-y-auto">
+              <p class="text-sm font-medium">26.03.11 수요일</p>
+              <p class="text-sm text-muted-foreground mt-1">1. 2D공정표 작동방식 대규모 수정.</p>
+              <p class="text-sm text-muted-foreground mt-1">2. 작업모드, 패스모드 구분이 없어짐</p>
+              <p class="text-sm font-bold text-red-500 mt-1">
+                3. 작업, 패스 수정은 오른쪽버튼 클릭으로 변경
+              </p>
+              <p class="text-sm font-bold text-red-500 mt-1">
+                4. 작업을 선택하면 날짜조정, 선택하지 않으면 새로운 패스 생성
+              </p>
+              <p class="text-sm font-bold text-red-500 mt-1">
+                5. 패스를 선택하고 연결하면 패스에 작업추가
+              </p>
+              <p class="text-sm text-muted-foreground mt-1">
+                6. 구간, 용도 개념 제거. 구역 / 층 만 입력합니다.
+              </p>
+              <p class="text-sm font-bold text-red-500 mt-1">
+                7. 원하는 세부공종 위치에 더블클릭하면 해당 세부공종 작업 생성합니다.
+              </p>
+              <br />
               <p class="text-sm font-medium">26.03.09 월요일</p>
               <p class="text-sm font-bold text-red-500 mt-1">
                 1. 오늘 작업 각각 클릭해서 사진입력 가능.
