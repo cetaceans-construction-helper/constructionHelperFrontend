@@ -38,6 +38,8 @@
   - 도메인 규칙 자체를 정의하지 않고 `use-cases`를 호출해 orchestration만 수행한다.
 - `use-cases`
   - row tree 구성, bar 배치 계산, selection/move/resize/group/dependency/milestone 같은 시나리오 흐름을 담당한다.
+  - 현재 리빌드에서는 마이크로 모듈로 쪼개지 않고 `schedule-service.ts` 단일 파일로 유지한다.
+  - 파일이 과도하게 비대해진다는 근거가 생기기 전까지 `buildX`, `loadX`, `validateX` 식의 use-case 파일 분할은 하지 않는다.
   - Vue 컴포넌트, DOM, router, axios에 직접 의존하지 않는다.
 - `model`
   - `ScheduleRow`, `ScheduleItem`, `Dependency`, `Group`, `Milestone` 같은 도메인 타입과 검증 규칙을 둔다.
@@ -51,22 +53,24 @@
 
 ## 4. 커밋 배치
 
-### [ ] Batch 1. Schedule v2 도메인 모델 + API adapter 도입
+### [x] Batch 1. Schedule v2 도메인 모델 + API adapter 도입
 
 - 범위
   - `schedule-2d-rebuild` feature 골격(`ui / view-model / use-cases / model / infra / public.ts`)을 먼저 만든다.
+  - `use-cases` 레이어는 `schedule-service.ts` 단일 서비스 파일로 시작한다.
   - `row tree`, `schedule item`, `dependency`, `group`, `milestone`, `selection/context menu state`를 담는 내부 타입을 새로 정의한다.
   - 기존 `WorkResponse`, `PathResponse`를 새 내부 모델로 변환하는 adapter를 만든다.
   - 백엔드 계약이 아직 없는 동안 상위/하위 공정은 임시로 `workType / subWorkType` 또는 별도 mock row metadata로 매핑한다.
 - 완료 기준
-  - [ ] `schedule-2d-rebuild` feature 골격과 `public.ts`가 생성된다.
-  - [ ] 새 렌더러는 `WorkResponse` / `PathResponse`를 직접 읽지 않고 adapter 결과만 사용한다.
-  - [ ] 기존 데이터만으로도 row tree와 bar 목록을 만들 수 있다.
-  - [ ] 신규 개념 중 저장 불가능한 항목은 `pending contract`로 코드상 분리된다.
+  - [x] `schedule-2d-rebuild` feature 골격과 `public.ts`가 생성된다.
+  - [x] `use-cases`는 단일 `schedule-service.ts`로 정리된다.
+  - [x] 새 렌더러는 `WorkResponse` / `PathResponse`를 직접 읽지 않고 adapter 결과만 사용한다.
+  - [x] 기존 데이터만으로도 row tree와 bar 목록을 만들 수 있다.
+  - [x] 신규 개념 중 저장 불가능한 항목은 `pending contract`로 코드상 분리된다.
 - 검증
-  - [ ] `npm run type-check`
-  - [ ] `npm run build`
-  - [ ] work 수와 bar 수, 기존 path 수와 dependency 수가 adapter 결과에서 일치한다.
+  - [x] `npm run type-check`
+  - [x] `npm run build`
+  - [x] work 수와 bar 수, 기존 path 수와 dependency 수가 adapter 결과에서 일치한다.
 
 ### [ ] Batch 2. VueFlow 의존 제거 + 좌측 패널/우측 차트 셸 구축
 
