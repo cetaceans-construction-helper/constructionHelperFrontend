@@ -73,7 +73,7 @@ const selectGroup = (index: number, event: MouseEvent) => {
 
 // 화면 좌표 → flow 좌표 변환 후 그룹박스 히트 테스트 (공통 헬퍼)
 const hitTestGroupBox = (event: MouseEvent): number => {
-  if (isInPathMode.value) return -1
+  if (isPathEditMode.value) return -1
   if (!showWorkTypeGroup.value && !showSubWorkTypeGroup.value) return -1
   const container = containerRef.value
   if (!container) return -1
@@ -535,6 +535,7 @@ const executeDelete = async () => {
       edges.value = edges.value.filter((e) => e.data?.pathId !== deletedPathId)
       paths.value = paths.value.filter((p) => p.workPathId !== deletedPathId)
       cancelPathEdit()
+      showPathDialog.value = false
       analyticsClient.trackAction('schedule_2d', 'delete_path', 'success')
     }
     showDeleteDialog.value = false
@@ -587,21 +588,10 @@ const {
   updateLagDays,
 } = usePathEditor(nodes, edges, paths, applyMutation)
 
-// 패스 모드 플래그 (패스 선택 없이도 모드 전환 가능)
-const pathMode = ref(false)
-const isInPathMode = computed(() => pathMode.value || isPathEditMode.value)
-
-// pathMode 해제 시 패스 선택도 해제
-watch(pathMode, (val) => {
-  if (!val && isPathEditMode.value) {
-    cancelPathEdit()
-    tooltip.value.visible = false
-  }
-})
 
 // 패스 편집 모드에서 노드 하이라이트
 watch(
-  [isInPathMode, selectedPathColor, pathNodeIds],
+  [isPathEditMode, selectedPathColor, pathNodeIds],
   ([editMode, pathColor, nodeIds]) => {
     nodes.value = nodes.value.map(node => {
       const workId = parseInt(node.id.replace('work-', ''))
@@ -718,7 +708,8 @@ const resizeHandles = computed(() => {
   const h = node.data.computedHeight as number
   return {
     left: { x: node.position.x, y: node.position.y + h / 2 },
-    right: { x: node.position.x + w, y: node.position.y + h / 2 }
+    right: { x: node.position.x + w, y: node.position.y + h / 2 },
+    halfH: h / 2
   }
 })
 
@@ -729,14 +720,14 @@ const onNodeClick = (event: { node: Node; event: MouseEvent | TouchEvent }) => {
 
   // 같은 노드 클릭 시 선택 해제
   if (tooltip.value.visible && tooltip.value.workId === work.workId) {
-    if (!isInPathMode.value) clearWorkSelection()
+    if (!isPathEditMode.value) clearWorkSelection()
     tooltip.value.visible = false
     tooltip.value.workId = null
     return
   }
 
-  // 노드 선택 (패스 모드가 아닐 때만)
-  if (!isInPathMode.value) selectWork(work.workId)
+  // 노드 선택 (패스 편집 중이 아닐 때만)
+  if (!isPathEditMode.value) selectWork(work.workId)
 
   // 말풍선 표시
   tooltip.value = {
@@ -817,6 +808,9 @@ const showPathDialog = ref(false)
 
 // 노드 연결 핸들러 (패스 미선택 시 새 패스 생성)
 const handleConnect = async (params: { source: string; target: string }) => {
+  // 노드 선택 상태에서는 패스 생성/추가 차단 (리사이즈 핸들만 활성)
+  if (selectedWorkId.value) return
+
   const result = onConnect(params)
   if (!result) {
     // 패스 편집 모드에서 work 추가된 경우 즉시 저장
@@ -864,29 +858,43 @@ const handleConnect = async (params: { source: string; target: string }) => {
   }
 }
 
-// 엣지 클릭 시 하이라이트 (패스모드에서만 동작)
+// 엣지 클릭 시 하이라이트 (겹친 패스 순환 선택)
 const onEdgeClick = (event: { edge: Edge }) => {
-  if (!isInPathMode.value) return
   const pathId = event.edge.data?.pathId as number | undefined
   if (!pathId) return
-  selectPath(pathId)
+
+  // 같은 source-target 쌍의 패스 ID 수집
+  const pairPathIds = [...new Set(
+    edges.value
+      .filter(e => e.source === event.edge.source && e.target === event.edge.target && e.data?.pathId)
+      .map(e => e.data!.pathId as number)
+  )]
+
+  if (pairPathIds.length > 1 && selectedPathId.value && pairPathIds.includes(selectedPathId.value)) {
+    const idx = pairPathIds.indexOf(selectedPathId.value)
+    selectPath(pairPathIds[(idx + 1) % pairPathIds.length]!)
+  } else {
+    selectPath(pathId)
+  }
+
   clearWorkSelection()
   tooltip.value.visible = false
 }
 
-// 엣지 더블클릭 시 다이얼로그 표시 (패스모드에서만 동작)
-const onEdgeDoubleClick = (event: { edge: Edge }) => {
-  if (!isInPathMode.value) return
+// 엣지 우클릭 → 패스 편집 다이얼로그
+const onEdgeContextMenu = (event: { edge: Edge; event: MouseEvent | TouchEvent }) => {
+  event.event.preventDefault()
   const pathId = event.edge.data?.pathId as number | undefined
   if (!pathId) return
   selectPath(pathId)
   showPathDialog.value = true
 }
 
-// 노드 더블클릭 → 상세 편집 다이얼로그
-const onNodeDoubleClick = (event: { node: Node }) => {
+// 노드 우클릭 → 상세 편집 다이얼로그
+const onNodeContextMenu = (event: { node: Node; event: MouseEvent | TouchEvent }) => {
+  event.event.preventDefault()
   const work = event.node.data.work as WorkResponse | undefined
-  if (!work || isInPathMode.value) return
+  if (!work || isPathEditMode.value) return
   td.openDialog(work)
 }
 
@@ -977,7 +985,7 @@ const onPaneClick = (event: MouseEvent) => {
   if (isPathEditMode.value) {
     cancelPathEdit()
   }
-  if (!isInPathMode.value) {
+  if (!isPathEditMode.value) {
     clearWorkSelection()
   }
 
@@ -1020,7 +1028,7 @@ const onContainerDblClick = (event: MouseEvent) => {
 
 // 빈 영역 더블클릭 → 생성 다이얼로그 열기
 const handlePaneDblClick = (event: MouseEvent) => {
-  if (isInPathMode.value) return
+  if (isPathEditMode.value) return
 
   const container = containerRef.value
   if (!container) return
@@ -1144,16 +1152,14 @@ const onResizeMove = (e: MouseEvent) => {
 
   if (r.side === 'left') {
     const clampedDays = Math.min(daysDelta, r.origLeadTime - 1)
-    const newLeadTime = r.origLeadTime - clampedDays
     const newX = r.origNodeX + clampedDays * cfg.pixelPerDay
-    const newWidth = computeNodeWidth(newLeadTime)
+    const newWidth = r.origNodeWidth - clampedDays * cfg.pixelPerDay
     node.position.x = newX
     node.style = { ...node.style, width: `${newWidth}px` }
     node.data.computedWidth = newWidth
   } else {
     const clampedDays = Math.max(daysDelta, -(r.origLeadTime - 1))
-    const newLeadTime = r.origLeadTime + clampedDays
-    const newWidth = computeNodeWidth(newLeadTime)
+    const newWidth = r.origNodeWidth + clampedDays * cfg.pixelPerDay
     node.style = { ...node.style, width: `${newWidth}px` }
     node.data.computedWidth = newWidth
   }
@@ -1231,8 +1237,8 @@ const onNodeDrag = (event: { node: Node }) => {
   const originalX = event.node.data.originalX
   const work = event.node.data.work as WorkResponse | undefined
 
-  // 패스관리모드: 모든 노드 이동 차단
-  if (isInPathMode.value) {
+  // 패스 편집 중: 모든 노드 이동 차단
+  if (isPathEditMode.value) {
     if (work) event.node.position.y = work.positionY
     if (originalX !== undefined) event.node.position.x = originalX
     return
@@ -1266,40 +1272,15 @@ const handleVueFlowWheel = (e: WheelEvent) => {
   }
 }
 
-// 키보드 단축키: 1=작업관리모드, 2=패스관리모드
-const onKeyDown = (e: KeyboardEvent) => {
-  // input, select, textarea 등에서는 무시
-  const tag = (e.target as HTMLElement).tagName
-  if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return
-
-  if (e.key === '1') {
-    // 작업관리모드
-    if (isInPathMode.value) {
-      pathMode.value = false
-      cancelPathEdit()
-      tooltip.value.visible = false
-    }
-  } else if (e.key === '2') {
-    // 패스관리모드
-    if (!isInPathMode.value) {
-      pathMode.value = true
-      clearWorkSelection()
-      tooltip.value.visible = false
-    }
-  }
-}
-
 onMounted(async () => {
   await loadCalendarData()
   loadWorkData()
   td.loadReferenceData()
   setupResizeObserver()
-  window.addEventListener('keydown', onKeyDown)
 })
 
 onUnmounted(() => {
   cleanupResizeObserver()
-  window.removeEventListener('keydown', onKeyDown)
 })
 </script>
 
@@ -1425,20 +1406,21 @@ onUnmounted(() => {
         v-model:nodes="nodes"
         :edges="styledEdges"
         class="w-full h-full"
-        :class="{ 'path-mode': isInPathMode }"
+        :class="{ 'path-mode': isPathEditMode || !selectedWorkId, 'work-selected': !!selectedWorkId }"
         :style="{ paddingTop: `${HEADER_HEIGHT}px` }"
         fit-view-on-init
         :min-zoom="0.5"
         :zoom-on-scroll="false"
         :zoom-on-double-click="false"
         :disable-keyboard-a11y="true"
+        :nodes-connectable="!selectedWorkId"
         @node-click="onNodeClick"
-        @node-double-click="onNodeDoubleClick"
+        @node-context-menu="onNodeContextMenu"
         @node-drag="onNodeDrag"
         @node-drag-stop="onNodeDragStop"
         @pane-click="onPaneClick"
         @edge-click="onEdgeClick"
-        @edge-double-click="onEdgeDoubleClick"
+        @edge-context-menu="onEdgeContextMenu"
         @connect="handleConnect"
       >
         <!-- 세로 줄 패턴 (40px 간격) - 프로젝트 기간 내에서만 -->
@@ -1489,7 +1471,7 @@ onUnmounted(() => {
               fill="url(#vertical-lines)"
             />
             <!-- 그루핑 박스 (SVG 비인터랙티브 배경만) -->
-            <g v-if="!isInPathMode">
+            <g v-if="!isPathEditMode">
               <template v-if="showWorkTypeGroup">
                 <template v-for="(box, i) in groupBoxes" :key="`group-wt-svg-${i}`">
                   <rect
@@ -1531,7 +1513,7 @@ onUnmounted(() => {
         </svg>
 
         <!-- 그루핑 박스 인터랙티브 오버레이 (viewport z:4 위에 배치, pointer-events 전략으로 노드 클릭 투과) -->
-        <template v-if="!isInPathMode">
+        <template v-if="!isPathEditMode">
           <template v-for="(box, i) in groupBoxes" :key="`group-overlay-${i}`">
             <div
               v-if="(box.level === 'workType' && showWorkTypeGroup) || (box.level === 'subWorkType' && showSubWorkTypeGroup)"
@@ -1672,71 +1654,65 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <!-- 리사이즈 핸들 (모서리 기준 ◀ ▶ 각각 띄움, 노드 비율 고정) -->
-        <template v-if="resizeHandles && !isInPathMode">
-          <!-- 왼쪽 모서리: ◀ (바깥쪽) -->
+        <!-- 리사이즈 핸들 (노드 세로 모서리에 바 1개씩) -->
+        <template v-if="resizeHandles && !isPathEditMode">
+          <!-- 왼쪽 모서리 ◀ -->
           <div
-            class="absolute z-20 cursor-col-resize"
+            class="absolute z-20 cursor-col-resize flex items-center justify-center"
             :style="{
-              left: `${(resizeHandles.left.x - 3) * viewport.zoom + viewport.x}px`,
-              top: `${resizeHandles.left.y * viewport.zoom + viewport.y}px`,
-              transform: 'translate(-100%, -50%)'
+              left: `${resizeHandles.left.x * viewport.zoom + viewport.x}px`,
+              top: `${(resizeHandles.left.y - resizeHandles.halfH) * viewport.zoom + viewport.y}px`,
+              width: `${16 * viewport.zoom}px`,
+              height: `${resizeHandles.halfH * 2 * viewport.zoom}px`,
+              transform: 'translateX(-50%)'
             }"
             @mousedown.stop="onResizeStart('left', $event)"
           >
-            <div :style="{
-              borderTop: `${5 * viewport.zoom}px solid transparent`,
-              borderBottom: `${5 * viewport.zoom}px solid transparent`,
-              borderRight: `${5 * viewport.zoom}px solid black`
-            }" />
+            <div style="display: flex; align-items: center; gap: 5px;">
+              <div :style="{
+                width: '0',
+                height: '0',
+                borderTop: `${Math.max(4, 5 * viewport.zoom)}px solid transparent`,
+                borderBottom: `${Math.max(4, 5 * viewport.zoom)}px solid transparent`,
+                borderRight: `${Math.max(5, 6 * viewport.zoom)}px solid #1f2937`
+              }" />
+              <div :style="{
+                width: '0',
+                height: '0',
+                borderTop: `${Math.max(4, 5 * viewport.zoom)}px solid transparent`,
+                borderBottom: `${Math.max(4, 5 * viewport.zoom)}px solid transparent`,
+                borderLeft: `${Math.max(5, 6 * viewport.zoom)}px solid #1f2937`
+              }" />
+            </div>
           </div>
-          <!-- 왼쪽 모서리: ▶ (안쪽) -->
+          <!-- 오른쪽 모서리 ◀▶ -->
           <div
-            class="absolute z-20 cursor-col-resize"
+            class="absolute z-20 cursor-col-resize flex items-center justify-center"
             :style="{
-              left: `${(resizeHandles.left.x + 3) * viewport.zoom + viewport.x}px`,
-              top: `${resizeHandles.left.y * viewport.zoom + viewport.y}px`,
-              transform: 'translateY(-50%)'
-            }"
-            @mousedown.stop="onResizeStart('left', $event)"
-          >
-            <div :style="{
-              borderTop: `${5 * viewport.zoom}px solid transparent`,
-              borderBottom: `${5 * viewport.zoom}px solid transparent`,
-              borderLeft: `${5 * viewport.zoom}px solid black`
-            }" />
-          </div>
-          <!-- 오른쪽 모서리: ◀ (안쪽) -->
-          <div
-            class="absolute z-20 cursor-col-resize"
-            :style="{
-              left: `${(resizeHandles.right.x - 3) * viewport.zoom + viewport.x}px`,
-              top: `${resizeHandles.right.y * viewport.zoom + viewport.y}px`,
-              transform: 'translate(-100%, -50%)'
+              left: `${resizeHandles.right.x * viewport.zoom + viewport.x}px`,
+              top: `${(resizeHandles.right.y - resizeHandles.halfH) * viewport.zoom + viewport.y}px`,
+              width: `${16 * viewport.zoom}px`,
+              height: `${resizeHandles.halfH * 2 * viewport.zoom}px`,
+              transform: 'translateX(-50%)'
             }"
             @mousedown.stop="onResizeStart('right', $event)"
           >
-            <div :style="{
-              borderTop: `${5 * viewport.zoom}px solid transparent`,
-              borderBottom: `${5 * viewport.zoom}px solid transparent`,
-              borderRight: `${5 * viewport.zoom}px solid black`
-            }" />
-          </div>
-          <!-- 오른쪽 모서리: ▶ (바깥쪽) -->
-          <div
-            class="absolute z-20 cursor-col-resize"
-            :style="{
-              left: `${(resizeHandles.right.x + 3) * viewport.zoom + viewport.x}px`,
-              top: `${resizeHandles.right.y * viewport.zoom + viewport.y}px`,
-              transform: 'translateY(-50%)'
-            }"
-            @mousedown.stop="onResizeStart('right', $event)"
-          >
-            <div :style="{
-              borderTop: `${5 * viewport.zoom}px solid transparent`,
-              borderBottom: `${5 * viewport.zoom}px solid transparent`,
-              borderLeft: `${5 * viewport.zoom}px solid black`
-            }" />
+            <div style="display: flex; align-items: center; gap: 5px;">
+              <div :style="{
+                width: '0',
+                height: '0',
+                borderTop: `${Math.max(4, 5 * viewport.zoom)}px solid transparent`,
+                borderBottom: `${Math.max(4, 5 * viewport.zoom)}px solid transparent`,
+                borderRight: `${Math.max(5, 6 * viewport.zoom)}px solid #1f2937`
+              }" />
+              <div :style="{
+                width: '0',
+                height: '0',
+                borderTop: `${Math.max(4, 5 * viewport.zoom)}px solid transparent`,
+                borderBottom: `${Math.max(4, 5 * viewport.zoom)}px solid transparent`,
+                borderLeft: `${Math.max(5, 6 * viewport.zoom)}px solid #1f2937`
+              }" />
+            </div>
           </div>
         </template>
 
@@ -1763,7 +1739,7 @@ onUnmounted(() => {
       </VueFlow>
 
       <!-- 그루핑 박스 토글 (우측 하단) -->
-      <div v-if="!isInPathMode" data-group-toggle class="absolute bottom-4 right-4 z-30 flex flex-col gap-1 bg-background/80 backdrop-blur-sm rounded-md border border-border px-2 py-1.5">
+      <div v-if="!isPathEditMode" data-group-toggle class="absolute bottom-4 right-4 z-30 flex flex-col gap-1 bg-background/80 backdrop-blur-sm rounded-md border border-border px-2 py-1.5">
         <label class="flex items-center gap-1.5 cursor-pointer">
           <Checkbox
             :model-value="showWorkTypeGroup"
@@ -1782,33 +1758,6 @@ onUnmounted(() => {
         </label>
       </div>
 
-      <!-- 모드 인디케이터 (좌측 하단) -->
-      <div class="absolute bottom-4 left-4 z-30 flex items-center gap-3">
-        <button
-          class="flex items-center gap-2 px-4 py-2.5 rounded-md text-sm font-medium border transition-colors"
-          :class="!isInPathMode
-            ? 'bg-primary text-primary-foreground border-primary'
-            : 'bg-background text-muted-foreground border-border hover:bg-muted'"
-          @click="pathMode = false; cancelPathEdit(); tooltip.visible = false"
-        >
-          <kbd class="px-1.5 py-0.5 rounded border text-xs font-mono"
-            :class="!isInPathMode ? 'border-primary-foreground/30' : 'border-border'"
-          >1</kbd>
-          작업관리
-        </button>
-        <button
-          class="flex items-center gap-2 px-4 py-2.5 rounded-md text-sm font-medium border transition-colors"
-          :class="isInPathMode
-            ? 'bg-primary text-primary-foreground border-primary'
-            : 'bg-background text-muted-foreground border-border hover:bg-muted'"
-          @click="pathMode = true; clearWorkSelection(); tooltip.visible = false"
-        >
-          <kbd class="px-1.5 py-0.5 rounded border text-xs font-mono"
-            :class="isInPathMode ? 'border-primary-foreground/30' : 'border-border'"
-          >2</kbd>
-          패스관리
-        </button>
-      </div>
 
 
     </div>
@@ -2123,12 +2072,12 @@ onUnmounted(() => {
   transition: all 0.2s ease;
 }
 
-/* 패스 관리 모드에서만 핸들 표시 및 크기 증가 */
+/* 패스 관리 모드에서만 핸들 표시 */
 .path-mode :deep(.vue-flow__handle) {
   opacity: 1;
   pointer-events: auto;
-  width: 9px;
-  height: 9px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background-color: #1f2937;
   border: 1px solid white;
@@ -2136,8 +2085,15 @@ onUnmounted(() => {
 }
 
 .path-mode :deep(.vue-flow__handle:hover) {
-  width: 12px;
-  height: 12px;
+  width: 9px;
+  height: 9px;
   background-color: #111827;
+}
+
+/* 노드 선택 상태: 엣지 핸들 완전 비활성화 */
+.work-selected :deep(.vue-flow__handle) {
+  visibility: hidden !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
 }
 </style>
