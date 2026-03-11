@@ -19,6 +19,9 @@ const props = defineProps<{
 const emit = defineEmits<{
   'scroll-sync': [position: { top: number; left: number }]
   'clear-selection': []
+  'add-parent-row': []
+  'add-child-row': [parentRowId: string]
+  'toggle-row-collapse': [rowId: string]
   'select-items': [itemIds: string[]]
   'move-start': [itemId: string]
   'move-preview': [payload: { deltaDays: number; deltaLanes: number }]
@@ -47,8 +50,15 @@ const bodyViewportHeight = computed(() => Math.max(shellHeight.value - SHELL_HEA
   >
     <div class="grid h-full min-w-0 grid-cols-[320px_minmax(0,1fr)]">
       <div class="flex h-full min-h-0 flex-col border-r border-border">
-        <div class="flex h-[84px] items-center border-b border-border bg-muted/25 px-4">
+        <div class="flex h-[84px] items-center justify-between gap-3 border-b border-border bg-muted/25 px-4">
           <p class="text-sm font-semibold">공정</p>
+          <button
+            type="button"
+            class="rounded border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted"
+            @click="emit('add-parent-row')"
+          >
+            + 상위
+          </button>
         </div>
 
         <ScheduleRowPanel
@@ -56,6 +66,8 @@ const bodyViewportHeight = computed(() => Math.max(shellHeight.value - SHELL_HEA
           :viewport-height="bodyViewportHeight"
           :scroll-top="scrollTop"
           @scroll-top-change="handleRowPanelScroll"
+          @toggle-row-collapse="emit('toggle-row-collapse', $event)"
+          @add-child-row="emit('add-child-row', $event)"
         />
       </div>
 
@@ -74,6 +86,7 @@ const bodyViewportHeight = computed(() => Math.max(shellHeight.value - SHELL_HEA
           :selected-item-ids="selectedItemIds"
           @scroll-change="handleChartScroll"
           @clear-selection="emit('clear-selection')"
+          @toggle-row-collapse="emit('toggle-row-collapse', $event)"
           @select-items="emit('select-items', $event)"
           @move-start="emit('move-start', $event)"
           @move-preview="emit('move-preview', $event)"

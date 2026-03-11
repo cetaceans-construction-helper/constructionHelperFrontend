@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue'
 import { schedule2dRebuildRepository } from '@/features/schedule/schedule-2d-rebuild/infra/schedule-rebuild-repository'
-import type { ScheduleItem, ScheduleSnapshot } from '@/features/schedule/schedule-2d-rebuild/model/schedule-rebuild-types'
+import type { ScheduleItem, ScheduleRow, ScheduleSnapshot } from '@/features/schedule/schedule-2d-rebuild/model/schedule-rebuild-types'
 import {
   SCHEDULE_SHELL_DEFAULTS,
   SCHEDULE_TIMELINE_DEFAULTS,
@@ -29,6 +29,7 @@ type ResizeSession = {
 
 export function useSchedule2dRebuildPage() {
   const snapshot = ref<ScheduleSnapshot | null>(null)
+  const workingRows = ref<ScheduleRow[]>([])
   const workingItems = ref<ScheduleItem[]>([])
   const isLoading = ref(false)
   const errorMessage = ref('')
@@ -54,7 +55,7 @@ export function useSchedule2dRebuildPage() {
     }
 
     return {
-      rows: snapshot.value.rows.length,
+      rows: workingRows.value.length,
       items: workingItems.value.length,
       dependencies: snapshot.value.dependencies.length,
       groups: snapshot.value.groups.length,
@@ -70,7 +71,7 @@ export function useSchedule2dRebuildPage() {
   ))
   const shellLayout = computed(() => (
     snapshot.value && timeline.value
-      ? scheduleService.buildShellLayout(snapshot.value.rows, workingItems.value, timeline.value, {
+      ? scheduleService.buildShellLayout(workingRows.value, workingItems.value, timeline.value, {
           rowHeight: rowHeight.value,
           preferredLaneByItemId: lanePreferenceByItemId.value,
           pinnedLaneByItemId: interactionSession.value?.type === 'move'
@@ -86,6 +87,7 @@ export function useSchedule2dRebuildPage() {
 
     try {
       snapshot.value = await scheduleService.loadSnapshot(schedule2dRebuildRepository)
+      workingRows.value = snapshot.value.rows.map((row) => ({ ...row }))
       workingItems.value = snapshot.value.items.map((item) => ({ ...item }))
       lanePreferenceByItemId.value = {}
       selectionState.value = createEmptyScheduleSelectionState()
@@ -110,6 +112,18 @@ export function useSchedule2dRebuildPage() {
 
   function clearSelection() {
     selectionState.value = createEmptyScheduleSelectionState()
+  }
+
+  function addParentRow() {
+    workingRows.value = scheduleService.addParentRow(workingRows.value)
+  }
+
+  function addChildRow(parentRowId: string) {
+    workingRows.value = scheduleService.addChildRow(workingRows.value, parentRowId)
+  }
+
+  function toggleRowCollapse(rowId: string) {
+    workingRows.value = scheduleService.toggleRowCollapse(workingRows.value, rowId)
   }
 
   function selectItems(itemIds: string[]) {
@@ -270,6 +284,9 @@ export function useSchedule2dRebuildPage() {
     chartScrollLeft,
     loadSnapshot,
     clearSelection,
+    addParentRow,
+    addChildRow,
+    toggleRowCollapse,
     selectItems,
     startMoveSession,
     previewMoveSession,

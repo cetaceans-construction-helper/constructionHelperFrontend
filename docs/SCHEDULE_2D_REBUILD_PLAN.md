@@ -118,19 +118,19 @@
   - 상위 공정 row에는 자식 일정 범위를 집계한 summary bar 또는 summary chip을 렌더링한다.
   - 하위 공정 생성 시 상위 공정의 기본 속성(공종, 색상, 기본 기간, 기본 dependency 규칙 등)을 상속할 수 있게 설계한다.
 - 완료 기준
-  - [ ] 상위 공정과 하위 공정을 추가/표시할 수 있다.
-  - [ ] element를 상위 row에 직접 놓을 수 없고 하위 row에만 귀속된다.
-  - [ ] 상위 row를 접으면 하위 row는 숨겨지고 요약 표현만 남는다.
+  - [x] 상위 공정과 하위 공정을 추가/표시할 수 있다.
+  - [x] element를 상위 row에 직접 놓을 수 없고 하위 row에만 귀속된다.
+  - [x] 상위 row를 접으면 하위 row는 숨겨지고 요약 표현만 남는다.
 - 검증
-  - [ ] `npm run type-check`
-  - [ ] `npm run build`
+  - [x] `npm run type-check`
+  - [x] `npm run build`
   - [ ] 상위 row 접기/펼치기 후에도 세로 정렬과 bar 위치가 유지된다.
   - [ ] 하위 row 이동/수정이 상위 row summary에 즉시 반영된다.
 
 ### [ ] Batch 5. 우클릭 컨텍스트 메뉴와 명령 체계 도입
 
 - 범위
-  - bar, row, 빈 공간 각각에 대한 우클릭 메뉴를 만든다.
+  - bar, row, 빈 공간 각각에 대한 우클릭 메뉴를 만든다. 
   - 삭제, dependency 추가/제거, group 생성/해제, row 생성, milestone 생성 후보 등의 명령을 여기로 모은다.
   - 브라우저 기본 context menu를 대체하고, 선택 상태와 연결된 명령 enable/disable 규칙을 만든다.
 - 완료 기준

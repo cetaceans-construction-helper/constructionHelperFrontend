@@ -2,7 +2,6 @@
 import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import PageContainer from '@/shared/helper-ui/PageContainer.vue'
 import AreaCard from '@/shared/helper-ui/AreaCard.vue'
-import { Button } from '@/shared/ui/button'
 import ScheduleGanttShell from '@/features/schedule/schedule-2d-rebuild/ui/components/ScheduleGanttShell.vue'
 import { scheduleService } from '@/features/schedule/schedule-2d-rebuild/use-cases/schedule-service'
 import { useSchedule2dRebuildPage } from '@/features/schedule/schedule-2d-rebuild/view-model/useSchedule2dRebuildPage'
@@ -19,6 +18,9 @@ const {
   chartScrollLeft,
   loadSnapshot,
   clearSelection,
+  addParentRow,
+  addChildRow,
+  toggleRowCollapse,
   selectItems,
   startMoveSession,
   previewMoveSession,
@@ -94,6 +96,9 @@ watch(
           :selected-item-ids="selectionState.itemIds"
           @scroll-sync="syncChartScroll"
           @clear-selection="clearSelection"
+          @add-parent-row="addParentRow"
+          @add-child-row="addChildRow"
+          @toggle-row-collapse="toggleRowCollapse"
           @select-items="selectItems"
           @move-start="startMoveSession"
           @move-preview="previewMoveSession"
@@ -117,12 +122,6 @@ watch(
           <div class="rounded-lg border border-destructive/30 bg-background/95 px-4 py-3 text-sm text-destructive shadow-lg backdrop-blur-sm">
             {{ errorMessage }}
           </div>
-        </div>
-
-        <div class="absolute right-4 top-4 z-20">
-          <Button variant="outline" size="sm" :disabled="isLoading" @click="reloadSnapshot">
-            {{ isLoading ? '불러오는 중...' : '새로고침' }}
-          </Button>
         </div>
       </div>
     </AreaCard>

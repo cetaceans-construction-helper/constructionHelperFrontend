@@ -39,6 +39,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   'scroll-change': [position: { top: number; left: number }]
   'clear-selection': []
+  'toggle-row-collapse': [rowId: string]
   'select-items': [itemIds: string[]]
   'move-start': [itemId: string]
   'move-preview': [payload: { deltaDays: number; deltaLanes: number }]
@@ -112,6 +113,7 @@ function selectBarsInMarquee() {
 
   const selectedIds = props.shellLayout.bars
     .filter((bar) => {
+      if (bar.kind !== 'item') return false
       const barRight = bar.left + bar.width
       const barBottom = bar.top + bar.height
       return bar.left < right && barRight > left && bar.top < bottom && barBottom > top
@@ -163,6 +165,12 @@ function handlePanePointerDown(event: PointerEvent) {
 function handleBarPointerDown(bar: ScheduleBarLayout, event: PointerEvent) {
   if (event.button !== 0 || isSpacePressed.value) return
   event.stopPropagation()
+
+  if (bar.kind === 'summary') {
+    emit('toggle-row-collapse', bar.rowId)
+    return
+  }
+
   emit('move-start', bar.itemId)
   moveState.value = {
     startClientX: event.clientX,
@@ -325,17 +333,20 @@ onUnmounted(() => {
       <div
         v-for="bar in shellLayout.bars"
         :key="bar.id"
-        class="group absolute box-border flex cursor-pointer items-center overflow-hidden rounded-md border px-2 shadow-sm transition-[box-shadow,border-color,border-width]"
-        :class="selectedItemIdSet.has(bar.itemId)
-          ? [
-              'z-10 border-2 border-slate-950 shadow-[0_0_0_1px_rgba(15,23,42,0.18)]',
-              bar.appearance === 'holiday-off' ? 'bg-slate-200 text-slate-700' : 'bg-sky-500 text-white',
-            ]
-          : [
-              bar.appearance === 'holiday-off'
-                ? 'border-slate-300 bg-slate-200 text-slate-700'
-                : 'border-sky-300 bg-sky-500 text-white',
-            ]"
+        class="group absolute box-border flex items-center overflow-hidden rounded-md border px-2 shadow-sm transition-[box-shadow,border-color,border-width]"
+        :class="bar.kind === 'summary'
+          ? 'cursor-pointer border-slate-400 bg-slate-100 text-slate-700'
+          : selectedItemIdSet.has(bar.itemId)
+            ? [
+                'z-10 cursor-pointer border-2 border-slate-950 shadow-[0_0_0_1px_rgba(15,23,42,0.18)]',
+                bar.appearance === 'holiday-off' ? 'bg-slate-200 text-slate-700' : 'bg-sky-500 text-white',
+              ]
+            : [
+                'cursor-pointer',
+                bar.appearance === 'holiday-off'
+                  ? 'border-slate-300 bg-slate-200 text-slate-700'
+                  : 'border-sky-300 bg-sky-500 text-white',
+              ]"
         :style="{
           left: `${bar.left}px`,
           top: `${bar.top}px`,
@@ -347,6 +358,7 @@ onUnmounted(() => {
         <span class="truncate text-xs font-medium">{{ bar.name }}</span>
 
         <button
+          v-if="bar.kind === 'item'"
           type="button"
           class="absolute left-0 top-0 h-full w-2.5 cursor-ew-resize rounded-l-md bg-white/40 transition-[opacity,background-color]"
           :class="selectedItemIdSet.has(bar.itemId)
@@ -355,6 +367,7 @@ onUnmounted(() => {
           @pointerdown.stop="handleResizePointerDown(bar, 'left', $event)"
         />
         <button
+          v-if="bar.kind === 'item'"
           type="button"
           class="absolute right-0 top-0 h-full w-2.5 cursor-ew-resize rounded-r-md bg-white/40 transition-[opacity,background-color]"
           :class="selectedItemIdSet.has(bar.itemId)

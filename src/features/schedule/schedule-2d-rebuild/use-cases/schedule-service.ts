@@ -290,6 +290,93 @@ function buildRows(tasks: ScheduleSourceTask[]): ScheduleRow[] {
   return rows
 }
 
+function reindexRows(rows: ScheduleRow[]): ScheduleRow[] {
+  return rows.map((row, index) => ({
+    ...row,
+    order: index,
+  }))
+}
+
+function createLocalRowId(prefix: 'parent' | 'child'): string {
+  return `${prefix}:mock:${Date.now()}-${Math.floor(Math.random() * 1_000_000).toString(36)}`
+}
+
+function addParentRow(rows: ScheduleRow[]): ScheduleRow[] {
+  const nextParentIndex = rows.filter((row) => row.kind === 'parent-process').length + 1
+
+  return reindexRows([
+    ...rows,
+    {
+      id: createLocalRowId('parent'),
+      kind: 'parent-process',
+      parentId: null,
+      name: `새 상위 공정 ${nextParentIndex}`,
+      order: rows.length,
+      depth: 0,
+      collapsed: false,
+      source: {
+        kind: 'mock',
+        derivedFrom: 'manual-parent-row',
+      },
+      contract: {
+        status: 'pending-contract',
+        reason: '상위/하위 공정 저장 계약 필요',
+      },
+    },
+  ])
+}
+
+function addChildRow(rows: ScheduleRow[], parentRowId: string): ScheduleRow[] {
+  const parentRow = rows.find((row) => row.id === parentRowId && row.kind === 'parent-process')
+  if (!parentRow) return rows
+
+  const parentChildRows = rows.filter((row) => row.parentId === parentRowId)
+  const nextChildIndex = parentChildRows.length + 1
+  const insertAfterOrder = parentChildRows.length > 0
+    ? Math.max(...parentChildRows.map((row) => row.order))
+    : parentRow.order
+  const childRow: ScheduleRow = {
+    id: createLocalRowId('child'),
+    kind: 'child-process',
+    parentId: parentRowId,
+    name: `새 하위 공정 ${nextChildIndex}`,
+    order: insertAfterOrder + 1,
+    depth: 1,
+    collapsed: false,
+    source: {
+      kind: 'mock',
+      derivedFrom: parentRow.name,
+      workType: parentRow.source.workType ?? parentRow.name,
+    },
+    contract: {
+      status: 'pending-contract',
+      reason: '상위/하위 공정 저장 계약 필요',
+    },
+  }
+
+  const nextRows = rows
+    .map((row) => (
+      row.id === parentRowId
+        ? { ...row, collapsed: false }
+        : row
+    ))
+    .flatMap((row) => (
+      row.order === insertAfterOrder
+        ? [row, childRow]
+        : [row]
+    ))
+
+  return reindexRows(nextRows)
+}
+
+function toggleRowCollapse(rows: ScheduleRow[], rowId: string): ScheduleRow[] {
+  return rows.map((row) => (
+    row.id === rowId && row.kind === 'parent-process'
+      ? { ...row, collapsed: !row.collapsed }
+      : row
+  ))
+}
+
 function buildItems(tasks: ScheduleSourceTask[]): ScheduleItem[] {
   return [...tasks].sort(compareTasks).map((task) => ({
     id: `item:${task.workId}`,
@@ -415,8 +502,12 @@ function buildShellLayout(
 ): ScheduleShellLayout {
   const rowHeight = options.rowHeight ?? SCHEDULE_SHELL_DEFAULTS.rowHeight
   const barHeight = options.barHeight ?? SCHEDULE_SHELL_DEFAULTS.barHeight
+  const summaryBarHeight = barHeight
   const itemCountByRow = new Map<string, number>()
   const itemsByRow = new Map<string, ScheduleItem[]>()
+  const childRowsByParentId = new Map<string, ScheduleRow[]>()
+  const childItemsByParentId = new Map<string, ScheduleItem[]>()
+  const descendantItemCountByParentId = new Map<string, number>()
   const rowBarDraftsById = new Map<string, RowBarDraft[]>()
   const rowHeightById = new Map<string, number>()
   const rowTopById = new Map<string, number>()
@@ -424,6 +515,8 @@ function buildShellLayout(
   const laneGap = 6
   const preferredLaneByItemId = options.preferredLaneByItemId ?? {}
   const pinnedLaneByItemId = options.pinnedLaneByItemId ?? {}
+  const orderedRows = [...rowsSource].sort((a, b) => a.order - b.order)
+  const rowById = new Map(orderedRows.map((row) => [row.id, row]))
 
   items.forEach((item) => {
     itemCountByRow.set(item.rowId, (itemCountByRow.get(item.rowId) ?? 0) + 1)
@@ -432,9 +525,36 @@ function buildShellLayout(
     itemsByRow.set(item.rowId, rowItems)
   })
 
-  const orderedRows = [...rowsSource].sort((a, b) => a.order - b.order)
-
   orderedRows.forEach((row) => {
+    if (row.parentId) {
+      const childRows = childRowsByParentId.get(row.parentId) ?? []
+      childRows.push(row)
+      childRowsByParentId.set(row.parentId, childRows)
+    }
+  })
+
+  items.forEach((item) => {
+    const row = rowById.get(item.rowId)
+    if (!row?.parentId) return
+
+    const parentItems = childItemsByParentId.get(row.parentId) ?? []
+    parentItems.push(item)
+    childItemsByParentId.set(row.parentId, parentItems)
+    descendantItemCountByParentId.set(row.parentId, (descendantItemCountByParentId.get(row.parentId) ?? 0) + 1)
+  })
+
+  const visibleRows = orderedRows.filter((row) => {
+    if (!row.parentId) return true
+    const parentRow = rowById.get(row.parentId)
+    return !parentRow?.collapsed
+  })
+
+  visibleRows.forEach((row) => {
+    if (row.kind !== 'child-process') {
+      rowHeightById.set(row.id, rowHeight)
+      return
+    }
+
     const rowItems = [...(itemsByRow.get(row.id) ?? [])]
       .sort((a, b) => (
         a.startDate.localeCompare(b.startDate) ||
@@ -502,8 +622,7 @@ function buildShellLayout(
           return
         }
 
-        let fallbackLaneIndex = 0
-        fallbackLaneIndex = findFirstAvailableLaneForDraft(draft, 0)
+        const fallbackLaneIndex = findFirstAvailableLaneForDraft(draft, 0)
         reserveLane(fallbackLaneIndex, { ...draft, laneIndex: fallbackLaneIndex })
       })
 
@@ -541,32 +660,38 @@ function buildShellLayout(
   })
 
   let accumulatedTop = 0
-  const rows: ScheduleShellRow[] = orderedRows.map((row) => {
+  const rows: ScheduleShellRow[] = visibleRows.map((row) => {
     const nextRowHeight = rowHeightById.get(row.id) ?? rowHeight
     rowTopById.set(row.id, accumulatedTop)
 
     const shellRow = {
       id: row.id,
+      parentId: row.parentId,
       name: row.name,
       kind: row.kind,
+      collapsed: row.collapsed,
+      hasChildren: (childRowsByParentId.get(row.id)?.length ?? 0) > 0,
       depth: row.depth,
       order: row.order,
       top: accumulatedTop,
       height: nextRowHeight,
-      itemCount: itemCountByRow.get(row.id) ?? 0,
+      itemCount: row.kind === 'parent-process'
+        ? descendantItemCountByParentId.get(row.id) ?? 0
+        : itemCountByRow.get(row.id) ?? 0,
     }
     accumulatedTop += nextRowHeight
     return shellRow
   })
 
-  const bars: ScheduleBarLayout[] = orderedRows.flatMap((row) => {
+  const itemBars: ScheduleBarLayout[] = visibleRows.flatMap((row) => {
     const rowTop = rowTopById.get(row.id)
-    if (rowTop === undefined) return []
+    if (rowTop === undefined || row.kind !== 'child-process') return []
 
     return (rowBarDraftsById.get(row.id) ?? []).map((barDraft) => ({
       id: barDraft.id,
       itemId: barDraft.itemId,
       rowId: barDraft.rowId,
+      kind: 'item',
       laneIndex: barDraft.laneIndex,
       name: barDraft.name,
       left: barDraft.left,
@@ -580,9 +705,39 @@ function buildShellLayout(
     }))
   })
 
+  const summaryBars: ScheduleBarLayout[] = visibleRows.flatMap((row) => {
+    if (row.kind !== 'parent-process') return []
+
+    const rowTop = rowTopById.get(row.id)
+    const parentItems = childItemsByParentId.get(row.id) ?? []
+    if (rowTop === undefined || parentItems.length === 0) return []
+
+    const startDate = parentItems.reduce((min, item) => (item.startDate < min ? item.startDate : min), parentItems[0]!.startDate)
+    const endDate = parentItems.reduce((max, item) => (item.endDate > max ? item.endDate : max), parentItems[0]!.endDate)
+    const left = diffDays(timeline.startDate, startDate) * timeline.dayWidth
+    const durationDays = diffDays(startDate, endDate) + 1
+
+    return [{
+      id: `bar:summary:${row.id}`,
+      itemId: `summary:${row.id}`,
+      rowId: row.id,
+      kind: 'summary',
+      laneIndex: 0,
+      name: row.name,
+      left,
+      top: rowTop + (rowHeight - summaryBarHeight) / 2,
+      width: Math.max(durationDays * timeline.dayWidth, timeline.dayWidth),
+      height: summaryBarHeight,
+      startDate,
+      endDate,
+      durationDays,
+      appearance: 'standard',
+    }]
+  })
+
   return {
     rows,
-    bars,
+    bars: [...summaryBars, ...itemBars],
     chartHeight: accumulatedTop,
     rowHeight,
   }
@@ -655,6 +810,9 @@ export const scheduleService = {
   loadSnapshot,
   buildTimeline,
   buildShellLayout,
+  addParentRow,
+  addChildRow,
+  toggleRowCollapse,
   getInitialScrollLeftForYesterday,
   moveItems,
   resizeItem,

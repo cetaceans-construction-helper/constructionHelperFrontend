@@ -4,6 +4,7 @@ export type ScheduleRowKind = 'parent-process' | 'child-process'
 export type ScheduleRowSourceKind = 'work-type' | 'sub-work-type' | 'mock'
 export type ScheduleItemAppearance = 'standard' | 'holiday-off'
 export type SchedulePendingContractKind = 'process-hierarchy' | 'group' | 'milestone'
+export type ScheduleBarKind = 'item' | 'summary'
 
 export interface ScheduleContractState {
   status: ScheduleContractStatus
@@ -157,8 +158,11 @@ export interface ScheduleTimelineGroup {
 
 export interface ScheduleShellRow {
   id: string
+  parentId: string | null
   name: string
   kind: ScheduleRowKind
+  collapsed: boolean
+  hasChildren: boolean
   depth: number
   order: number
   top: number
@@ -170,6 +174,7 @@ export interface ScheduleBarLayout {
   id: string
   itemId: string
   rowId: string
+  kind: ScheduleBarKind
   laneIndex: number
   name: string
   left: number
