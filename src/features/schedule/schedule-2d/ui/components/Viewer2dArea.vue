@@ -732,7 +732,7 @@ watch(selectedPathId, (pathId) => {
   }
 })
 
-function handleDeleteFromPath(workId: string) {
+function handleDeleteFromPath(workId: number) {
   removeNodeFromPath(workId)
   savePathEdges()
 }
