@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import { Link2, Link2Off, Palette, Pencil, Plus } from 'lucide-vue-next'
+import { Link2, Link2Off, Palette, Pencil, Plus, Trash2 } from 'lucide-vue-next'
 import type {
   ScheduleContextMenuCommand,
   ScheduleContextMenuIcon,
@@ -28,6 +28,8 @@ function resolveIcon(icon: ScheduleContextMenuIcon) {
   switch (icon) {
     case 'plus':
       return Plus
+    case 'trash':
+      return Trash2
     case 'palette':
       return Palette
     case 'pencil':

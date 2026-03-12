@@ -17,6 +17,11 @@ const {
   contextMenuItems,
   timeline,
   shellLayout,
+  canZoomIn,
+  canZoomOut,
+  showCriticalPaths,
+  criticalPathCount,
+  connectionCreationState,
   chartScrollTop,
   chartScrollLeft,
   loadSnapshot,
@@ -25,17 +30,26 @@ const {
   addParentRow,
   addChildRow,
   toggleRowCollapse,
-  selectItems,
+  selectBars,
   openItemContextMenu,
+  openDependencyContextMenu,
+  openLinkContextMenu,
+  openCriticalPathContextMenu,
   openRowContextMenu,
   openCanvasContextMenu,
   executeContextMenuCommand,
+  cancelConnectionCreation,
+  completeConnectionCreation,
+  activateMilestone,
   startMoveSession,
   previewMoveSession,
   endMoveSession,
   startResizeSession,
   previewResizeSession,
   endResizeSession,
+  zoomIn,
+  zoomOut,
+  toggleCriticalPaths,
   syncChartScroll,
 } = useSchedule2dRebuildPage()
 
@@ -55,6 +69,14 @@ function syncShellViewport() {
 async function reloadSnapshot() {
   shouldApplyInitialTimelineScroll.value = true
   await loadSnapshot()
+}
+
+function handleZoomIn() {
+  zoomIn(chartViewportWidth.value)
+}
+
+function handleZoomOut() {
+  zoomOut(chartViewportWidth.value)
 }
 
 onMounted(() => {
@@ -101,22 +123,40 @@ watch(
           :viewport-height="shellViewportHeight"
           :scroll-top="chartScrollTop"
           :scroll-left="chartScrollLeft"
+          :selected-row-ids="selectionState.rowIds"
           :selected-item-ids="selectionState.itemIds"
+          :selected-dependency-ids="selectionState.dependencyIds"
+          :selected-link-ids="selectionState.linkIds"
+          :selected-critical-path-ids="selectionState.criticalPathIds"
+          :connection-creation-state="connectionCreationState"
+          :can-zoom-in="canZoomIn"
+          :can-zoom-out="canZoomOut"
+          :show-critical-paths="showCriticalPaths"
+          :critical-path-count="criticalPathCount"
           @scroll-sync="syncChartScroll"
           @clear-selection="clearSelection"
           @add-parent-row="addParentRow"
           @add-child-row="addChildRow"
           @toggle-row-collapse="toggleRowCollapse"
-          @select-items="selectItems"
+          @select-bars="selectBars"
           @item-context-menu="openItemContextMenu"
+          @dependency-context-menu="openDependencyContextMenu"
+          @link-context-menu="openLinkContextMenu"
+          @critical-path-context-menu="openCriticalPathContextMenu"
           @row-context-menu="openRowContextMenu"
           @canvas-context-menu="openCanvasContextMenu"
+          @cancel-connection-create="cancelConnectionCreation"
+          @complete-connection-create="completeConnectionCreation"
+          @milestone-activate="activateMilestone"
           @move-start="startMoveSession"
           @move-preview="previewMoveSession"
           @move-end="endMoveSession"
           @resize-start="startResizeSession"
           @resize-preview="previewResizeSession"
           @resize-end="endResizeSession"
+          @zoom-in="handleZoomIn"
+          @zoom-out="handleZoomOut"
+          @toggle-critical-paths="toggleCriticalPaths"
         />
 
         <div

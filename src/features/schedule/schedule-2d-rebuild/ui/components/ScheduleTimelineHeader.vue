@@ -1,10 +1,36 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { ScheduleTimelineLayout } from '@/features/schedule/schedule-2d-rebuild/model/schedule-rebuild-types'
 
-defineProps<{
+const props = defineProps<{
   timeline: ScheduleTimelineLayout
   scrollLeft: number
+  milestoneDates: string[]
 }>()
+
+const milestoneDateSet = computed(() => new Set(props.milestoneDates))
+
+function getDayCellClass(day: ScheduleTimelineLayout['days'][number]) {
+  if (milestoneDateSet.value.has(day.date)) {
+    return [
+      'bg-amber-100/70 text-amber-900',
+      day.isToday ? 'font-semibold ring-1 ring-inset ring-blue-200/80' : '',
+    ]
+  }
+
+  if (day.isWeekend) {
+    return [
+      'bg-rose-50/55 text-rose-600',
+      day.isToday ? 'font-semibold ring-1 ring-inset ring-blue-200/80' : '',
+    ]
+  }
+
+  if (day.isToday) {
+    return 'bg-blue-50 font-semibold text-blue-700'
+  }
+
+  return ''
+}
 </script>
 
 <template>
@@ -35,10 +61,7 @@ defineProps<{
         v-for="day in timeline.days"
         :key="day.key"
         class="absolute top-14 flex h-7 flex-col items-center justify-center border-r border-border/70 text-[10px]"
-        :class="{
-          'bg-blue-50 font-semibold text-blue-700': day.isToday,
-          'bg-muted/20 text-muted-foreground': !day.isToday && day.isWeekend,
-        }"
+        :class="getDayCellClass(day)"
         :style="{ left: `${day.left}px`, width: `${day.width}px` }"
       >
         <span>{{ day.dayOfMonth }}</span>

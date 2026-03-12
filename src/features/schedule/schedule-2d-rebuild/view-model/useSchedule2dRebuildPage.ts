@@ -1,16 +1,20 @@
 import { computed, ref } from 'vue'
 import { schedule2dRebuildRepository } from '@/features/schedule/schedule-2d-rebuild/infra/schedule-rebuild-repository'
 import type {
+  ScheduleCriticalPath,
   ScheduleDependency,
   ScheduleGroup,
   ScheduleItem,
+  ScheduleLink,
   ScheduleMilestone,
   ScheduleRow,
   ScheduleSnapshot,
 } from '@/features/schedule/schedule-2d-rebuild/model/schedule-rebuild-types'
 import {
+  SCHEDULE_MILESTONE_ROW_ID,
   SCHEDULE_SHELL_DEFAULTS,
   SCHEDULE_TIMELINE_DEFAULTS,
+  SCHEDULE_TIMELINE_ZOOM_LEVELS,
   scheduleService,
 } from '@/features/schedule/schedule-2d-rebuild/use-cases/schedule-service'
 import {
@@ -23,19 +27,14 @@ import {
 
 type MoveSession = {
   type: 'move'
-  target: 'item'
+  anchor: 'item' | 'summary'
   itemIds: string[]
+  rowIds: string[]
   baseItems: ScheduleItem[]
+  baseRows: ScheduleRow[]
   baseLaneByItemId: Record<string, number>
   maxLaneIndexByRowId: Record<string, number>
   pinnedLaneByItemId: Record<string, number>
-}
-
-type SummaryMoveSession = {
-  type: 'move'
-  target: 'summary'
-  rowIds: string[]
-  baseRows: ScheduleRow[]
 }
 
 type ResizeSession = {
@@ -54,12 +53,20 @@ type SummaryResizeSession = {
   baseRows: ScheduleRow[]
 }
 
+type ConnectionCreationState = {
+  kind: 'dependency' | 'link' | 'critical-path'
+  sourceItemId: string
+  pathId?: number
+  colorHex?: string
+}
+
 export function useSchedule2dRebuildPage() {
   const snapshot = ref<ScheduleSnapshot | null>(null)
   const workingRows = ref<ScheduleRow[]>([])
   const workingItems = ref<ScheduleItem[]>([])
   const workingDependencies = ref<ScheduleDependency[]>([])
-  const workingLinks = ref<ScheduleDependency[]>([])
+  const workingLinks = ref<ScheduleLink[]>([])
+  const workingCriticalPaths = ref<ScheduleCriticalPath[]>([])
   const workingGroups = ref<ScheduleGroup[]>([])
   const workingMilestones = ref<ScheduleMilestone[]>([])
   const isLoading = ref(false)
@@ -68,12 +75,27 @@ export function useSchedule2dRebuildPage() {
   const chartScrollLeft = ref(0)
   const selectionState = ref(createEmptyScheduleSelectionState())
   const contextMenuState = ref(createClosedScheduleContextMenuState())
-  const dayWidth = ref(SCHEDULE_TIMELINE_DEFAULTS.dayWidth)
-  const rowHeight = ref(SCHEDULE_SHELL_DEFAULTS.rowHeight)
-  const interactionSession = ref<MoveSession | SummaryMoveSession | ResizeSession | SummaryResizeSession | null>(null)
+  const dayWidth = ref<number>(SCHEDULE_TIMELINE_DEFAULTS.dayWidth)
+  const rowHeight = ref<number>(SCHEDULE_SHELL_DEFAULTS.rowHeight)
+  const showCriticalPaths = ref(true)
+  const interactionSession = ref<MoveSession | ResizeSession | SummaryResizeSession | null>(null)
   const lanePreferenceByItemId = ref<Record<string, number>>({})
+  const connectionCreationState = ref<ConnectionCreationState | null>(null)
 
   const rowById = computed(() => new Map(workingRows.value.map((row) => [row.id, row])))
+  const currentZoomIndex = computed(() => {
+    const exactIndex = SCHEDULE_TIMELINE_ZOOM_LEVELS.findIndex((level) => level === dayWidth.value)
+    if (exactIndex >= 0) return exactIndex
+
+    return SCHEDULE_TIMELINE_ZOOM_LEVELS.reduce((closestIndex, level, index, levels) => (
+      Math.abs(level - dayWidth.value) < Math.abs(levels[closestIndex]! - dayWidth.value)
+        ? index
+        : closestIndex
+    ), 0)
+  })
+  const canZoomOut = computed(() => currentZoomIndex.value > 0)
+  const canZoomIn = computed(() => currentZoomIndex.value < SCHEDULE_TIMELINE_ZOOM_LEVELS.length - 1)
+  const criticalPathCount = computed(() => workingCriticalPaths.value.length)
 
   const summary = computed(() => {
     if (!snapshot.value) {
@@ -81,6 +103,7 @@ export function useSchedule2dRebuildPage() {
         rows: 0,
         items: 0,
         dependencies: 0,
+        links: 0,
         groups: 0,
         milestones: 0,
         pendingContracts: 0,
@@ -91,6 +114,7 @@ export function useSchedule2dRebuildPage() {
       rows: workingRows.value.length,
       items: workingItems.value.length,
       dependencies: workingDependencies.value.length,
+      links: workingLinks.value.length,
       groups: workingGroups.value.length,
       milestones: workingMilestones.value.length,
       pendingContracts: snapshot.value.pendingContracts.length,
@@ -107,9 +131,14 @@ export function useSchedule2dRebuildPage() {
       ? scheduleService.buildShellLayout(workingRows.value, workingItems.value, timeline.value, {
           rowHeight: rowHeight.value,
           preferredLaneByItemId: lanePreferenceByItemId.value,
-          pinnedLaneByItemId: interactionSession.value?.type === 'move' && interactionSession.value.target === 'item'
+          pinnedLaneByItemId: interactionSession.value?.type === 'move' && interactionSession.value.itemIds.length > 0
             ? interactionSession.value.pinnedLaneByItemId
             : undefined,
+          dependencies: workingDependencies.value,
+          links: workingLinks.value,
+          criticalPaths: workingCriticalPaths.value,
+          milestones: workingMilestones.value,
+          showCriticalPaths: showCriticalPaths.value,
         })
       : null
   ))
@@ -126,12 +155,14 @@ export function useSchedule2dRebuildPage() {
       snapshot.value = await scheduleService.loadSnapshot(schedule2dRebuildRepository)
       workingRows.value = snapshot.value.rows.map((row) => ({ ...row }))
       workingItems.value = snapshot.value.items.map((item) => ({ ...item }))
-      workingDependencies.value = []
-      workingLinks.value = []
+      workingDependencies.value = snapshot.value.dependencies.map((dependency) => ({ ...dependency }))
+      workingLinks.value = snapshot.value.links.map((link) => ({ ...link }))
+      workingCriticalPaths.value = snapshot.value.criticalPaths.map((criticalPath) => ({ ...criticalPath }))
       workingGroups.value = snapshot.value.groups.map((group) => ({ ...group, itemIds: [...group.itemIds] }))
       workingMilestones.value = snapshot.value.milestones.map((milestone) => ({ ...milestone }))
       lanePreferenceByItemId.value = {}
       selectionState.value = createEmptyScheduleSelectionState()
+      connectionCreationState.value = null
       closeContextMenu()
       interactionSession.value = null
     } catch (error: unknown) {
@@ -156,6 +187,7 @@ export function useSchedule2dRebuildPage() {
 
   function clearSelection() {
     selectionState.value = createEmptyScheduleSelectionState()
+    connectionCreationState.value = null
     closeContextMenu()
   }
 
@@ -174,54 +206,28 @@ export function useSchedule2dRebuildPage() {
     closeContextMenu()
   }
 
-  function selectItems(itemIds: string[]) {
+  function selectBars(payload: { itemIds: string[]; rowIds: string[] }) {
     selectionState.value = {
       ...selectionState.value,
-      rowIds: [],
-      itemIds,
+      rowIds: payload.rowIds,
+      itemIds: payload.itemIds,
       dependencyIds: [],
+      linkIds: [],
+      criticalPathIds: [],
       groupIds: [],
       milestoneIds: [],
     }
     closeContextMenu()
   }
 
-  function getContextItemIds(target: ScheduleContextMenuTarget | null): string[] {
-    if (!target || target.kind !== 'item') return []
-
-    return selectionState.value.itemIds.includes(target.itemId)
-      ? selectionState.value.itemIds
-      : [target.itemId]
-  }
-
-  function hasRelationForItems(relations: ScheduleDependency[], itemIds: string[]): boolean {
-    if (itemIds.length === 0) return false
-
-    const itemIdSet = new Set(itemIds)
-    return relations.some((relation) => (
-      itemIds.length > 1
-        ? itemIdSet.has(relation.sourceItemId) && itemIdSet.has(relation.targetItemId)
-        : itemIdSet.has(relation.sourceItemId) || itemIdSet.has(relation.targetItemId)
-    ))
-  }
-
-  function removeRelationsForItems(relations: ScheduleDependency[], itemIds: string[]): ScheduleDependency[] {
-    if (itemIds.length === 0) return relations
-
-    if (itemIds.length === 1) {
-      return scheduleService.removeDependenciesForItems(relations, itemIds)
-    }
-
-    const itemIdSet = new Set(itemIds)
-    return relations.filter((relation) => (
-      !(itemIdSet.has(relation.sourceItemId) && itemIdSet.has(relation.targetItemId))
-    ))
-  }
-
   function canCreateItemOnCanvasTarget(target: Extract<ScheduleContextMenuTarget, { kind: 'canvas' }>): boolean {
     if (!target.rowId || !target.date) return false
 
     return rowById.value.get(target.rowId)?.kind === 'child-process'
+  }
+
+  function canCreateMilestoneOnCanvasTarget(target: Extract<ScheduleContextMenuTarget, { kind: 'canvas' }>): boolean {
+    return target.rowId === SCHEDULE_MILESTONE_ROW_ID && !!target.date
   }
 
   function promptForColor(currentColor: string | null | undefined): string | null {
@@ -244,10 +250,44 @@ export function useSchedule2dRebuildPage() {
     return trimmedName.length > 0 ? trimmedName : null
   }
 
+  function promptForGapDays(currentGapDays = 0): number | null {
+    if (typeof window === 'undefined') return null
+
+    const nextValue = window.prompt('링크 gap 일수를 입력하세요. 예) -2, 0, +2', currentGapDays >= 0 ? `+${currentGapDays}` : `${currentGapDays}`)
+    if (nextValue === null) return null
+
+    const normalizedValue = nextValue.trim().replace(/\s+/g, '')
+    if (!/^[+-]?\d+$/.test(normalizedValue)) {
+      window.alert('정수 일수를 입력해야 합니다. 예) -2, 0, +2')
+      return null
+    }
+
+    return Number.parseInt(normalizedValue, 10)
+  }
+
+  function promptForMilestoneLabel(currentLabel = ''): string | null {
+    if (typeof window === 'undefined') return null
+
+    const nextLabel = window.prompt('마일스톤 텍스트를 입력하세요.', currentLabel)
+    if (nextLabel === null) return null
+
+    const trimmedLabel = nextLabel.trim()
+    if (!trimmedLabel) {
+      window.alert('마일스톤 텍스트를 입력해야 합니다.')
+      return null
+    }
+
+    return trimmedLabel
+  }
+
   function openItemContextMenu(payload: { itemId: string; x: number; y: number }) {
+    const nextSelectedItemIds = selectionState.value.itemIds.includes(payload.itemId)
+      ? selectionState.value.itemIds
+      : [payload.itemId]
+
     selectionState.value = {
       ...createEmptyScheduleSelectionState(),
-      itemIds: [payload.itemId],
+      itemIds: nextSelectedItemIds,
     }
     contextMenuState.value = {
       open: true,
@@ -256,6 +296,54 @@ export function useSchedule2dRebuildPage() {
       target: {
         kind: 'item',
         itemId: payload.itemId,
+      },
+    }
+  }
+
+  function openDependencyContextMenu(payload: { dependencyId: string; x: number; y: number }) {
+    selectionState.value = {
+      ...createEmptyScheduleSelectionState(),
+      dependencyIds: [payload.dependencyId],
+    }
+    contextMenuState.value = {
+      open: true,
+      x: payload.x,
+      y: payload.y,
+      target: {
+        kind: 'dependency',
+        dependencyId: payload.dependencyId,
+      },
+    }
+  }
+
+  function openLinkContextMenu(payload: { linkId: string; x: number; y: number }) {
+    selectionState.value = {
+      ...createEmptyScheduleSelectionState(),
+      linkIds: [payload.linkId],
+    }
+    contextMenuState.value = {
+      open: true,
+      x: payload.x,
+      y: payload.y,
+      target: {
+        kind: 'link',
+        linkId: payload.linkId,
+      },
+    }
+  }
+
+  function openCriticalPathContextMenu(payload: { criticalPathId: string; x: number; y: number }) {
+    selectionState.value = {
+      ...createEmptyScheduleSelectionState(),
+      criticalPathIds: [payload.criticalPathId],
+    }
+    contextMenuState.value = {
+      open: true,
+      x: payload.x,
+      y: payload.y,
+      target: {
+        kind: 'critical-path',
+        criticalPathId: payload.criticalPathId,
       },
     }
   }
@@ -292,29 +380,35 @@ export function useSchedule2dRebuildPage() {
     }
   }
 
+  function getScopedItemIds(targetItemId: string): string[] {
+    return selectionState.value.itemIds.includes(targetItemId)
+      ? selectionState.value.itemIds
+      : [targetItemId]
+  }
+
   const contextMenuItems = computed<ScheduleContextMenuItem[]>(() => {
     const target = contextMenuState.value.target
     if (!contextMenuState.value.open || !target) return []
 
     if (target.kind === 'item') {
-      const activeItemIds = getContextItemIds(target)
-      const hasDependency = hasRelationForItems(workingDependencies.value, activeItemIds)
-      const hasLink = hasRelationForItems(workingLinks.value, activeItemIds)
-
       return [
         {
           id: 'toggle-dependency',
-          label: hasDependency ? 'dependency 제거' : 'dependency 생성',
-          command: 'toggle-dependency',
-          icon: hasDependency ? 'unlink' : 'link',
-          disabled: !hasDependency && activeItemIds.length < 2,
+          label: 'dependency 생성',
+          command: 'toggle-dependency' as const,
+          icon: 'link' as const,
         },
         {
           id: 'toggle-link',
-          label: hasLink ? 'link 제거' : 'link 생성',
+          label: 'link 생성',
           command: 'toggle-link',
-          icon: hasLink ? 'unlink' : 'link',
-          disabled: !hasLink && activeItemIds.length < 2,
+          icon: 'link',
+        },
+        {
+          id: 'toggle-critical-path',
+          label: 'critical path 생성',
+          command: 'toggle-critical-path',
+          icon: 'link',
         },
         {
           id: 'change-item-color',
@@ -327,6 +421,56 @@ export function useSchedule2dRebuildPage() {
           label: '속성 변경',
           command: 'change-properties',
           icon: 'pencil',
+        },
+        {
+          id: 'delete-item',
+          label: '삭제',
+          command: 'delete-item',
+          icon: 'trash',
+          danger: true,
+        },
+      ]
+    }
+
+    if (target.kind === 'dependency') {
+      return [
+        {
+          id: 'remove-dependency',
+          label: 'dependency 제거',
+          command: 'remove-dependency',
+          icon: 'unlink',
+          danger: true,
+        },
+      ]
+    }
+
+    if (target.kind === 'link') {
+      return [
+        {
+          id: 'remove-link',
+          label: 'link 제거',
+          command: 'remove-link',
+          icon: 'unlink',
+          danger: true,
+        },
+      ]
+    }
+
+    if (target.kind === 'critical-path') {
+      return [
+        {
+          id: 'remove-critical-path',
+          label: 'critical path 제거',
+          command: 'remove-critical-path',
+          icon: 'unlink',
+          danger: true,
+        },
+        {
+          id: 'remove-critical-path-chain',
+          label: 'critical path 전체 제거',
+          command: 'remove-critical-path-chain',
+          icon: 'unlink',
+          danger: true,
         },
       ]
     }
@@ -352,6 +496,17 @@ export function useSchedule2dRebuildPage() {
     }
 
     if (target.kind === 'canvas') {
+      if (canCreateMilestoneOnCanvasTarget(target)) {
+        return [
+          {
+            id: 'create-milestone',
+            label: '마일스톤 생성',
+            command: 'create-milestone',
+            icon: 'plus',
+          },
+        ]
+      }
+
       return [
         {
           id: 'create-item',
@@ -369,6 +524,11 @@ export function useSchedule2dRebuildPage() {
   function executeContextMenuCommand(command: ScheduleContextMenuCommand) {
     const target = contextMenuState.value.target
     if (!target) return
+
+    if (command === 'create-milestone' && target.kind === 'canvas' && canCreateMilestoneOnCanvasTarget(target) && target.date) {
+      activateMilestone({ date: target.date })
+      return
+    }
 
     if (command === 'create-item' && target.kind === 'canvas' && canCreateItemOnCanvasTarget(target) && target.rowId && target.date) {
       workingItems.value = scheduleService.createItem(workingRows.value, workingItems.value, {
@@ -406,20 +566,60 @@ export function useSchedule2dRebuildPage() {
     }
 
     if (target.kind === 'item') {
-      const activeItemIds = getContextItemIds(target)
+      const scopedItemIds = getScopedItemIds(target.itemId)
 
       if (command === 'toggle-dependency') {
-        workingDependencies.value = hasRelationForItems(workingDependencies.value, activeItemIds)
-          ? removeRelationsForItems(workingDependencies.value, activeItemIds)
-          : scheduleService.createSequentialDependencies(workingDependencies.value, workingItems.value, activeItemIds)
+        connectionCreationState.value = {
+          kind: 'dependency',
+          sourceItemId: target.itemId,
+        }
+        selectionState.value = {
+          ...createEmptyScheduleSelectionState(),
+          itemIds: [target.itemId],
+        }
         closeContextMenu()
         return
       }
 
       if (command === 'toggle-link') {
-        workingLinks.value = hasRelationForItems(workingLinks.value, activeItemIds)
-          ? removeRelationsForItems(workingLinks.value, activeItemIds)
-          : scheduleService.createSequentialDependencies(workingLinks.value, workingItems.value, activeItemIds)
+        connectionCreationState.value = {
+          kind: 'link',
+          sourceItemId: target.itemId,
+        }
+        selectionState.value = {
+          ...createEmptyScheduleSelectionState(),
+          itemIds: [target.itemId],
+        }
+        closeContextMenu()
+        return
+      }
+
+      if (command === 'toggle-critical-path') {
+        const criticalPathDraft = scheduleService.createCriticalPathDraft(workingCriticalPaths.value, target.itemId)
+        connectionCreationState.value = {
+          kind: 'critical-path',
+          sourceItemId: target.itemId,
+          pathId: criticalPathDraft.pathId,
+          colorHex: criticalPathDraft.colorHex,
+        }
+        selectionState.value = {
+          ...createEmptyScheduleSelectionState(),
+          itemIds: [target.itemId],
+        }
+        closeContextMenu()
+        return
+      }
+
+      if (command === 'delete-item') {
+        workingItems.value = scheduleService.deleteItems(workingItems.value, scopedItemIds)
+        workingDependencies.value = scheduleService.removeDependenciesForItems(workingDependencies.value, scopedItemIds)
+        workingLinks.value = scheduleService.removeLinksForItems(workingLinks.value, scopedItemIds)
+        workingCriticalPaths.value = workingCriticalPaths.value.filter((criticalPath) => (
+          !scopedItemIds.includes(criticalPath.sourceItemId) &&
+          !scopedItemIds.includes(criticalPath.targetItemId)
+        ))
+        workingGroups.value = scheduleService.ungroupItems(workingGroups.value, scopedItemIds)
+        selectionState.value = createEmptyScheduleSelectionState()
         closeContextMenu()
         return
       }
@@ -448,26 +648,142 @@ export function useSchedule2dRebuildPage() {
         closeContextMenu()
       }
     }
-  }
 
-  function startMoveSession(payload: { kind: 'item'; itemId: string } | { kind: 'summary'; rowId: string }) {
-    if (payload.kind === 'summary') {
-      clearSelection()
-      interactionSession.value = {
-        type: 'move',
-        target: 'summary',
-        rowIds: [payload.rowId],
-        baseRows: workingRows.value.map((row) => ({ ...row })),
-      }
+    if (target.kind === 'dependency' && command === 'remove-dependency') {
+      workingDependencies.value = scheduleService.removeDependenciesByIds(workingDependencies.value, [target.dependencyId])
+      closeContextMenu()
       return
     }
 
-    const selectedIds = selectionState.value.itemIds.includes(payload.itemId)
+    if (target.kind === 'link' && command === 'remove-link') {
+      workingLinks.value = scheduleService.removeLinksByIds(workingLinks.value, [target.linkId])
+      closeContextMenu()
+      return
+    }
+
+    if (target.kind === 'critical-path' && command === 'remove-critical-path') {
+      workingCriticalPaths.value = scheduleService.removeCriticalPathsByIds(
+        workingCriticalPaths.value,
+        [target.criticalPathId],
+      )
+      closeContextMenu()
+      return
+    }
+
+    if (target.kind === 'critical-path' && command === 'remove-critical-path-chain') {
+      workingCriticalPaths.value = scheduleService.removeConnectedCriticalPathChain(
+        workingCriticalPaths.value,
+        target.criticalPathId,
+      )
+      closeContextMenu()
+      return
+    }
+  }
+
+  function cancelConnectionCreation() {
+    connectionCreationState.value = null
+  }
+
+  function completeConnectionCreation(targetItemId: string) {
+    const connectionCreation = connectionCreationState.value
+    if (!connectionCreation) return
+
+    if (connectionCreation.sourceItemId !== targetItemId) {
+      if (connectionCreation.kind === 'dependency') {
+        workingDependencies.value = scheduleService.createDependency(workingDependencies.value, {
+          sourceItemId: connectionCreation.sourceItemId,
+          targetItemId,
+        })
+      } else if (connectionCreation.kind === 'critical-path') {
+        const criticalPathDraft = scheduleService.createCriticalPathDraft(
+          workingCriticalPaths.value,
+          connectionCreation.sourceItemId,
+        )
+        const pathId = connectionCreation.pathId ?? criticalPathDraft.pathId
+        const colorHex = connectionCreation.colorHex ?? criticalPathDraft.colorHex
+        workingCriticalPaths.value = scheduleService.createCriticalPath(workingCriticalPaths.value, {
+          sourceItemId: connectionCreation.sourceItemId,
+          targetItemId,
+          pathId,
+          colorHex,
+        })
+
+        selectionState.value = {
+          ...createEmptyScheduleSelectionState(),
+          itemIds: [connectionCreation.sourceItemId, targetItemId],
+        }
+        connectionCreationState.value = {
+          kind: 'critical-path',
+          sourceItemId: targetItemId,
+          pathId,
+          colorHex,
+        }
+        closeContextMenu()
+        return
+      } else {
+        const gapDays = promptForGapDays()
+        if (gapDays === null) return
+
+        workingLinks.value = scheduleService.createLink(workingLinks.value, {
+          sourceItemId: connectionCreation.sourceItemId,
+          targetItemId,
+          gapDays,
+        })
+      }
+
+      selectionState.value = {
+        ...createEmptyScheduleSelectionState(),
+        itemIds: [connectionCreation.sourceItemId, targetItemId],
+      }
+    }
+
+    connectionCreationState.value = null
+    closeContextMenu()
+  }
+
+  function activateMilestone(payload: { date: string; milestoneId?: string }) {
+    closeContextMenu()
+
+    const existingMilestone = payload.milestoneId
+      ? workingMilestones.value.find((milestone) => milestone.id === payload.milestoneId)
+      : workingMilestones.value.find((milestone) => milestone.date === payload.date && milestone.rowId === null)
+    const nextLabel = promptForMilestoneLabel(existingMilestone?.label ?? '')
+    if (!nextLabel) return
+
+    workingMilestones.value = scheduleService.upsertMilestone(workingMilestones.value, {
+      date: existingMilestone?.date ?? payload.date,
+      label: nextLabel,
+      rowId: null,
+    })
+
+    const nextActiveMilestone = workingMilestones.value.find((milestone) => (
+      milestone.date === (existingMilestone?.date ?? payload.date) &&
+      milestone.rowId === null
+    ))
+    selectionState.value = {
+      ...createEmptyScheduleSelectionState(),
+      milestoneIds: nextActiveMilestone ? [nextActiveMilestone.id] : [],
+    }
+  }
+
+  function startMoveSession(payload: { kind: 'item'; itemId: string } | { kind: 'summary'; rowId: string }) {
+    const selectedItemIds = payload.kind === 'item' && selectionState.value.itemIds.includes(payload.itemId)
       ? selectionState.value.itemIds
-      : [payload.itemId]
+      : payload.kind === 'item'
+        ? [payload.itemId]
+        : selectionState.value.rowIds.includes(payload.rowId)
+          ? selectionState.value.itemIds
+          : []
+    const selectedRowIds = payload.kind === 'summary' && selectionState.value.rowIds.includes(payload.rowId)
+      ? selectionState.value.rowIds
+      : payload.kind === 'summary'
+        ? [payload.rowId]
+        : selectionState.value.itemIds.includes(payload.itemId)
+          ? selectionState.value.rowIds
+          : []
     const baseLaneByItemId = Object.fromEntries(
       (shellLayout.value?.bars ?? [])
-        .filter((bar) => selectedIds.includes(bar.itemId))
+        .filter((bar) => bar.kind === 'item' && selectedItemIds.includes(bar.itemId))
         .map((bar) => [bar.itemId, bar.laneIndex]),
     )
     const maxLaneIndexByRowId = Object.fromEntries(
@@ -479,12 +795,17 @@ export function useSchedule2dRebuildPage() {
       ),
     )
 
-    selectItems(selectedIds)
+    selectBars({
+      itemIds: selectedItemIds,
+      rowIds: selectedRowIds,
+    })
     interactionSession.value = {
       type: 'move',
-      target: 'item',
-      itemIds: selectedIds,
+      anchor: payload.kind,
+      itemIds: selectedItemIds,
+      rowIds: selectedRowIds,
       baseItems: workingItems.value.map((item) => ({ ...item })),
+      baseRows: workingRows.value.map((row) => ({ ...row })),
       baseLaneByItemId,
       maxLaneIndexByRowId,
       pinnedLaneByItemId: baseLaneByItemId,
@@ -495,12 +816,15 @@ export function useSchedule2dRebuildPage() {
     const session = interactionSession.value
     if (!session || session.type !== 'move') return
 
-    if (session.target === 'summary') {
+    if (session.rowIds.length > 0) {
       workingRows.value = scheduleService.moveSummaryRows(
         session.baseRows,
         session.rowIds,
         payload.deltaDays,
       )
+    }
+
+    if (session.itemIds.length === 0) {
       return
     }
 
@@ -535,8 +859,9 @@ export function useSchedule2dRebuildPage() {
 
           const rowBounds = laneBoundsByRowId[rowId]
           const maxLaneIndex = session.maxLaneIndexByRowId[rowId] ?? rowBounds?.maxLane ?? laneIndex
+          const deltaLanes = session.anchor === 'item' ? payload.deltaLanes : 0
           const clampedDeltaLanes = Math.min(
-            Math.max(payload.deltaLanes, -(rowBounds?.minLane ?? laneIndex)),
+            Math.max(deltaLanes, -(rowBounds?.minLane ?? laneIndex)),
             maxLaneIndex - (rowBounds?.maxLane ?? laneIndex),
           )
 
@@ -549,6 +874,8 @@ export function useSchedule2dRebuildPage() {
       session.baseItems,
       session.itemIds,
       payload.deltaDays,
+      workingDependencies.value,
+      workingLinks.value,
     )
   }
 
@@ -556,7 +883,7 @@ export function useSchedule2dRebuildPage() {
     const session = interactionSession.value
     if (!session || session.type !== 'move') return
 
-    if (session.target === 'summary') {
+    if (session.itemIds.length === 0) {
       interactionSession.value = null
       return
     }
@@ -596,7 +923,10 @@ export function useSchedule2dRebuildPage() {
       return
     }
 
-    selectItems([payload.itemId])
+    selectBars({
+      itemIds: [payload.itemId],
+      rowIds: [],
+    })
     interactionSession.value = {
       type: 'resize',
       target: 'item',
@@ -625,6 +955,8 @@ export function useSchedule2dRebuildPage() {
       session.itemId,
       session.edge,
       payload.deltaDays,
+      workingDependencies.value,
+      workingLinks.value,
     )
   }
 
@@ -632,6 +964,39 @@ export function useSchedule2dRebuildPage() {
     if (interactionSession.value?.type === 'resize') {
       interactionSession.value = null
     }
+  }
+
+  function setDayWidth(nextDayWidth: number, viewportWidth: number) {
+    if (nextDayWidth === dayWidth.value) return
+
+    if (timeline.value) {
+      chartScrollLeft.value = scheduleService.getScrollLeftForZoom(
+        timeline.value,
+        nextDayWidth,
+        chartScrollLeft.value,
+        viewportWidth,
+      )
+    }
+
+    dayWidth.value = nextDayWidth
+    closeContextMenu()
+  }
+
+  function zoomIn(viewportWidth: number) {
+    if (!canZoomIn.value) return
+    setDayWidth(SCHEDULE_TIMELINE_ZOOM_LEVELS[currentZoomIndex.value + 1]!, viewportWidth)
+  }
+
+  function zoomOut(viewportWidth: number) {
+    if (!canZoomOut.value) return
+    setDayWidth(SCHEDULE_TIMELINE_ZOOM_LEVELS[currentZoomIndex.value - 1]!, viewportWidth)
+  }
+
+  function toggleCriticalPaths() {
+    if (criticalPathCount.value === 0) return
+
+    showCriticalPaths.value = !showCriticalPaths.value
+    closeContextMenu()
   }
 
   return {
@@ -644,7 +1009,12 @@ export function useSchedule2dRebuildPage() {
     contextMenuState,
     contextMenuItems,
     dayWidth,
+    canZoomIn,
+    canZoomOut,
+    showCriticalPaths,
+    criticalPathCount,
     rowHeight,
+    connectionCreationState,
     timeline,
     shellLayout,
     chartScrollTop,
@@ -655,17 +1025,26 @@ export function useSchedule2dRebuildPage() {
     addParentRow,
     addChildRow,
     toggleRowCollapse,
-    selectItems,
+    selectBars,
     openItemContextMenu,
+    openDependencyContextMenu,
+    openLinkContextMenu,
+    openCriticalPathContextMenu,
     openRowContextMenu,
     openCanvasContextMenu,
     executeContextMenuCommand,
+    cancelConnectionCreation,
+    completeConnectionCreation,
+    activateMilestone,
     startMoveSession,
     previewMoveSession,
     endMoveSession,
     startResizeSession,
     previewResizeSession,
     endResizeSession,
+    zoomIn,
+    zoomOut,
+    toggleCriticalPaths,
     syncChartScroll,
     syncRowPanelScroll,
   }

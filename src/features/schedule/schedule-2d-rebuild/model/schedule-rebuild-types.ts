@@ -5,6 +5,8 @@ export type ScheduleRowSourceKind = 'work-type' | 'sub-work-type' | 'mock'
 export type ScheduleItemAppearance = 'standard' | 'holiday-off'
 export type SchedulePendingContractKind = 'process-hierarchy' | 'group' | 'milestone'
 export type ScheduleBarKind = 'item' | 'summary'
+export type ScheduleConnectionKind = 'dependency' | 'link' | 'critical-path'
+export type ScheduleShellRowKind = ScheduleRowKind | 'milestone'
 
 export interface ScheduleContractState {
   status: ScheduleContractStatus
@@ -60,6 +62,24 @@ export interface ScheduleDependency {
   pathName: string | null
   color: string
   isCriticalCandidate: boolean
+}
+
+export interface ScheduleLink {
+  id: string
+  pathId: number
+  sourceItemId: string
+  targetItemId: string
+  gapDays: number
+  pathName: string | null
+  color: string
+}
+
+export interface ScheduleCriticalPath {
+  id: string
+  pathId: number
+  sourceItemId: string
+  targetItemId: string
+  colorHex?: string | null
 }
 
 export interface ScheduleGroup {
@@ -122,6 +142,8 @@ export interface ScheduleSnapshotMetadata {
   workCount: number
   pathCount: number
   dependencyCount: number
+  linkCount: number
+  criticalPathCount: number
   parentRowCount: number
   childRowCount: number
 }
@@ -130,6 +152,8 @@ export interface ScheduleSnapshot {
   rows: ScheduleRow[]
   items: ScheduleItem[]
   dependencies: ScheduleDependency[]
+  links: ScheduleLink[]
+  criticalPaths: ScheduleCriticalPath[]
   groups: ScheduleGroup[]
   milestones: ScheduleMilestone[]
   pendingContracts: SchedulePendingContract[]
@@ -164,7 +188,7 @@ export interface ScheduleShellRow {
   id: string
   parentId: string | null
   name: string
-  kind: ScheduleRowKind
+  kind: ScheduleShellRowKind
   collapsed: boolean
   hasChildren: boolean
   depth: number
@@ -172,6 +196,17 @@ export interface ScheduleShellRow {
   top: number
   height: number
   itemCount: number
+}
+
+export interface ScheduleMilestoneLayout {
+  id: string
+  date: string
+  label: string
+  rowId: string | null
+  left: number
+  top: number
+  width: number
+  height: number
 }
 
 export interface ScheduleBarLayout {
@@ -194,6 +229,19 @@ export interface ScheduleBarLayout {
   appearance: ScheduleItemAppearance
 }
 
+export interface ScheduleConnectionLayout {
+  id: string
+  kind: ScheduleConnectionKind
+  pathId: number
+  colorHex: string | null
+  sourceItemId: string
+  targetItemId: string
+  path: string
+  label: string | null
+  labelX: number
+  labelY: number
+}
+
 export interface ScheduleTimelineLayout {
   startDate: string
   endDate: string
@@ -207,6 +255,8 @@ export interface ScheduleTimelineLayout {
 export interface ScheduleShellLayout {
   rows: ScheduleShellRow[]
   bars: ScheduleBarLayout[]
+  milestones: ScheduleMilestoneLayout[]
+  connections: ScheduleConnectionLayout[]
   chartHeight: number
   rowHeight: number
 }

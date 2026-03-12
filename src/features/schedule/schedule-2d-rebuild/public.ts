@@ -20,9 +20,11 @@ export type {
 
 export type {
   ScheduleContractState,
+  ScheduleCriticalPath,
   ScheduleDependency,
   ScheduleGroup,
   ScheduleItem,
+  ScheduleLink,
   ScheduleMilestone,
   SchedulePendingContract,
   ScheduleRow,

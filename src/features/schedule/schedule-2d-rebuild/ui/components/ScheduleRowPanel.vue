@@ -80,7 +80,11 @@ function handleRowContextMenu(row: ScheduleShellRow, event: MouseEvent) {
         :key="entry.key"
         class="absolute left-0 right-0 flex items-center gap-2 border-b border-border/70 px-3"
         :class="[
-          entry.row.kind === 'parent-process' ? 'bg-muted/25' : 'bg-background',
+          entry.row.kind === 'milestone'
+            ? 'bg-amber-50/70'
+            : entry.row.kind === 'parent-process'
+              ? 'bg-muted/25'
+              : 'bg-background',
           entry.row.kind === 'parent-process' && entry.row.hasChildren ? 'cursor-pointer' : '',
         ]"
         :style="{
@@ -106,7 +110,11 @@ function handleRowContextMenu(row: ScheduleShellRow, event: MouseEvent) {
 
           <p
             class="truncate text-sm"
-            :class="entry.row.kind === 'parent-process' ? 'font-extrabold text-foreground' : 'font-medium text-muted-foreground'"
+            :class="entry.row.kind === 'milestone'
+              ? 'font-semibold text-amber-700'
+              : entry.row.kind === 'parent-process'
+                ? 'font-extrabold text-foreground'
+                : 'font-medium text-muted-foreground'"
           >
             {{ entry.row.name }}
           </p>
