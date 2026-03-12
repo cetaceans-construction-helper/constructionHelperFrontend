@@ -15,6 +15,7 @@ import {
   SidebarProvider,
 } from '@/shared/ui/sidebar'
 import CompanyManagementArea from '@/features/system-admin/ui/components/CompanyManagementArea.vue'
+import UserManagementArea from '@/features/system-admin/ui/components/UserManagementArea.vue'
 import ProjectManagementArea from '@/features/system-admin/ui/components/ProjectManagementArea.vue'
 import RoleManagementArea from '@/features/system-admin/ui/components/RoleManagementArea.vue'
 import MappingManagementArea from '@/features/system-admin/ui/components/MappingManagementArea.vue'
@@ -28,7 +29,7 @@ type MenuId = 'project' | 'worker' | 'company' | 'common'
 const menus: { id: MenuId; label: string }[] = [
   { id: 'project', label: '프로젝트관리' },
   { id: 'worker', label: '작업자관리' },
-  { id: 'company', label: '회사관리' },
+  { id: 'company', label: '사용자/회사관리' },
   { id: 'common', label: '공용 설정' },
 ]
 
@@ -133,6 +134,15 @@ onUnmounted(() => {
           </template>
 
           <template v-if="activeMenu === 'company'">
+            <Card>
+              <CardHeader>
+                <CardTitle>사용자 관리</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <UserManagementArea />
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle>회사 관리</CardTitle>

@@ -16,13 +16,15 @@ import { useBulkDeployment } from '@/features/project-admin/bulk-deployment/view
 const {
   startDate,
   endDate,
-  isSubmitting,
+  isSubmittingAttendance,
+  isSubmittingEquipment,
   laborTypesByWorkType,
   equipmentSpecs,
   workTypes,
   attendanceBoxes,
   equipmentRows,
-  canSubmit,
+  canSubmitAttendance,
+  canSubmitEquipment,
   initDates,
   loadReferenceData,
   addAttendanceBox,
@@ -30,7 +32,8 @@ const {
   selectWorkType,
   addEquipmentRow,
   removeEquipmentRow,
-  submit,
+  submitAttendance,
+  submitEquipment,
 } = useBulkDeployment()
 
 onMounted(async () => {
@@ -131,6 +134,12 @@ onMounted(async () => {
             </div>
           </div>
         </div>
+
+        <div class="flex justify-end pt-2">
+          <Button :disabled="!canSubmitAttendance || isSubmittingAttendance" @click="submitAttendance">
+            {{ isSubmittingAttendance ? '처리 중...' : '출역 대량 입력' }}
+          </Button>
+        </div>
       </div>
 
       <!-- 출역장비 입력 -->
@@ -201,14 +210,13 @@ onMounted(async () => {
             </Button>
           </div>
         </div>
-      </div>
-    </div>
 
-    <!-- 제출 버튼 -->
-    <div class="flex justify-end pt-2">
-      <Button :disabled="!canSubmit || isSubmitting" @click="submit">
-        {{ isSubmitting ? '처리 중...' : '대량 입력' }}
-      </Button>
+        <div class="flex justify-end pt-2">
+          <Button :disabled="!canSubmitEquipment || isSubmittingEquipment" @click="submitEquipment">
+            {{ isSubmittingEquipment ? '처리 중...' : '장비 대량 입력' }}
+          </Button>
+        </div>
+      </div>
     </div>
   </div>
 </template>

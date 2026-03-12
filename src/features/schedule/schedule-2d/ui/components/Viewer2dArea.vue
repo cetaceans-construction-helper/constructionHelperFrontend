@@ -67,6 +67,9 @@ const { zoomIn, zoomOut, viewport, setViewport } = useVueFlow()
 
 // 패스 관련 상태
 const paths = ref<PathResponse[]>([])
+
+// workType → 팔레트 인덱스 맵 (nodes와 독립적으로 관리, groupBoxes와 공유)
+const workTypePaletteMap = ref<Map<string, number>>(new Map())
 const isLoadingWorks = ref(false)
 
 // Reference tree (API 순서 보존)
@@ -280,36 +283,42 @@ const GROUP_PALETTE = [
     border: 'rgba(59, 130, 246, 0.25)',
     subBg: 'rgba(59, 130, 246, 0.08)',
     subBorder: 'rgba(59, 130, 246, 0.35)',
+    nodeBg: '#e8f0fe',
   },
   {
     bg: 'rgba(16, 185, 129, 0.06)',
     border: 'rgba(16, 185, 129, 0.25)',
     subBg: 'rgba(16, 185, 129, 0.08)',
     subBorder: 'rgba(16, 185, 129, 0.35)',
+    nodeBg: '#e2f5ec',
   },
   {
     bg: 'rgba(245, 158, 11, 0.06)',
     border: 'rgba(245, 158, 11, 0.25)',
     subBg: 'rgba(245, 158, 11, 0.08)',
     subBorder: 'rgba(245, 158, 11, 0.35)',
+    nodeBg: '#fdf5dc',
   },
   {
     bg: 'rgba(168, 85, 247, 0.06)',
     border: 'rgba(168, 85, 247, 0.25)',
     subBg: 'rgba(168, 85, 247, 0.08)',
     subBorder: 'rgba(168, 85, 247, 0.35)',
+    nodeBg: '#f0edfe',
   },
   {
     bg: 'rgba(236, 72, 153, 0.06)',
     border: 'rgba(236, 72, 153, 0.25)',
     subBg: 'rgba(236, 72, 153, 0.08)',
     subBorder: 'rgba(236, 72, 153, 0.35)',
+    nodeBg: '#fceef6',
   },
   {
     bg: 'rgba(6, 182, 212, 0.06)',
     border: 'rgba(6, 182, 212, 0.25)',
     subBg: 'rgba(6, 182, 212, 0.08)',
     subBorder: 'rgba(6, 182, 212, 0.35)',
+    nodeBg: '#e4f8fb',
   },
 ]
 
@@ -344,8 +353,8 @@ const groupBoxes = computed<GroupBox[]>(() => {
     byWorkType.get(key)!.push(n)
   })
 
-  let typeIdx = 0
   byWorkType.forEach((typeNodes, workType) => {
+    const typeIdx = workTypePaletteMap.value.get(workType) ?? 0
     const palette = GROUP_PALETTE[typeIdx % GROUP_PALETTE.length]!
 
     // subWorkType별 분류
@@ -386,8 +395,6 @@ const groupBoxes = computed<GroupBox[]>(() => {
         borderColor: palette.subBorder,
       })
     })
-
-    typeIdx++
   })
 
   return boxes
@@ -434,6 +441,15 @@ const updateEdgeOverlapLocal = (
   if (idx === -1) return
   path.edges[idx] = { ...path.edges[idx]!, lagDays: days }
   paths.value = [...paths.value]
+
+  // 엣지의 isFollowing 동기화
+  const edgeId = `edge-${pathId}-${sourceWorkId}-${targetWorkId}`
+  const edgeIdx = edges.value.findIndex((e) => e.id === edgeId)
+  if (edgeIdx !== -1) {
+    const e = edges.value[edgeIdx]!
+    edges.value[edgeIdx] = { ...e, data: { ...e.data, isFollowing: days !== undefined && days !== null } }
+    edges.value = [...edges.value]
+  }
 }
 
 // 작업 및 패스 데이터 로드
@@ -441,10 +457,24 @@ const loadWorkData = async () => {
   isLoadingWorks.value = true
   try {
     const [works, pathList] = await Promise.all([workApi.getWorkList(), workPathApi.getPathList()])
+
     const layout = computeRowLayout(works, refTree.value.length > 0 ? refTree.value : undefined)
+
+    // workType → 팔레트 인덱스 맵 구축 (rowLayout.sections 순서 = LeftHeader 순서)
+    const paletteMap = new Map<string, number>()
+    layout.sections.forEach((section, idx) => {
+      paletteMap.set(section.workType, idx)
+    })
+    workTypePaletteMap.value = paletteMap
     nodes.value = works.map((w) => {
       const y = (layout.workRowMap.get(w.workId) ?? 0) * ROW_UNIT + NODE_OFFSET_Y
-      return workToNode(w, y)
+      const node = workToNode(w, y)
+      const idx = paletteMap.get(w.workType || '미분류')
+      if (idx !== undefined) {
+        const palette = GROUP_PALETTE[idx % GROUP_PALETTE.length]!
+        ;(node.style as Record<string, string>).backgroundColor = palette.nodeBg
+      }
+      return node
     })
     paths.value = pathList
 
@@ -469,7 +499,7 @@ const loadWorkData = async () => {
           type: 'smoothstep',
           pathOptions: { borderRadius: 20, offset: 15 },
           style: { stroke: path.workPathColor },
-          data: { pathId: path.workPathId, pathName: path.workPathName, offset },
+          data: { pathId: path.workPathId, pathName: path.workPathName, offset, isFollowing: edge.lagDays !== undefined && edge.lagDays !== null },
         }
       }),
     )
@@ -571,7 +601,7 @@ const applyMutation = (mutation: MutationResponse) => {
           type: 'smoothstep',
           pathOptions: { borderRadius: 20, offset: 15 },
           style: { stroke: path.workPathColor },
-          data: { pathId: path.workPathId, pathName: path.workPathName, offset },
+          data: { pathId: path.workPathId, pathName: path.workPathName, offset, isFollowing: edge.lagDays !== undefined && edge.lagDays !== null },
         }
       }),
     )
@@ -679,13 +709,30 @@ watch(
         whiteSpace: 'nowrap',
       }
 
-      // 휴일 휴무인 작업은 옅은 회색 배경
+      // 공종 배경색 적용
+      const wtIdx = workTypePaletteMap.value.get(work.workType || '미분류')
+      if (wtIdx !== undefined) {
+        baseStyle.backgroundColor = GROUP_PALETTE[wtIdx % GROUP_PALETTE.length]!.nodeBg
+      }
+
+      // 휴일 미작업 노드
       if (!work.isWorkingOnHoliday) {
-        baseStyle.backgroundColor = '#f3f4f6'
-        baseStyle.borderColor = '#d1d5db'
+        baseStyle.borderColor = 'transparent'
       }
 
       if (editMode && pathColor && nodeIds.has(workId)) {
+        if (!work.isWorkingOnHoliday) {
+          // 휴일 노드: 점선 테두리를 패스 색상으로 하이라이트
+          return {
+            ...node,
+            class: 'holiday-node holiday-node--highlight',
+            style: {
+              ...baseStyle,
+              '--holiday-highlight-color': pathColor,
+              boxShadow: `0 0 8px ${pathColor}50`,
+            } as Record<string, string>,
+          }
+        }
         return {
           ...node,
           style: {
@@ -698,6 +745,7 @@ watch(
 
       return {
         ...node,
+        class: !work.isWorkingOnHoliday ? 'holiday-node' : undefined,
         style: baseStyle,
       }
     })
@@ -953,7 +1001,7 @@ const handleConnect = async (params: { source: string; target: string }) => {
         type: 'smoothstep',
         pathOptions: { borderRadius: 20, offset: 15 },
         style: { stroke: newPath.workPathColor },
-        data: { pathId: newPath.workPathId, pathName: newPath.workPathName, offset },
+        data: { pathId: newPath.workPathId, pathName: newPath.workPathName, offset, isFollowing: edge.lagDays !== undefined && edge.lagDays !== null },
       }
     })
     edges.value = [...edges.value, ...newEdges]
@@ -2477,6 +2525,40 @@ onUnmounted(() => {
 
 :deep(.vue-flow__node-work.selected) {
   box-shadow: 0 0 0 0.5px var(--vf-box-shadow, #1a192b);
+}
+
+/* 휴일 미작업 노드: 점선 테두리 (12px 선 + 12px 간격) */
+:deep(.vue-flow__node-work.holiday-node) {
+  border: none !important;
+  background-image:
+    repeating-linear-gradient(to right, #000 0, #000 12px, transparent 12px, transparent 24px),
+    repeating-linear-gradient(to right, #000 0, #000 12px, transparent 12px, transparent 24px),
+    repeating-linear-gradient(to bottom, #000 0, #000 12px, transparent 12px, transparent 24px),
+    repeating-linear-gradient(to bottom, #000 0, #000 12px, transparent 12px, transparent 24px);
+  background-size:
+    100% 1.5px,
+    100% 1.5px,
+    1.5px 100%,
+    1.5px 100%;
+  background-position:
+    0 0,
+    0 100%,
+    0 0,
+    100% 0;
+  background-repeat: no-repeat;
+}
+
+:deep(.vue-flow__node-work.holiday-node--highlight) {
+  background-image:
+    repeating-linear-gradient(to right, var(--holiday-highlight-color) 0, var(--holiday-highlight-color) 12px, transparent 12px, transparent 24px),
+    repeating-linear-gradient(to right, var(--holiday-highlight-color) 0, var(--holiday-highlight-color) 12px, transparent 12px, transparent 24px),
+    repeating-linear-gradient(to bottom, var(--holiday-highlight-color) 0, var(--holiday-highlight-color) 12px, transparent 12px, transparent 24px),
+    repeating-linear-gradient(to bottom, var(--holiday-highlight-color) 0, var(--holiday-highlight-color) 12px, transparent 12px, transparent 24px);
+  background-size:
+    100% 1.5px,
+    100% 1.5px,
+    1.5px 100%,
+    1.5px 100%;
 }
 
 /* 엣지(패스)가 노드 위에 렌더링되도록: SVG 컨테이너를 노드 위로 */

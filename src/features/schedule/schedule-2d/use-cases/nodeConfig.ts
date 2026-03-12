@@ -52,13 +52,14 @@ export function workToNode(work: WorkResponse, yOverride?: number): Node {
   }
 
   if (!work.isWorkingOnHoliday) {
-    baseStyle.backgroundColor = '#f3f4f6' // 옅은 회색 (gray-100)
-    baseStyle.borderColor = '#d1d5db' // gray-300
+    baseStyle.backgroundColor = '#ffffff'
+    baseStyle.borderColor = 'transparent'
   }
 
   return {
     id: `work-${work.workId}`,
     type: 'work',
+    class: work.isWorkingOnHoliday ? undefined : 'holiday-node',
     position: { x: computeNodeX(work.startDate), y: yOverride ?? work.positionY },
     data: {
       label: work.workName,

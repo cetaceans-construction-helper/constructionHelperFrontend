@@ -150,10 +150,12 @@ export function usePathEditor(
       // 미선택: 기본 색상 + transform offset 적용 (X, Y 모두)
       return edges.value.map(e => {
         const offset = e.data?.offset || 0
+        const isFollowing = e.data?.isFollowing !== false
         return {
           ...e,
           style: {
             stroke: (e.style as { stroke?: string })?.stroke,
+            strokeDasharray: isFollowing ? undefined : '12 8',
             transform: `translate(${offset}px, ${offset}px)`
           }
         }
@@ -168,26 +170,31 @@ export function usePathEditor(
       .filter(e => e.data?.pathId !== selectedPathId.value)
       .map(e => {
         const offset = e.data?.offset || 0
+        const isFollowing = e.data?.isFollowing !== false
         return {
           ...e,
           style: {
             stroke: '#9ca3af',
             strokeWidth: 1,
+            strokeDasharray: isFollowing ? undefined : '12 8',
             transform: `translate(${offset}px, ${offset}px)`
           }
         }
       })
 
     // 편집 중인 edge들 (패스 색상으로 표시)
-    const editingEdges = editingPathEdges.value.map((edge, index) => ({
-      id: `editing-${selectedPathId.value}-${edge.sourceWorkId}-${edge.targetWorkId}-${index}`,
-      source: `work-${edge.sourceWorkId}`,
-      target: `work-${edge.targetWorkId}`,
-      type: 'smoothstep',
-      pathOptions: { borderRadius: 20, offset: 15 },
-      style: { stroke: pathColor, strokeWidth: 2 },
-      data: { pathId: selectedPathId.value, editing: true }
-    }))
+    const editingEdges = editingPathEdges.value.map((edge, index) => {
+      const isFollowing = edge.lagDays !== undefined && edge.lagDays !== null
+      return {
+        id: `editing-${selectedPathId.value}-${edge.sourceWorkId}-${edge.targetWorkId}-${index}`,
+        source: `work-${edge.sourceWorkId}`,
+        target: `work-${edge.targetWorkId}`,
+        type: 'smoothstep',
+        pathOptions: { borderRadius: 20, offset: 15 },
+        style: { stroke: pathColor, strokeWidth: 2, strokeDasharray: isFollowing ? undefined : '12 8' },
+        data: { pathId: selectedPathId.value, editing: true }
+      }
+    })
 
     return [...otherEdges, ...editingEdges]
   })

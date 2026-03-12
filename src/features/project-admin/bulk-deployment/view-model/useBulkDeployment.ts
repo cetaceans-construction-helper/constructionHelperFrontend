@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue'
 import { referenceApi, type LaborTypeResponse, type EquipmentSpecResponse } from '@/shared/network-core/apis/reference'
-import { bulkDeploymentApi, type BulkAttendanceEntry, type BulkEquipmentEntry } from '@/features/project-admin/bulk-deployment/infra/bulk-deployment-api'
+import { bulkDeploymentApi } from '@/features/project-admin/bulk-deployment/infra/bulk-deployment-api'
 import { projectApi } from '@/shared/network-core/apis/project'
 import { useProjectStore } from '@/app/context/stores/project'
 
@@ -27,7 +27,8 @@ export interface EquipmentRow {
 export function useBulkDeployment() {
   const startDate = ref('')
   const endDate = ref('')
-  const isSubmitting = ref(false)
+  const isSubmittingAttendance = ref(false)
+  const isSubmittingEquipment = ref(false)
 
   // 참조 데이터
   const laborTypes = ref<LaborTypeResponse[]>([])
@@ -56,15 +57,18 @@ export function useBulkDeployment() {
     return Array.from(map.values())
   })
 
-  const canSubmit = computed(() => {
+  const canSubmitAttendance = computed(() => {
     if (!startDate.value || !endDate.value) return false
-    const hasAttendance = attendanceBoxes.value.some(
+    return attendanceBoxes.value.some(
       (box) => box.workTypeId !== null && box.laborRows.some((r) => r.totalCount > 0),
     )
-    const hasEquipment = equipmentRows.value.some(
+  })
+
+  const canSubmitEquipment = computed(() => {
+    if (!startDate.value || !endDate.value) return false
+    return equipmentRows.value.some(
       (r) => r.equipmentSpecId !== null && r.workTypeId !== null && r.totalCount > 0,
     )
-    return hasAttendance || hasEquipment
   })
 
   async function initDates() {
@@ -149,10 +153,10 @@ export function useBulkDeployment() {
     equipmentRows.value = equipmentRows.value.filter((r) => r.id !== id)
   }
 
-  async function submit() {
-    if (!canSubmit.value) return
+  async function submitAttendance() {
+    if (!canSubmitAttendance.value) return
 
-    const attendanceEntries: BulkAttendanceEntry[] = attendanceBoxes.value
+    const entries = attendanceBoxes.value
       .filter((box) => box.workTypeId !== null)
       .flatMap((box) =>
         box.laborRows
@@ -160,7 +164,28 @@ export function useBulkDeployment() {
           .map((r) => ({ laborTypeId: r.laborTypeId, totalCount: r.totalCount })),
       )
 
-    const equipmentEntries: BulkEquipmentEntry[] = equipmentRows.value
+    isSubmittingAttendance.value = true
+    try {
+      await bulkDeploymentApi.createBulkAttendance({
+        startDate: startDate.value,
+        endDate: endDate.value,
+        entries,
+      })
+      alert('출역 대량 입력이 완료되었습니다.')
+      attendanceBoxes.value = [{ id: nextAttendanceId++, workTypeId: null, workTypeName: '', laborRows: [] }]
+    } catch (error: any) {
+      console.error('출역 대량 입력 실패:', error)
+      const errorMessage = error.response?.data?.message || error.message
+      alert(errorMessage)
+    } finally {
+      isSubmittingAttendance.value = false
+    }
+  }
+
+  async function submitEquipment() {
+    if (!canSubmitEquipment.value) return
+
+    const entries = equipmentRows.value
       .filter((r) => r.equipmentSpecId !== null && r.workTypeId !== null && r.totalCount > 0)
       .map((r) => ({
         equipmentSpecId: r.equipmentSpecId!,
@@ -168,38 +193,37 @@ export function useBulkDeployment() {
         totalCount: r.totalCount,
       }))
 
-    isSubmitting.value = true
+    isSubmittingEquipment.value = true
     try {
-      await bulkDeploymentApi.createBulkDeployment({
+      await bulkDeploymentApi.createBulkEquipment({
         startDate: startDate.value,
         endDate: endDate.value,
-        attendanceEntries,
-        equipmentEntries,
+        entries,
       })
-      alert('대량 입력이 완료되었습니다.')
-      // 초기화
-      attendanceBoxes.value = [{ id: nextAttendanceId++, workTypeId: null, workTypeName: '', laborRows: [] }]
+      alert('장비 대량 입력이 완료되었습니다.')
       equipmentRows.value = [{ id: nextEquipmentId++, equipmentSpecId: null, workTypeId: null, totalCount: 0 }]
     } catch (error: any) {
-      console.error('대량 입력 실패:', error)
+      console.error('장비 대량 입력 실패:', error)
       const errorMessage = error.response?.data?.message || error.message
       alert(errorMessage)
     } finally {
-      isSubmitting.value = false
+      isSubmittingEquipment.value = false
     }
   }
 
   return {
     startDate,
     endDate,
-    isSubmitting,
+    isSubmittingAttendance,
+    isSubmittingEquipment,
     laborTypes,
     laborTypesByWorkType,
     equipmentSpecs,
     workTypes,
     attendanceBoxes,
     equipmentRows,
-    canSubmit,
+    canSubmitAttendance,
+    canSubmitEquipment,
     initDates,
     loadReferenceData,
     addAttendanceBox,
@@ -207,6 +231,7 @@ export function useBulkDeployment() {
     selectWorkType,
     addEquipmentRow,
     removeEquipmentRow,
-    submit,
+    submitAttendance,
+    submitEquipment,
   }
 }

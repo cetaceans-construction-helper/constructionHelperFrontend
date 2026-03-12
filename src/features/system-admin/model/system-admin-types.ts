@@ -106,9 +106,18 @@ export interface User {
   phoneNumber: string
   companyId: string
   companyName: string
+  jobTitle: string | null
   systemRole: string
   currentStatus: string
   createdAt: string
+}
+
+// User update (PUT /super/updateUser/{userId})
+export interface UpdateUserPayload {
+  userName?: string | null
+  phoneNumber?: string | null
+  jobTitle?: string | null
+  companyId?: string | null
 }
 
 // Update payloads

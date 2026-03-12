@@ -34,9 +34,9 @@ const lines = computed(() => splitLabel(labelText.value))
 
 <template>
   <Handle type="target" :position="Position.Left" />
-  <div v-if="!props.selected" class="flex flex-col items-center justify-center w-full h-full px-1 leading-tight text-center overflow-visible whitespace-nowrap">
-    <span class="text-[11px]">{{ lines[0] }}</span>
-    <span v-if="lines[1]" class="text-[11px]">{{ lines[1] }}</span>
+  <div v-if="!props.selected" class="flex flex-col items-center justify-center w-full h-full px-1 leading-loose text-center overflow-visible whitespace-nowrap">
+    <span class="text-[11px]" style="transform: scaleY(1.5); display: inline-block">{{ lines[0] }}</span>
+    <span v-if="lines[1]" class="text-[11px]" style="transform: scaleY(1.5); display: inline-block">{{ lines[1] }}</span>
   </div>
   <Handle type="source" :position="Position.Right" />
 </template>

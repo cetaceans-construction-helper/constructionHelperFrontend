@@ -11,15 +11,12 @@ export interface BulkEquipmentEntry {
   totalCount: number
 }
 
-export interface BulkDeploymentPayload {
-  startDate: string
-  endDate: string
-  attendanceEntries: BulkAttendanceEntry[]
-  equipmentEntries: BulkEquipmentEntry[]
-}
-
 export const bulkDeploymentApi = {
-  async createBulkDeployment(payload: BulkDeploymentPayload): Promise<void> {
-    await apiClient.post('/bulk/createBulkDeployment', payload)
+  async createBulkAttendance(payload: { startDate: string; endDate: string; entries: BulkAttendanceEntry[] }): Promise<void> {
+    await apiClient.post('/bulk/createBulkAttendance', payload)
+  },
+
+  async createBulkEquipment(payload: { startDate: string; endDate: string; entries: BulkEquipmentEntry[] }): Promise<void> {
+    await apiClient.post('/bulk/createBulkEquipment', payload)
   },
 }

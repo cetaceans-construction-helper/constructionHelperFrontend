@@ -3,17 +3,8 @@ import { ref, onMounted } from 'vue'
 import { Button } from '@/shared/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card'
 import { Input } from '@/shared/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/shared/ui/select'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/features/auth/view-model/auth-store'
-import { companyApi } from '@/features/auth/infra/company-api'
-import type { Company } from '@/features/auth/model/auth-types'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 const router = useRouter()
@@ -26,24 +17,9 @@ const userPasswordConfirm = ref('')
 const userName = ref('')
 const phoneNumber = ref('')
 const jobTitle = ref('')
-const companyId = ref<string>()
 
-// 회사 목록
-const companies = ref<Company[]>([])
-const isLoadingCompanies = ref(false)
-
-onMounted(async () => {
+onMounted(() => {
   authStore.clearError()
-
-  // 회사 목록 로드
-  isLoadingCompanies.value = true
-  try {
-    companies.value = await companyApi.getCompanies()
-  } catch (e) {
-    console.error('Failed to load companies:', e)
-  } finally {
-    isLoadingCompanies.value = false
-  }
 })
 
 const handleSignup = async () => {
@@ -59,7 +35,6 @@ const handleSignup = async () => {
       userName: userName.value,
       phoneNumber: phoneNumber.value,
       jobTitle: jobTitle.value || undefined,
-      companyId: companyId.value || undefined,
     })
 
     // 회원가입 성공 - 로그인 페이지로 이동
@@ -167,24 +142,6 @@ const goBack = () => {
             />
             <p v-if="authStore.fieldErrors.jobTitle" class="text-sm text-red-500">
               {{ authStore.fieldErrors.jobTitle }}
-            </p>
-          </div>
-          <div class="space-y-2">
-            <label class="text-sm font-medium"
-              >소속 회사 <span class="text-muted-foreground">(선택)</span></label
-            >
-            <Select v-model="companyId" :disabled="authStore.isLoading || isLoadingCompanies">
-              <SelectTrigger class="w-full">
-                <SelectValue placeholder="회사를 선택하세요" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem v-for="company in companies" :key="company.id" :value="company.id">
-                  {{ company.companyName }}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-            <p v-if="authStore.fieldErrors.companyId" class="text-sm text-red-500">
-              {{ authStore.fieldErrors.companyId }}
             </p>
           </div>
           <div class="flex flex-col gap-2 pt-4">
