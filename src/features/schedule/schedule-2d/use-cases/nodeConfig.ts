@@ -43,23 +43,16 @@ export function workToNode(work: WorkResponse, yOverride?: number): Node {
   const computedWidth = computeNodeWidthFromDates(work.startDate, work.completionDate)
   const computedHeight = CHART_CONFIG.nodeHeight
 
-  // 휴일 휴무인 작업은 옅은 회색 배경
   const baseStyle: Record<string, string> = {
     width: `${computedWidth}px`,
     height: `${computedHeight}px`,
     overflow: 'visible',
-    whiteSpace: 'nowrap'
-  }
-
-  if (!work.isWorkingOnHoliday) {
-    baseStyle.backgroundColor = '#ffffff'
-    baseStyle.borderColor = 'transparent'
+    whiteSpace: 'nowrap',
   }
 
   return {
     id: `work-${work.workId}`,
     type: 'work',
-    class: work.isWorkingOnHoliday ? undefined : 'holiday-node',
     position: { x: computeNodeX(work.startDate), y: yOverride ?? work.positionY },
     data: {
       label: work.workName,

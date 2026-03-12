@@ -3,6 +3,7 @@ import { onMounted } from 'vue'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Plus, Minus, Search } from 'lucide-vue-next'
+import ReferenceEditTrigger from '@/shared/helper-ui/ReferenceEditTrigger.vue'
 import { useAttendance } from '@/features/attendance/view-model/useAttendance'
 import { useEquipmentDeployment } from '@/features/attendance/view-model/useEquipmentDeployment'
 import { useAttendanceCumulative } from '@/features/attendance/view-model/useAttendanceCumulative'
@@ -125,8 +126,9 @@ onMounted(async () => {
 
       <!-- 중앙: 출역인원 입력 -->
       <div class="flex flex-col overflow-hidden border border-border rounded-lg bg-card">
-        <div class="px-4 py-3 border-b border-border bg-muted/50">
+        <div class="px-4 py-3 border-b border-border bg-muted/50 flex items-center justify-between">
           <h3 class="text-sm font-medium">출역인원 입력</h3>
+          <ReferenceEditTrigger type="labor" @refresh="initAttendance" />
         </div>
 
         <!-- 공종 박스 목록 -->
@@ -179,8 +181,9 @@ onMounted(async () => {
 
       <!-- 오른쪽: 출역장비 입력 -->
       <div class="flex flex-col overflow-hidden border border-border rounded-lg bg-card">
-        <div class="px-4 py-3 border-b border-border bg-muted/50">
+        <div class="px-4 py-3 border-b border-border bg-muted/50 flex items-center justify-between">
           <h3 class="text-sm font-medium">출역장비 입력</h3>
+          <ReferenceEditTrigger type="equipment" @refresh="initEquipment" />
         </div>
 
         <!-- 장비 박스 목록 -->

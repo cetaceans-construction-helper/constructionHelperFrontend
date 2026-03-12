@@ -56,16 +56,19 @@ export const useDashboardPage = () => {
 
   const loadAllPhotos = async () => {
     revokeAllObjectUrls()
-    const newUrls = new Map<number, string>()
+    const photoEntries = todayWorks.value.flatMap((work) => work.photos ?? [])
 
-    for (const work of todayWorks.value) {
-      if (!work.photos) continue
-      for (const photo of work.photos) {
-        try {
-          newUrls.set(photo.photoId, await dashboardRepository.downloadWorkPhoto(photo.thumbnailUrl))
-        } catch {
-          // 개별 사진 로드 실패는 무시
-        }
+    const results = await Promise.allSettled(
+      photoEntries.map((photo) =>
+        dashboardRepository.downloadWorkPhoto(photo.thumbnailUrl)
+          .then((url) => ({ photoId: photo.photoId, url }))
+      )
+    )
+
+    const newUrls = new Map<number, string>()
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        newUrls.set(result.value.photoId, result.value.url)
       }
     }
     photoObjectUrls.value = newUrls

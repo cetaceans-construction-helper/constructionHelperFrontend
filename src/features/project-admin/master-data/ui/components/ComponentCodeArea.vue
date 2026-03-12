@@ -194,7 +194,7 @@ async function confirmDelete() {
               v-model="newComponentTypeName"
               placeholder="이름 입력"
               class="h-8 text-sm"
-              @keyup.enter="addComponentType"
+              @keydown.enter="(e: KeyboardEvent) => { if (!e.isComposing) addComponentType() }"
             />
             <Button
               size="sm"
@@ -225,7 +225,7 @@ async function confirmDelete() {
               placeholder="코드 입력"
               class="h-8 text-sm"
               :disabled="selectedComponentTypeId == null"
-              @keyup.enter="addComponentCode"
+              @keydown.enter="(e: KeyboardEvent) => { if (!e.isComposing) addComponentCode() }"
             />
             <Button
               size="sm"

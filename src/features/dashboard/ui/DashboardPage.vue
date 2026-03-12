@@ -260,54 +260,56 @@ const {
         >
           <h3 class="text-lg font-semibold">Release Note</h3>
           <div class="mt-4 flex-1 min-h-0">
-            <div class="border border-border rounded-lg p-3 h-full overflow-y-auto">
-              <p class="text-sm font-medium">26.03.11 수요일</p>
-              <p class="text-sm text-muted-foreground mt-1">1. 2D공정표 작동방식 대규모 수정.</p>
-              <p class="text-sm text-muted-foreground mt-1">2. 작업모드, 패스모드 구분이 없어짐</p>
-              <p class="text-sm font-bold text-red-500 mt-1">
-                3. 작업, 패스 수정은 오른쪽버튼 클릭으로 변경
+            <div class="border border-border rounded-lg p-3 h-full overflow-y-auto text-sm">
+              <p>
+                26.03.12 목요일<br />
+                1. 2D공정표 작동방식 대규모 수정.<br />
+                2. 작업 오른쪽클릭 -> 메뉴 기반으로 행동선택<br />
+                3. 작업일보 엑셀 -> 공종간 간격 추가됨<br />
+                4. 작업일보 엑셀 -> 관리자페이지에서 정렬순서 바꾸면 즉시 반영<br />
+                5. 각 생성/수정 팝업에서 기준정보 바로 수정가능.
               </p>
-              <p class="text-sm font-bold text-red-500 mt-1">
-                4. 작업을 선택하면 날짜조정, 선택하지 않으면 새로운 패스 생성
-              </p>
-              <p class="text-sm font-bold text-red-500 mt-1">
-                5. 패스를 선택하고 연결하면 패스에 작업추가
-              </p>
-              <p class="text-sm text-muted-foreground mt-1">
-                6. 구간, 용도 개념 제거. 구역 / 층 만 입력합니다.
-              </p>
-              <p class="text-sm font-bold text-red-500 mt-1">
+              <br />
+              <p>
+                26.03.11 수요일<br />
+                1. 2D공정표 작동방식 대규모 수정.<br />
+                2. 작업모드, 패스모드 구분이 없어짐<br />
+                3. 작업, 패스 수정은 오른쪽버튼 클릭으로 변경<br />
+                4. 작업을 선택하면 날짜조정, 선택하지 않으면 새로운 패스 생성<br />
+                5. 패스를 선택하고 연결하면 패스에 작업추가<br />
+                6. 구간, 용도 개념 제거. 구역 / 층 만 입력합니다.<br />
                 7. 원하는 세부공종 위치에 더블클릭하면 해당 세부공종 작업 생성합니다.
               </p>
               <br />
-              <p class="text-sm font-medium">26.03.09 월요일</p>
-              <p class="text-sm font-bold text-red-500 mt-1">
-                1. 오늘 작업 각각 클릭해서 사진입력 가능.
+              <p>
+                26.03.09 월요일<br />
+                1. 오늘 작업 각각 클릭해서 사진입력 가능.<br />
+                2. 공정표 작업 패스로 연결하면 기본적으로 따라다님.<br />
+                3. 대시보드 날씨 잘못 출력하는 버그 해결.<br />
+                4. 대시보드작업일보 -> 내일작업 / 다음 작업일 선택가능.<br />
+                5. 작업일보 생성가능!!!
               </p>
-              <p class="text-sm text-muted-foreground mt-1">
-                2. 공정표 작업 패스로 연결하면 기본적으로 따라다님.
+              <br />
+              <p>
+                26.02.27 금요일<br />
+                1. 자재반입검수요청서 생성가능.
               </p>
-              <p class="text-sm font-bold text-red-500 mt-1">
-                3. 대시보드 날씨 잘못 출력하는 버그 해결.
+              <br />
+              <p>
+                26.02.20 금요일<br />
+                1. 출역 입력가능.<br />
+                2. 자재발주서 생성가능.
               </p>
-              <p class="text-sm font-bold text-red-500 mt-1">
-                4. 대시보드작업일보 -> 내일작업 / 다음 작업일 선택가능.
+              <br />
+              <p>
+                26.01.31 토요일<br />
+                1. 웹페이지 작업일보 구현.
               </p>
-              <p class="text-sm font-bold text-red-500 mt-1">5. 작업일보 생성가능!!!</p>
               <br />
-              <p class="text-sm font-medium">26.02.27 금요일</p>
-              <p class="text-sm text-muted-foreground mt-1">1. 자재반입검수요청서 생성가능.</p>
-              <br />
-              <p class="text-sm font-medium">26.02.20 금요일</p>
-              <p class="text-sm text-muted-foreground mt-1">1. 출역 입력가능.</p>
-              <p class="text-sm text-muted-foreground mt-1">2. 자재발주서 생성가능.</p>
-              <br />
-              <p class="text-sm font-medium">26.01.31 토요일</p>
-              <p class="text-sm text-muted-foreground mt-1">1. 웹페이지 작업일보 구현.</p>
-              <br />
-              <p class="text-sm font-medium">26.01.28 수요일</p>
-              <p class="text-sm text-muted-foreground mt-1">1. 작업으로 3d 오브젝트 필터링 가능.</p>
-              <br />
+              <p>
+                26.01.28 수요일<br />
+                1. 작업으로 3d 오브젝트 필터링 가능.
+              </p>
             </div>
           </div>
         </AreaCard>

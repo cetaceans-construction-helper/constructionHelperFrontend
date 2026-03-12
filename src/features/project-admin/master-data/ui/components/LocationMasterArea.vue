@@ -95,7 +95,7 @@ async function confirmDelete() {
             v-model="col.input.value"
             placeholder="이름 입력"
             class="h-8 text-sm"
-            @keyup.enter="col.add"
+            @keydown.enter="(e: KeyboardEvent) => { if (!e.isComposing) col.add() }"
           />
           <Button
             size="sm"

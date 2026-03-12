@@ -72,7 +72,7 @@ async function confirmDelete() {
             v-model="newEquipmentTypeName"
             placeholder="이름 입력"
             class="h-8 text-sm flex-1"
-            @keyup.enter="addEquipmentType"
+            @keydown.enter="(e: KeyboardEvent) => { if (!e.isComposing) addEquipmentType() }"
           />
           <Button
             size="sm"
@@ -103,7 +103,7 @@ async function confirmDelete() {
             placeholder="이름 입력"
             class="h-8 text-sm"
             :disabled="!selectedEquipmentTypeId"
-            @keyup.enter="addEquipmentSpec"
+            @keydown.enter="(e: KeyboardEvent) => { if (!e.isComposing) addEquipmentSpec() }"
           />
           <Button
             size="sm"

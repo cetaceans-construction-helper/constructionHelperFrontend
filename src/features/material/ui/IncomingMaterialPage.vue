@@ -41,6 +41,7 @@ import {
   AlertDialogTitle,
 } from '@/shared/ui/alert-dialog'
 import { X } from 'lucide-vue-next'
+import ReferenceEditTrigger from '@/shared/helper-ui/ReferenceEditTrigger.vue'
 import { materialOrderApi } from '@/features/material/infra/material-order-api'
 import { validateDirectMaterialDeliveryInput } from '@/features/material/model/material-order-rules'
 import type {
@@ -79,6 +80,14 @@ const directDivisions = ref<IdNameResponse[]>([])
 const directWorkTypes = ref<WorkTypeResponse[]>([])
 const isLoadingDirectWorkTypes = ref(false)
 const isSavingDirect = ref(false)
+
+async function reloadDirectMaterialTypes() {
+  try {
+    directMaterialTypes.value = await referenceApi.getMaterialTypeList()
+  } catch (error: unknown) {
+    console.error('자재유형 새로고침 실패:', error)
+  }
+}
 const directDeliveryNotes = ref<File[]>([])
 const directDeliveryPhotos = ref<File[]>([])
 // 발주서 없이 송장입력 - 위치 선택
@@ -117,6 +126,16 @@ const deliveryEditState = ref<Record<number, {
 const isLoadingLines = ref<Record<number, boolean>>({})
 const isUpdatingDelivery = ref<Record<number, boolean>>({})
 const materialSpecs = ref<MaterialSpecResponse[]>([])
+const currentMaterialTypeId = ref<number | null>(null)
+
+async function reloadMaterialSpecs() {
+  if (currentMaterialTypeId.value == null) return
+  try {
+    materialSpecs.value = await referenceApi.getMaterialSpecList(currentMaterialTypeId.value)
+  } catch {
+    materialSpecs.value = []
+  }
+}
 
 // 인라인 이미지 뷰어 (per-delivery)
 const deliveryImageUrls = ref<Record<number, string[]>>({})
@@ -454,6 +473,7 @@ async function toggleDelivery(delivery: MaterialDeliverySummary) {
     // materialSpecs 로드 (매번 해당 delivery의 materialType에 맞게)
     const order = orders.value.find((o) => o.id === delivery.materialOrderId)
     if (order?.materialTypeId) {
+      currentMaterialTypeId.value = order.materialTypeId
       try {
         materialSpecs.value = await referenceApi.getMaterialSpecList(order.materialTypeId)
       } catch {
@@ -793,6 +813,16 @@ onUnmounted(() => {
                     </div>
                   </div>
 
+                  <!-- 행 추가 버튼 -->
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    :disabled="mirDeliveryIds.has(delivery.materialDeliveryId)"
+                    @click="addDeliveryLine(delivery.materialDeliveryId)"
+                  >
+                    + 행 추가
+                  </Button>
+
                   <!-- 라인 테이블 -->
                   <div class="overflow-x-auto border border-border rounded-lg">
                     <Table>
@@ -840,6 +870,11 @@ onUnmounted(() => {
                                   </SelectItem>
                                 </SelectContent>
                               </Select>
+                              <ReferenceEditTrigger
+                                v-if="lineIdx === 0"
+                                type="material"
+                                @refresh="reloadMaterialSpecs"
+                              />
                               <span
                                 v-if="line.specValidation"
                                 class="shrink-0 text-green-600 dark:text-green-400 text-xs font-medium"
@@ -882,14 +917,6 @@ onUnmounted(() => {
                       </TableBody>
                     </Table>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    :disabled="mirDeliveryIds.has(delivery.materialDeliveryId)"
-                    @click="addDeliveryLine(delivery.materialDeliveryId)"
-                  >
-                    + 행 추가
-                  </Button>
 
                   <!-- 수정하기 버튼 -->
                   <div class="flex justify-end">
@@ -919,20 +946,23 @@ onUnmounted(() => {
           <!-- 자재유형 -->
           <div class="space-y-2">
             <Label>자재유형</Label>
-            <Select v-model="directSelectedMaterialTypeId">
-              <SelectTrigger>
-                <SelectValue placeholder="자재유형 선택" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem
-                  v-for="mt in directMaterialTypes"
-                  :key="mt.id"
-                  :value="String(mt.id)"
-                >
-                  {{ mt.name }}
-                </SelectItem>
-              </SelectContent>
-            </Select>
+            <div class="flex items-center gap-1">
+              <Select v-model="directSelectedMaterialTypeId" class="flex-1">
+                <SelectTrigger>
+                  <SelectValue placeholder="자재유형 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem
+                    v-for="mt in directMaterialTypes"
+                    :key="mt.id"
+                    :value="String(mt.id)"
+                  >
+                    {{ mt.name }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <ReferenceEditTrigger type="material" @refresh="reloadDirectMaterialTypes" />
+            </div>
           </div>
 
           <!-- 분류 (선택사항) -->

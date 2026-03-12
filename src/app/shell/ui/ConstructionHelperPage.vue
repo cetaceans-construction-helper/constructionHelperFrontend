@@ -63,9 +63,9 @@ const sections = [
   { id: 'dashboard', label: '대시보드', shortLabel: '대시', path: '/helper/dashboard' },
   { id: 'process', label: '공정관리', shortLabel: '공정', path: '/helper/schedule/2d' },
   { id: 'attendance', label: '출역관리', shortLabel: '출역', path: '/helper/attendance/input' },
-  { id: 'material', label: '자재관리', shortLabel: '자재', path: '/helper/material/order' },
+  { id: 'material', label: '자재관리', shortLabel: '자재', path: '/helper/material/incoming' },
   { id: 'safety', label: '안전관리', shortLabel: '안전', path: '/helper/safety' },
-  { id: 'document', label: '문서관리', shortLabel: '문서', path: '/helper/document/manager' },
+  { id: 'document', label: '문서관리', shortLabel: '문서', path: '/helper/document/daily-report' },
   { id: 'utility', label: '유용한 기능', shortLabel: '기능', path: '/helper/functions' },
   { id: 'admin', label: '관리자', shortLabel: '관리', path: '/helper/admin' },
 ]
@@ -88,14 +88,13 @@ const menusBySection: Record<string, MenuItem[]> = {
     { id: 'worker-register', label: '작업자등록', path: '/helper/attendance/register', icon: UserCog },
   ],
   material: [
-    { id: 'order', label: '자재발주서', path: '/helper/material/order', icon: FileText },
     { id: 'incoming', label: '반입자재', path: '/helper/material/incoming', icon: PackagePlus },
+    { id: 'order', label: '자재발주서', path: '/helper/material/order', icon: FileText },
     { id: 'outgoing', label: '반출자재', path: '/helper/material/outgoing', icon: PackageMinus },
     { id: 'remaining', label: '잔여자재', path: '/helper/material/remaining', icon: Package },
   ],
   safety: [{ id: 'placeholder', label: '(구현예정)', path: '/helper/safety', icon: Shield }],
   document: [
-    { id: 'manager', label: '문서관리', path: '/helper/document/manager', icon: FolderOpen },
     { id: 'daily-report', label: '일일작업일보', path: '/helper/document/daily-report', icon: CalendarCheck },
     {
       id: 'inspection',
@@ -103,6 +102,7 @@ const menusBySection: Record<string, MenuItem[]> = {
       path: '/helper/document/material-inspection',
       icon: ClipboardCheck,
     },
+    { id: 'manager', label: '문서관리', path: '/helper/document/manager', icon: FolderOpen },
   ],
   utility: [{ id: 'placeholder', label: '(구현예정)', path: '/helper/functions', icon: Wrench }],
   admin: [

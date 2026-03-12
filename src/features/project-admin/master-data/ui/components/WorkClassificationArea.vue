@@ -88,7 +88,7 @@ async function confirmDelete() {
             v-model="newDivisionName"
             placeholder="이름 입력"
             class="h-8 text-sm"
-            @keyup.enter="addDivision"
+            @keydown.enter="(e: KeyboardEvent) => { if (!e.isComposing) addDivision() }"
           />
           <Button
             size="sm"
@@ -119,7 +119,7 @@ async function confirmDelete() {
             placeholder="이름 입력"
             class="h-8 text-sm"
             :disabled="!selectedDivisionId"
-            @keyup.enter="addWorkType"
+            @keydown.enter="(e: KeyboardEvent) => { if (!e.isComposing) addWorkType() }"
           />
           <Button
             size="sm"
@@ -155,7 +155,7 @@ async function confirmDelete() {
             placeholder="이름 입력"
             class="h-8 text-sm"
             :disabled="!selectedWorkTypeId"
-            @keyup.enter="addSubWorkType"
+            @keydown.enter="(e: KeyboardEvent) => { if (!e.isComposing) addSubWorkType() }"
           />
           <Button
             size="sm"
@@ -187,7 +187,7 @@ async function confirmDelete() {
             placeholder="이름 입력"
             class="h-8 text-sm"
             :disabled="!selectedSubWorkTypeId"
-            @keyup.enter="addWorkStep"
+            @keydown.enter="(e: KeyboardEvent) => { if (!e.isComposing) addWorkStep() }"
           />
           <Button
             size="sm"

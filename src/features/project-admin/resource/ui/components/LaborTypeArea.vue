@@ -94,7 +94,7 @@ async function confirmDelete() {
             placeholder="직종명 입력"
             class="h-8 text-sm"
             :disabled="!selectedWorkTypeId"
-            @keyup.enter="addLaborType"
+            @keydown.enter="(e: KeyboardEvent) => { if (!e.isComposing) addLaborType() }"
           />
           <Button
             size="sm"

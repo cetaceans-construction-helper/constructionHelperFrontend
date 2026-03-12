@@ -103,6 +103,7 @@ function cancelEdit() {
 }
 
 function onEditKeydown(e: KeyboardEvent) {
+  if (e.isComposing) return
   if (e.key === 'Enter') {
     confirmEdit()
   } else if (e.key === 'Escape') {
