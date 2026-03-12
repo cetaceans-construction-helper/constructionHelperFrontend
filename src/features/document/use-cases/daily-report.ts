@@ -7,9 +7,8 @@ export interface DailyReportRepository {
   validateDailyReport(date: string, tomorrowWorkMode?: number): Promise<ValidateDailyReportResponse>
   createDailyReport(body: {
     date: string
-    excludedIds?: Record<string, number[]>
+    excludedIds?: Record<string, string[]>
     excludedPhotoIndices?: number[]
-    excludedBlankRowIndices?: Record<string, number[]>
     tomorrowWorkMode?: number
   }): Promise<void>
   getDailyReportList(): Promise<DailyReportResponse[]>
@@ -29,9 +28,8 @@ export const createDailyReport = async (
   repository: DailyReportRepository,
   body: {
     date: string
-    excludedIds?: Record<string, number[]>
+    excludedIds?: Record<string, string[]>
     excludedPhotoIndices?: number[]
-    excludedBlankRowIndices?: Record<string, number[]>
     tomorrowWorkMode?: number
   },
 ): Promise<void> => {

@@ -115,7 +115,7 @@ export interface DailyReportResponse {
 
 export interface ValidateDailyReportSectionItem {
   index: number
-  rowKey: number | null
+  rowKey: string
   values: (string | number | null)[]
 }
 

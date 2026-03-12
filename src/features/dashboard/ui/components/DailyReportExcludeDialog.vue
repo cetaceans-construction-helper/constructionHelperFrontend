@@ -37,22 +37,20 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  confirm: [excludedIds: Record<string, number[]>, excludedPhotoIndices: number[], excludedBlankRowIndices: Record<string, number[]>]
+  confirm: [excludedIds: Record<string, string[]>, excludedPhotoIndices: number[]]
   cancel: []
 }>()
 
 // Per-section excluded rowKeys: sectionName → rowKey[]
-const excludedSectionIds = ref<Record<string, number[]>>({})
+const excludedIds = ref<Record<string, string[]>>({})
 const excludedPhotoIndices = ref<number[]>([])
-const excludedBlankRowIndices = ref<Record<string, number[]>>({})
 
 watch(
   () => props.open,
   (open) => {
     if (open) {
-      excludedSectionIds.value = {}
+      excludedIds.value = {}
       excludedPhotoIndices.value = []
-      excludedBlankRowIndices.value = {}
     }
   },
 )
@@ -67,10 +65,10 @@ const exceededPhotos = computed(() => {
   return props.validateResult.photos
 })
 
-function toggleSectionItem(sectionName: string, rowKey: number) {
-  const current = excludedSectionIds.value[sectionName] ?? []
-  excludedSectionIds.value = {
-    ...excludedSectionIds.value,
+function toggleSectionItem(sectionName: string, rowKey: string) {
+  const current = excludedIds.value[sectionName] ?? []
+  excludedIds.value = {
+    ...excludedIds.value,
     [sectionName]: current.includes(rowKey)
       ? current.filter((i) => i !== rowKey)
       : [...current, rowKey],
@@ -84,14 +82,14 @@ function togglePhotoItem(index: number) {
 }
 
 function getMinExcludeCount(section: ValidateDailyReportSection) {
-  const dataRowCount = section.items.filter((item) => item.rowKey !== null).length
+  const dataRowCount = section.items.filter((item) => !isNaN(Number(item.rowKey))).length
   return Math.max(0, dataRowCount - section.totalMaxRows)
 }
 
 const canConfirm = computed(() => {
   for (const section of exceededSections.value) {
     const min = getMinExcludeCount(section)
-    const excluded = excludedSectionIds.value[section.sectionName] ?? []
+    const excluded = excludedIds.value[section.sectionName] ?? []
     if (excluded.length < min) return false
   }
   if (exceededPhotos.value) {
@@ -101,18 +99,8 @@ const canConfirm = computed(() => {
   return true
 })
 
-function toggleBlankRow(sectionName: string, index: number) {
-  const current = excludedBlankRowIndices.value[sectionName] ?? []
-  excludedBlankRowIndices.value = {
-    ...excludedBlankRowIndices.value,
-    [sectionName]: current.includes(index)
-      ? current.filter((i) => i !== index)
-      : [...current, index],
-  }
-}
-
 function onConfirm() {
-  emit('confirm', excludedSectionIds.value, excludedPhotoIndices.value, excludedBlankRowIndices.value)
+  emit('confirm', excludedIds.value, excludedPhotoIndices.value)
 }
 </script>
 
@@ -134,36 +122,24 @@ function onConfirm() {
             <span class="text-xs text-muted-foreground">
               {{ section.dataRowCount }}행 / 최대 {{ section.totalMaxRows }}행
               (최소 {{ getMinExcludeCount(section) }}개 제외 필요,
-              현재 {{ (excludedSectionIds[section.sectionName] ?? []).length }}개 선택)
+              현재 {{ (excludedIds[section.sectionName] ?? []).length }}개 선택)
             </span>
           </div>
           <div class="space-y-1 max-h-48 overflow-y-auto border border-border rounded-md p-2">
-            <template v-for="item in section.items" :key="item.index">
-              <!-- 데이터 행 (rowKey 있는 항목) -->
-              <label
-                v-if="item.rowKey !== null"
-                class="flex items-center gap-2 py-1 px-1 rounded hover:bg-muted/50 cursor-pointer"
-              >
-                <Checkbox
-                  :model-value="(excludedSectionIds[section.sectionName] ?? []).includes(item.rowKey)"
-                  @update:model-value="toggleSectionItem(section.sectionName, item.rowKey!)"
-                />
-                <span class="text-sm flex-1 truncate">
-                  {{ formatItemValues(section, item.values) }}
-                </span>
-              </label>
-              <!-- 빈 행 (rowKey null) -->
-              <label
-                v-else
-                class="flex items-center gap-2 py-1 px-1 rounded hover:bg-muted/50 cursor-pointer"
-              >
-                <Checkbox
-                  :model-value="(excludedBlankRowIndices[section.sectionName] ?? []).includes(item.index)"
-                  @update:model-value="toggleBlankRow(section.sectionName, item.index)"
-                />
-                <span class="text-sm flex-1 text-muted-foreground italic">빈 행</span>
-              </label>
-            </template>
+            <label
+              v-for="item in section.items"
+              :key="item.index"
+              class="flex items-center gap-2 py-1 px-1 rounded hover:bg-muted/50 cursor-pointer"
+            >
+              <Checkbox
+                :model-value="(excludedIds[section.sectionName] ?? []).includes(item.rowKey)"
+                @update:model-value="toggleSectionItem(section.sectionName, item.rowKey)"
+              />
+              <span v-if="!isNaN(Number(item.rowKey))" class="text-sm flex-1 truncate">
+                {{ formatItemValues(section, item.values) }}
+              </span>
+              <span v-else class="text-sm flex-1 text-muted-foreground italic">빈 행</span>
+            </label>
           </div>
         </div>
 
