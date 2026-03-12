@@ -242,16 +242,18 @@ export const useDashboardPage = () => {
   }
 
   const confirmExcludeAndCreate = async (
-    excludedSectionIndices: Record<string, number[]>,
+    excludedIds: Record<string, number[]>,
     excludedPhotoIndices: number[],
+    excludedBlankRowIndices: Record<string, number[]>,
   ) => {
     isCreatingDailyReport.value = true
     showExcludeDialog.value = false
     try {
       await createDailyReport(dailyReportRepository, {
         date: todayString,
-        excludedSectionIndices,
+        excludedIds,
         excludedPhotoIndices,
+        excludedBlankRowIndices,
         tomorrowWorkMode: tomorrowWorkMode.value,
       })
       router.push('/helper/document/daily-report')

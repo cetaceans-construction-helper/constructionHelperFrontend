@@ -15,8 +15,9 @@ export const dailyReportApi = {
 
   async createDailyReport(body: {
     date: string
-    excludedSectionIndices?: Record<string, number[]>
+    excludedIds?: Record<string, number[]>
     excludedPhotoIndices?: number[]
+    excludedBlankRowIndices?: Record<string, number[]>
     tomorrowWorkMode?: number
   }): Promise<void> {
     await apiClient.post('/dailyReport/createDailyReport', body)

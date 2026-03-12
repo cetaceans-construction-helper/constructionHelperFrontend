@@ -88,6 +88,30 @@ async function reloadDirectMaterialTypes() {
     console.error('자재유형 새로고침 실패:', error)
   }
 }
+
+async function reloadDirectDivisions() {
+  try {
+    directDivisions.value = await referenceApi.getDivisionList()
+  } catch (error: unknown) {
+    console.error('분류 새로고침 실패:', error)
+  }
+}
+
+async function reloadDirectZones() {
+  try {
+    directZones.value = await referenceApi.getZoneList()
+  } catch (error: unknown) {
+    console.error('존 새로고침 실패:', error)
+  }
+}
+
+async function reloadDirectFloors() {
+  try {
+    directFloors.value = await referenceApi.getFloorList()
+  } catch (error: unknown) {
+    console.error('층 새로고침 실패:', error)
+  }
+}
 const directDeliveryNotes = ref<File[]>([])
 const directDeliveryPhotos = ref<File[]>([])
 // 발주서 없이 송장입력 - 위치 선택
@@ -967,7 +991,10 @@ onUnmounted(() => {
 
           <!-- 분류 (선택사항) -->
           <div class="space-y-2">
-            <Label>분류 (선택사항)</Label>
+            <div class="flex items-center gap-1">
+              <Label>분류 (선택사항)</Label>
+              <ReferenceEditTrigger type="work-classification" @refresh="reloadDirectDivisions" />
+            </div>
             <Select
               :model-value="directSelectedDivisionId"
               @update:model-value="handleDirectDivisionChange"
@@ -1041,7 +1068,10 @@ onUnmounted(() => {
 
           <!-- 위치정보 -->
           <div v-if="directZones.length > 0" class="space-y-2">
-            <Label>존</Label>
+            <div class="flex items-center gap-1">
+              <Label>존</Label>
+              <ReferenceEditTrigger type="zone" @refresh="reloadDirectZones" />
+            </div>
             <div class="flex flex-wrap gap-3">
               <div v-for="zone in directZones" :key="zone.id" class="flex items-center gap-1.5">
                 <Checkbox
@@ -1055,7 +1085,10 @@ onUnmounted(() => {
           </div>
 
           <div v-if="directFloors.length > 0" class="space-y-2">
-            <Label>층</Label>
+            <div class="flex items-center gap-1">
+              <Label>층</Label>
+              <ReferenceEditTrigger type="floor" @refresh="reloadDirectFloors" />
+            </div>
             <div class="flex flex-wrap gap-3">
               <div v-for="floor in directFloors" :key="floor.id" class="flex items-center gap-1.5">
                 <Checkbox

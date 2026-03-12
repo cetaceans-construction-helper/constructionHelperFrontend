@@ -126,7 +126,7 @@ onMounted(async () => {
 
       <!-- 중앙: 출역인원 입력 -->
       <div class="flex flex-col overflow-hidden border border-border rounded-lg bg-card">
-        <div class="px-4 py-3 border-b border-border bg-muted/50 flex items-center justify-between">
+        <div class="px-4 py-3 border-b border-border bg-muted/50 flex items-center gap-1">
           <h3 class="text-sm font-medium">출역인원 입력</h3>
           <ReferenceEditTrigger type="labor" @refresh="initAttendance" />
         </div>
@@ -181,7 +181,7 @@ onMounted(async () => {
 
       <!-- 오른쪽: 출역장비 입력 -->
       <div class="flex flex-col overflow-hidden border border-border rounded-lg bg-card">
-        <div class="px-4 py-3 border-b border-border bg-muted/50 flex items-center justify-between">
+        <div class="px-4 py-3 border-b border-border bg-muted/50 flex items-center gap-1">
           <h3 class="text-sm font-medium">출역장비 입력</h3>
           <ReferenceEditTrigger type="equipment" @refresh="initEquipment" />
         </div>

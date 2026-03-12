@@ -1185,15 +1185,6 @@ const onEdgeClick = (event: { edge: Edge }) => {
   tooltip.value.visible = false
 }
 
-// 엣지 우클릭 → 패스 편집 다이얼로그
-const onEdgeContextMenu = (event: { edge: Edge; event: MouseEvent | TouchEvent }) => {
-  event.event.preventDefault()
-  const pathId = event.edge.data?.pathId as number | undefined
-  if (!pathId) return
-  selectPath(pathId)
-  showPathDialog.value = true
-}
-
 // 노드 우클릭 → 컨텍스트 메뉴
 const onNodeContextMenu = (event: { node: Node; event: MouseEvent | TouchEvent }) => {
   event.event.preventDefault()
@@ -1418,6 +1409,13 @@ const handleContextMenuAddToPath = (pathId: number) => {
   const workId = contextMenu.value.work.workId
   contextMenu.value = null
   connectingFrom.value = { workId, mode: 'add', pathId }
+}
+
+// 컨텍스트 메뉴 액션: 패스 편집 다이얼로그 열기
+const handleContextMenuEditPath = (pathId: number) => {
+  contextMenu.value = null
+  selectPath(pathId)
+  showPathDialog.value = true
 }
 
 // 컨텍스트 메뉴 액션: 작업 삭제
@@ -1873,7 +1871,6 @@ onUnmounted(() => {
           @node-drag-stop="onNodeDragStop"
           @pane-click="onPaneClick"
           @edge-click="onEdgeClick"
-          @edge-context-menu="onEdgeContextMenu"
         >
           <!-- 세로 줄 패턴 (40px 간격) - 프로젝트 기간 내에서만 -->
           <svg
@@ -2412,7 +2409,7 @@ onUnmounted(() => {
               <div class="my-1 border-t border-border" />
               <button
                 v-for="path in contextMenuNodePaths"
-                :key="path.workPathId"
+                :key="`add-${path.workPathId}`"
                 type="button"
                 class="w-full px-3 py-1.5 text-left text-sm hover:bg-muted transition-colors flex items-center gap-2"
                 @click="handleContextMenuAddToPath(path.workPathId)"
@@ -2422,6 +2419,20 @@ onUnmounted(() => {
                   :style="{ backgroundColor: path.workPathColor }"
                 />
                 패스에 작업 추가
+              </button>
+              <div class="my-1 border-t border-border" />
+              <button
+                v-for="path in contextMenuNodePaths"
+                :key="`edit-${path.workPathId}`"
+                type="button"
+                class="w-full px-3 py-1.5 text-left text-sm hover:bg-muted transition-colors flex items-center gap-2"
+                @click="handleContextMenuEditPath(path.workPathId)"
+              >
+                <span
+                  class="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
+                  :style="{ backgroundColor: path.workPathColor }"
+                />
+                패스 편집
               </button>
             </template>
             <div class="my-1 border-t border-border" />
@@ -2647,7 +2658,7 @@ onUnmounted(() => {
           </div>
         </div>
         <div v-else class="space-y-1.5">
-          <div class="flex items-center justify-between">
+          <div class="flex items-center gap-1">
             <label class="text-sm font-medium">공종</label>
             <ReferenceEditTrigger type="work-classification" @refresh="td.loadReferenceData" />
           </div>
@@ -2780,7 +2791,7 @@ onUnmounted(() => {
 
         <!-- 부재 타입 -->
         <div class="space-y-1.5">
-          <div class="flex items-center justify-between">
+          <div class="flex items-center gap-1">
             <label class="text-sm font-medium">부재</label>
             <ReferenceEditTrigger type="component" @refresh="td.loadReferenceData" />
           </div>
