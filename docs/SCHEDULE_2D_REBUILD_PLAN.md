@@ -124,39 +124,46 @@
 - 검증
   - [x] `npm run type-check`
   - [x] `npm run build`
-  - [ ] 상위 row 접기/펼치기 후에도 세로 정렬과 bar 위치가 유지된다.
-  - [ ] 하위 row 이동/수정이 상위 row summary에 즉시 반영된다.
+  - [x] 상위 row 접기/펼치기 후에도 세로 정렬과 bar 위치가 유지된다.
+  - [x] 하위 row 이동/수정이 상위 row summary에 즉시 반영된다.
 
 ### [ ] Batch 5. 우클릭 컨텍스트 메뉴와 명령 체계 도입
 
 - 범위
-  - bar, row, 빈 공간 각각에 대한 우클릭 메뉴를 만든다. 
-  - 삭제, dependency 추가/제거, group 생성/해제, row 생성, milestone 생성 후보 등의 명령을 여기로 모은다.
+  - bar, row, 빈 공간 각각에 대한 우클릭 메뉴를 만든다.
+  - 빈 chart 셀 우클릭은 `작업 생성`만 노출하고, 상위 공정 우클릭은 `색상 변경 / 속성 변경`만 노출한다.
+  - 하위 공정 bar 우클릭은 `dependency 생성/제거`, `link 생성/제거`, `색상 변경`, `속성 변경`만 노출한다.
+  - 1차는 저장 API 연결 전이므로 dependency / link / 작업 생성은 로컬 draft 명령으로 검증한다.
   - 브라우저 기본 context menu를 대체하고, 선택 상태와 연결된 명령 enable/disable 규칙을 만든다.
 - 완료 기준
-  - [ ] bar 우클릭과 row 우클릭 메뉴가 구분된다.
-  - [ ] 삭제 / dependency / group 명령이 우클릭 메뉴에서 실행된다.
-  - [ ] 다중 선택 상태에서 허용되는 메뉴만 노출된다.
+  - [x] bar 우클릭과 row 우클릭 메뉴가 구분된다.
+  - [x] 작업 생성 / dependency / link / 색상 / 속성 명령이 우클릭 메뉴에서 실행된다.
+  - [x] 다중 선택 상태에서 허용되는 메뉴만 노출된다.
 - 검증
-  - [ ] `npm run type-check`
-  - [ ] `npm run build`
+  - [x] `npm run type-check`
+  - [x] `npm run build`
   - [ ] macOS trackpad, 일반 마우스 기준 모두 우클릭 메뉴가 열린다.
   - [ ] 빈 공간 우클릭 시 잘못된 삭제/수정 명령이 노출되지 않는다.
 
-### [ ] Batch 6. dependency 모델 분리 + critical path 하이라이트 전용 레이어
+### [ ] Batch 6. 줌인/줌아웃 + dependency 모델 분리 + critical path 하이라이트 전용 레이어
 
 - 범위
+  - timeline day width를 단계적으로 바꿀 수 있는 `줌인 / 줌아웃` UI를 추가한다.
+  - 줌 변경 후에도 좌측 row panel, 상단 header, 우측 chart body의 정렬과 현재 포커스 위치가 크게 어긋나지 않게 유지한다.
   - 기존 `path`가 갖고 있던 `sequence + follow-gap + critical` 의미를 분리한다.
-  - dependency는 일정 계산용 연결로 유지하고, critical path는 가독성 하이라이트 전용 레이어로 바꾼다.
+  - dependency는 선후관계 연결로 변경하고, critical path는 가독성 하이라이트 전용 레이어로 바꾼다.
   - critical path는 예시처럼 붉은 선 또는 강조 bar 스타일로 표시한다.
   - 현재 `lagDays`/따라가기 규칙은 dependency 편집 UI로 옮긴다.
 - 완료 기준
+  - [ ] 사용자는 차트 스케일을 명시적으로 확대/축소할 수 있다.
+  - [ ] 줌 변경 후에도 row/bar/header 정렬이 유지된다.
   - [ ] dependency와 critical highlight가 서로 독립적으로 관리된다.
   - [ ] critical highlight를 꺼도 dependency 계산은 유지된다.
   - [ ] 사용자는 핵심 path를 시각적으로 빠르게 구분할 수 있다.
 - 검증
   - [ ] `npm run type-check`
   - [ ] `npm run build`
+  - [ ] 줌인/줌아웃을 반복해도 선택 bar 위치와 header 눈금이 크게 어긋나지 않는다.
   - [ ] 같은 dependency 집합에서 critical highlight on/off만 바꿔도 일정 데이터는 변하지 않는다.
   - [ ] dependency 편집 후 일정 당김/밀기가 이전 규칙과 동일하거나 더 예측 가능하게 동작한다.
 

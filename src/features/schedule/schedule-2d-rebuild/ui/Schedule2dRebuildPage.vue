@@ -2,6 +2,7 @@
 import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import PageContainer from '@/shared/helper-ui/PageContainer.vue'
 import AreaCard from '@/shared/helper-ui/AreaCard.vue'
+import ScheduleContextMenu from '@/features/schedule/schedule-2d-rebuild/ui/components/ScheduleContextMenu.vue'
 import ScheduleGanttShell from '@/features/schedule/schedule-2d-rebuild/ui/components/ScheduleGanttShell.vue'
 import { scheduleService } from '@/features/schedule/schedule-2d-rebuild/use-cases/schedule-service'
 import { useSchedule2dRebuildPage } from '@/features/schedule/schedule-2d-rebuild/view-model/useSchedule2dRebuildPage'
@@ -12,16 +13,23 @@ const {
   isLoading,
   errorMessage,
   selectionState,
+  contextMenuState,
+  contextMenuItems,
   timeline,
   shellLayout,
   chartScrollTop,
   chartScrollLeft,
   loadSnapshot,
   clearSelection,
+  closeContextMenu,
   addParentRow,
   addChildRow,
   toggleRowCollapse,
   selectItems,
+  openItemContextMenu,
+  openRowContextMenu,
+  openCanvasContextMenu,
+  executeContextMenuCommand,
   startMoveSession,
   previewMoveSession,
   endMoveSession,
@@ -100,6 +108,9 @@ watch(
           @add-child-row="addChildRow"
           @toggle-row-collapse="toggleRowCollapse"
           @select-items="selectItems"
+          @item-context-menu="openItemContextMenu"
+          @row-context-menu="openRowContextMenu"
+          @canvas-context-menu="openCanvasContextMenu"
           @move-start="startMoveSession"
           @move-preview="previewMoveSession"
           @move-end="endMoveSession"
@@ -114,6 +125,15 @@ watch(
         >
           schedule snapshot을 불러오는 중...
         </div>
+
+        <ScheduleContextMenu
+          :open="contextMenuState.open"
+          :x="contextMenuState.x"
+          :y="contextMenuState.y"
+          :items="contextMenuItems"
+          @close="closeContextMenu"
+          @select="executeContextMenuCommand"
+        />
 
         <div
           v-if="errorMessage"

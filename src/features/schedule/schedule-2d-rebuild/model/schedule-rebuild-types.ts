@@ -24,6 +24,9 @@ export interface ScheduleRow {
   kind: ScheduleRowKind
   parentId: string | null
   name: string
+  colorHex?: string | null
+  summaryStartDate?: string | null
+  summaryEndDate?: string | null
   order: number
   depth: number
   collapsed: boolean
@@ -36,6 +39,7 @@ export interface ScheduleItem {
   workId: number
   rowId: string
   name: string
+  colorHex?: string | null
   startDate: string
   endDate: string
   durationDays: number
@@ -177,6 +181,9 @@ export interface ScheduleBarLayout {
   kind: ScheduleBarKind
   laneIndex: number
   name: string
+  colorHex?: string | null
+  rangeMismatchSegments?: Array<{ left: number; width: number }>
+  overflowRangeSegments?: Array<{ left: number; width: number }>
   left: number
   top: number
   width: number

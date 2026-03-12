@@ -12,7 +12,30 @@ export type ScheduleContextMenuTarget =
   | { kind: 'dependency'; dependencyId: string }
   | { kind: 'group'; groupId: string }
   | { kind: 'milestone'; milestoneId: string }
-  | { kind: 'canvas' }
+  | { kind: 'canvas'; rowId: string | null; date: string | null }
+
+export type ScheduleContextMenuCommand =
+  | 'create-item'
+  | 'toggle-dependency'
+  | 'toggle-link'
+  | 'change-color'
+  | 'change-properties'
+
+export type ScheduleContextMenuIcon =
+  | 'plus'
+  | 'link'
+  | 'unlink'
+  | 'palette'
+  | 'pencil'
+
+export interface ScheduleContextMenuItem {
+  id: string
+  label: string
+  command: ScheduleContextMenuCommand
+  icon: ScheduleContextMenuIcon
+  disabled?: boolean
+  danger?: boolean
+}
 
 export interface ScheduleContextMenuState {
   open: boolean

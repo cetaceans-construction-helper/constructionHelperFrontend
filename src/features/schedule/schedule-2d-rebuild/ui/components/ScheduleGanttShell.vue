@@ -23,10 +23,13 @@ const emit = defineEmits<{
   'add-child-row': [parentRowId: string]
   'toggle-row-collapse': [rowId: string]
   'select-items': [itemIds: string[]]
-  'move-start': [itemId: string]
+  'item-context-menu': [payload: { itemId: string; x: number; y: number }]
+  'row-context-menu': [payload: { rowId: string; x: number; y: number }]
+  'canvas-context-menu': [payload: { x: number; y: number; rowId: string | null; date: string | null }]
+  'move-start': [payload: { kind: 'item'; itemId: string } | { kind: 'summary'; rowId: string }]
   'move-preview': [payload: { deltaDays: number; deltaLanes: number }]
   'move-end': []
-  'resize-start': [payload: { itemId: string; edge: 'left' | 'right' }]
+  'resize-start': [payload: { kind: 'item'; itemId: string; edge: 'left' | 'right' } | { kind: 'summary'; rowId: string; edge: 'left' | 'right' }]
   'resize-preview': [payload: { deltaDays: number }]
   'resize-end': []
 }>()
@@ -68,6 +71,7 @@ const bodyViewportHeight = computed(() => Math.max(shellHeight.value - SHELL_HEA
           @scroll-top-change="handleRowPanelScroll"
           @toggle-row-collapse="emit('toggle-row-collapse', $event)"
           @add-child-row="emit('add-child-row', $event)"
+          @row-context-menu="emit('row-context-menu', $event)"
         />
       </div>
 
@@ -88,6 +92,9 @@ const bodyViewportHeight = computed(() => Math.max(shellHeight.value - SHELL_HEA
           @clear-selection="emit('clear-selection')"
           @toggle-row-collapse="emit('toggle-row-collapse', $event)"
           @select-items="emit('select-items', $event)"
+          @item-context-menu="emit('item-context-menu', $event)"
+          @row-context-menu="emit('row-context-menu', $event)"
+          @canvas-context-menu="emit('canvas-context-menu', $event)"
           @move-start="emit('move-start', $event)"
           @move-preview="emit('move-preview', $event)"
           @move-end="emit('move-end')"

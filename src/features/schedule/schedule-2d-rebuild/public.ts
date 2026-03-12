@@ -11,6 +11,8 @@ export {
   createEmptyScheduleSelectionState,
 } from '@/features/schedule/schedule-2d-rebuild/view-model/schedule-interaction-state'
 export type {
+  ScheduleContextMenuCommand,
+  ScheduleContextMenuItem,
   ScheduleContextMenuState,
   ScheduleContextMenuTarget,
   ScheduleSelectionState,
