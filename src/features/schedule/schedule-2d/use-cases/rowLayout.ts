@@ -77,6 +77,92 @@ function binPackSubWorks(
   return Math.max(1, subRows.length)
 }
 
+// === 주단위화면 (Weekly View) Types & Logic ===
+
+export interface WeeklyZoneFloorSection {
+  zoneName: string
+  floorName: string
+  startRowIndex: number
+}
+
+export interface WeeklyWorkTypeSection {
+  workType: string
+  zoneFloorSections: WeeklyZoneFloorSection[]
+  totalRows: number
+  startRowIndex: number
+}
+
+export interface WeeklyRowLayout {
+  sections: WeeklyWorkTypeSection[]
+  totalRows: number
+  // key: "workType::zoneName::floorName" → row index
+  rowMap: Map<string, number>
+}
+
+export function computeWeeklyRowLayout(works: WorkResponse[], refTree?: RefWorkType[]): WeeklyRowLayout {
+  // Collect all (workType, zoneName, floorName) combinations from works
+  const combos = new Set<string>()
+  for (const work of works) {
+    const workType = work.workType || '미분류'
+    const zones = work.zoneNames?.length ? work.zoneNames : ['']
+    const floors = work.floorNames?.length ? work.floorNames : ['']
+    for (const zone of zones) {
+      for (const floor of floors) {
+        combos.add(`${workType}::${zone}::${floor}`)
+      }
+    }
+  }
+
+  // Group by workType
+  const byWorkType = new Map<string, { zoneName: string; floorName: string }[]>()
+  for (const key of combos) {
+    const [workType, zoneName, floorName] = key.split('::') as [string, string, string]
+    // 존/층 둘 다 없는 조합은 주단위화면에서 제외
+    if (!zoneName && !floorName) continue
+    if (!byWorkType.has(workType)) byWorkType.set(workType, [])
+    byWorkType.get(workType)!.push({ zoneName, floorName })
+  }
+
+  // Sort workTypes: use refTree order if available, then alphabetical for remainder
+  let sortedWorkTypes: string[]
+  if (refTree && refTree.length > 0) {
+    const refOrder = refTree.map((wt) => wt.name)
+    const refSet = new Set(refOrder)
+    const extra = [...byWorkType.keys()].filter((k) => !refSet.has(k)).sort()
+    sortedWorkTypes = [...refOrder.filter((k) => byWorkType.has(k)), ...extra]
+  } else {
+    sortedWorkTypes = [...byWorkType.keys()].sort()
+  }
+
+  const sections: WeeklyWorkTypeSection[] = []
+  const rowMap = new Map<string, number>()
+  let currentRow = 0
+
+  for (const workType of sortedWorkTypes) {
+    const items = byWorkType.get(workType)!
+    // Sort: zone → floor
+    items.sort((a, b) => a.zoneName.localeCompare(b.zoneName) || a.floorName.localeCompare(b.floorName))
+
+    const sectionStartRow = currentRow
+    const zoneFloorSections: WeeklyZoneFloorSection[] = []
+
+    for (const { zoneName, floorName } of items) {
+      zoneFloorSections.push({ zoneName, floorName, startRowIndex: currentRow })
+      rowMap.set(`${workType}::${zoneName}::${floorName}`, currentRow)
+      currentRow++
+    }
+
+    sections.push({
+      workType,
+      zoneFloorSections,
+      totalRows: currentRow - sectionStartRow,
+      startRowIndex: sectionStartRow,
+    })
+  }
+
+  return { sections, totalRows: currentRow, rowMap }
+}
+
 export function computeRowLayout(works: WorkResponse[], refTree?: RefWorkType[]): RowLayout {
   const paddedWorks = works.map(toPaddedWork)
   const workRowMap = new Map<number, number>()

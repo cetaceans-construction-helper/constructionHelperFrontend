@@ -37,12 +37,15 @@ import {
 } from '@/features/schedule/schedule-2d/use-cases/nodeConfig'
 import {
   computeRowLayout,
+  computeWeeklyRowLayout,
   LEFT_HEADER_WIDTH,
   type RowLayout,
   type RefWorkType,
 } from '@/features/schedule/schedule-2d/use-cases/rowLayout'
+import { buildWorkBlocks, workBlockToNode } from '@/features/schedule/schedule-2d/use-cases/workBlockBuilder'
 import { referenceApi } from '@/shared/network-core/apis/reference'
 import WorkNode from './WorkNode.vue'
+import WorkBlockNode from './WorkBlockNode.vue'
 import LeftHeader from './LeftHeader.vue'
 import ReferenceEditTrigger from '@/shared/helper-ui/ReferenceEditTrigger.vue'
 import ReferenceEditDialog from '@/shared/helper-ui/ReferenceEditDialog.vue'
@@ -55,6 +58,7 @@ import {
   useDateHeader,
   ROW_HEIGHT,
   HEADER_HEIGHT,
+  WEEKLY_HEADER_HEIGHT,
 } from '@/features/schedule/schedule-2d/view-model/useDateHeader'
 import { usePathEditor } from '@/features/schedule/schedule-2d/view-model/usePathEditor'
 import { useWorkEditor } from '@/features/schedule/schedule-2d/view-model/useWorkEditor'
@@ -79,6 +83,8 @@ const isLoadingWorks = ref(false)
 // Reference tree (API 순서 보존)
 const refTree = ref<RefWorkType[]>([])
 const cornerDialogOpen = ref(false)
+const zoneDialogOpen = ref(false)
+const floorDialogOpen = ref(false)
 
 function handleCornerDialogClose() {
   loadRefTree()
@@ -116,6 +122,17 @@ const ROW_UNIT = CHART_CONFIG.nodeHeight + 2 * CHART_CONFIG.nodePaddingY
 // 노드를 행 내 수직 중앙에 배치하기 위한 오프셋
 const NODE_OFFSET_Y = CHART_CONFIG.nodePaddingY
 
+// 주단위화면 (Weekly View) — 행 높이·노드 높이 2배, 텍스트 2배
+const WEEKLY_ROW_UNIT = ROW_UNIT * 2
+const WEEKLY_NODE_HEIGHT = CHART_CONFIG.nodeHeight * 2
+const WEEKLY_THRESHOLD = 0.4
+const isWeeklyMode = ref(false)
+const activeHeaderHeight = computed(() => isWeeklyMode.value ? WEEKLY_HEADER_HEIGHT : HEADER_HEIGHT)
+const activeRowUnit = computed(() => isWeeklyMode.value ? WEEKLY_ROW_UNIT : ROW_UNIT)
+
+// 우클릭으로 강조된 행 인덱스
+const highlightedRowIndex = ref<number | null>(null)
+
 // rowLayout computed
 const rowLayout = computed<RowLayout>(() => {
   const works = nodes.value
@@ -132,6 +149,53 @@ watch(rowLayout, (layout) => {
     const row = layout.workRowMap.get(work.workId)
     if (row !== undefined) n.position.y = row * ROW_UNIT + NODE_OFFSET_Y
   })
+})
+
+// 주단위화면: row layout + work block nodes
+const weeklyRowLayout = computed(() => {
+  if (!isWeeklyMode.value) return null
+  const works = nodes.value
+    .filter((n) => n.id.startsWith('work-'))
+    .map((n) => n.data.work as WorkResponse)
+  return computeWeeklyRowLayout(works, refTree.value.length > 0 ? refTree.value : undefined)
+})
+
+// 주단위 화면용 workType → 팔레트 인덱스 (weeklyRowLayout.sections 순서 = LeftHeader BG_COLORS 순서)
+const weeklyPaletteMap = computed(() => {
+  const map = new Map<string, number>()
+  if (!weeklyRowLayout.value) return map
+  weeklyRowLayout.value.sections.forEach((section, idx) => {
+    map.set(section.workType, idx)
+  })
+  return map
+})
+
+const weeklyNodes = computed(() => {
+  if (!weeklyRowLayout.value) return []
+  const works = nodes.value
+    .filter((n) => n.id.startsWith('work-'))
+    .map((n) => n.data.work as WorkResponse)
+  const blocks = buildWorkBlocks(works, weeklyRowLayout.value)
+  return blocks.map((block) => {
+    const node = workBlockToNode(block, WEEKLY_ROW_UNIT, WEEKLY_NODE_HEIGHT)
+    const wtIdx = weeklyPaletteMap.value.get(block.workType)
+    if (wtIdx !== undefined) {
+      const palette = GROUP_PALETTE[wtIdx % GROUP_PALETTE.length]!
+      node.style = {
+        ...node.style as Record<string, string>,
+        backgroundColor: palette.nodeBg,
+        borderColor: palette.nodeBorder,
+      }
+    }
+    return node
+  })
+})
+
+const activeNodes = computed({
+  get: () => isWeeklyMode.value ? weeklyNodes.value : nodes.value,
+  set: (val) => {
+    if (!isWeeklyMode.value) nodes.value = val
+  },
 })
 
 // 그루핑 박스 표시 상태
@@ -155,7 +219,7 @@ const hitTestGroupBox = (event: MouseEvent): number => {
   const rect = container.getBoundingClientRect()
   const flowX =
     (event.clientX - rect.left - LEFT_HEADER_WIDTH - viewport.value.x) / viewport.value.zoom
-  const flowY = (event.clientY - rect.top - HEADER_HEIGHT - viewport.value.y) / viewport.value.zoom
+  const flowY = (event.clientY - rect.top - activeHeaderHeight.value - viewport.value.y) / viewport.value.zoom
   return groupBoxes.value.findIndex((box) => {
     const visible =
       (box.level === 'workType' && showWorkTypeGroup.value) ||
@@ -337,10 +401,14 @@ function styledWorkToNode(work: WorkResponse, yOverride?: number): Node {
 }
 
 /** 날짜 겹침 + Y 위치를 판단하여 엣지 연결 Handle을 결정 */
-function getEdgeHandles(sourceWorkId: number, targetWorkId: number): { sourceHandle: string; targetHandle: string } {
+function getEdgeHandles(
+  sourceWorkId: number,
+  targetWorkId: number,
+): { sourceHandle: string; targetHandle: string } {
   const sourceNode = nodes.value.find((n) => n.id === `work-${sourceWorkId}`)
   const targetNode = nodes.value.find((n) => n.id === `work-${targetWorkId}`)
-  if (!sourceNode || !targetNode) return { sourceHandle: 'source-right', targetHandle: 'target-left' }
+  if (!sourceNode || !targetNode)
+    return { sourceHandle: 'source-right', targetHandle: 'target-left' }
 
   const sourceEnd = dateToDayIndex((sourceNode.data.work as WorkResponse).completionDate)
   const targetStart = dateToDayIndex((targetNode.data.work as WorkResponse).startDate)
@@ -1130,7 +1198,7 @@ const onConnectingMouseMove = (e: MouseEvent) => {
   const rect = container.getBoundingClientRect()
   connectingMousePos.value = {
     x: (e.clientX - rect.left - LEFT_HEADER_WIDTH - viewport.value.x) / viewport.value.zoom,
-    y: (e.clientY - rect.top - HEADER_HEIGHT - viewport.value.y) / viewport.value.zoom,
+    y: (e.clientY - rect.top - activeHeaderHeight.value - viewport.value.y) / viewport.value.zoom,
   }
 }
 
@@ -1270,6 +1338,7 @@ const onEdgeClick = (event: { edge: Edge }) => {
 // 노드 우클릭 → 컨텍스트 메뉴
 const onNodeContextMenu = (event: { node: Node; event: MouseEvent | TouchEvent }) => {
   event.event.preventDefault()
+  if (isWeeklyMode.value) return
   const work = event.node.data.work as WorkResponse | undefined
   if (!work) return
 
@@ -1370,6 +1439,7 @@ const handleWorkEditSubmit = async () => {
 // 빈 영역 클릭 시 — 그룹박스 내부면 그룹 선택, 아니면 선택 해제
 const onPaneClick = (event: MouseEvent) => {
   contextMenu.value = null
+  highlightedRowIndex.value = null
   if (connectingFrom.value) {
     connectingFrom.value = null
     return
@@ -1407,7 +1477,7 @@ const onContainerMouseDown = (event: MouseEvent) => {
   const container = containerRef.value
   if (!container) return
   const rect = container.getBoundingClientRect()
-  if (event.clientY - rect.top < HEADER_HEIGHT) return
+  if (event.clientY - rect.top < activeHeaderHeight.value) return
 
   const hitIndex = hitTestGroupBox(event)
   if (hitIndex >= 0) {
@@ -1415,8 +1485,9 @@ const onContainerMouseDown = (event: MouseEvent) => {
   }
 }
 
-// 컨테이너 우클릭 → 배경 컨텍스트 메뉴 (작업 생성)
+// 컨테이너 우클릭 → 배경 컨텍스트 메뉴 (작업 생성) — 주단위화면에서 비활성
 const onContainerContextMenu = (event: MouseEvent) => {
+  if (isWeeklyMode.value) { event.preventDefault(); return }
   // 노드/엣지 위에서 발생한 건 무시 (노드 우클릭은 별도 처리)
   const target = event.target as HTMLElement
   if (target.closest('.vue-flow__node') || target.closest('.vue-flow__edge')) return
@@ -1428,7 +1499,15 @@ const onContainerContextMenu = (event: MouseEvent) => {
   const rect = container.getBoundingClientRect()
   const flowX =
     (event.clientX - rect.left - LEFT_HEADER_WIDTH - viewport.value.x) / viewport.value.zoom
-  const flowY = (event.clientY - rect.top - HEADER_HEIGHT - viewport.value.y) / viewport.value.zoom
+  const flowY = (event.clientY - rect.top - activeHeaderHeight.value - viewport.value.y) / viewport.value.zoom
+
+  // 우클릭한 행 강조
+  const rowIndex = Math.floor(flowY / ROW_UNIT)
+  if (rowIndex >= 0 && rowIndex < rowLayout.value.totalRows) {
+    highlightedRowIndex.value = rowIndex
+  } else {
+    highlightedRowIndex.value = null
+  }
 
   contextMenu.value = {
     visible: true,
@@ -1739,17 +1818,31 @@ const onNodeDrag = (event: { node: Node }) => {
   }
 }
 
-const ZOOM_MIN = 0.4
+const ZOOM_MIN = 0.25
 const ZOOM_MAX = 2
-const ZOOM_FACTOR = 0.1
+const ZOOM_FACTOR = 0.04
 
 const handleVueFlowWheel = (e: WheelEvent) => {
   e.preventDefault()
 
+  const zoomingOut = e.deltaY > 0
   const oldZoom = viewport.value.zoom
+
+  // 화면 변경지점에서 첫 스크롤은 확대값 변경 없이 모드만 전환
+  // 부동소수점 오차 허용 (0.04 단위 계산 시 정확히 0.4에 안 떨어질 수 있음)
+  const EPS = 0.005
+  if (zoomingOut && !isWeeklyMode.value && oldZoom <= WEEKLY_THRESHOLD + EPS) {
+    isWeeklyMode.value = true
+    return
+  }
+  if (!zoomingOut && isWeeklyMode.value && oldZoom >= WEEKLY_THRESHOLD - EPS) {
+    isWeeklyMode.value = false
+    return
+  }
+
   const newZoom = Math.min(
     ZOOM_MAX,
-    Math.max(ZOOM_MIN, oldZoom + (e.deltaY < 0 ? ZOOM_FACTOR : -ZOOM_FACTOR)),
+    Math.max(ZOOM_MIN, oldZoom + (zoomingOut ? -ZOOM_FACTOR : ZOOM_FACTOR)),
   )
   if (newZoom === oldZoom) return
 
@@ -1758,7 +1851,7 @@ const handleVueFlowWheel = (e: WheelEvent) => {
   if (!container) return
   const rect = container.getBoundingClientRect()
   const mouseX = e.clientX - rect.left - LEFT_HEADER_WIDTH
-  const mouseY = e.clientY - rect.top - HEADER_HEIGHT
+  const mouseY = e.clientY - rect.top - activeHeaderHeight.value
 
   // 커서 아래의 flow 좌표가 줌 후에도 동일 화면 위치에 유지되도록 viewport 보정
   const newX = mouseX - (mouseX - viewport.value.x) * (newZoom / oldZoom)
@@ -1807,30 +1900,70 @@ onUnmounted(() => {
       @mousedown.capture="onContainerMouseDown"
       @contextmenu="onContainerContextMenu"
     >
-      <!-- 코너 셀 (공종/세부공종 라벨) -->
+      <!-- 코너 셀 -->
       <div
         class="absolute z-30 bg-muted border-b border-r border-border flex flex-col items-center justify-center text-xs font-medium"
-        :style="{ width: `${LEFT_HEADER_WIDTH}px`, height: `${HEADER_HEIGHT}px` }"
+        :style="{ width: `${LEFT_HEADER_WIDTH}px`, height: `${activeHeaderHeight}px` }"
       >
-        <span>공종 / 세부공종</span>
-        <button
-          class="mt-1 flex items-center gap-0.5 px-2 py-0.5 rounded text-[13px] text-muted-foreground hover:bg-background hover:text-foreground transition-colors"
-          @click="cornerDialogOpen = true"
-        >
-          <Settings class="w-3 h-3" />
-          공종 편집
-        </button>
+        <!-- 일단위화면: 공종/세부공종 -->
+        <template v-if="!isWeeklyMode">
+          <span>공종 / 세부공종</span>
+          <button
+            class="mt-1 flex items-center gap-0.5 px-2 py-0.5 rounded text-[13px] text-muted-foreground hover:bg-background hover:text-foreground transition-colors"
+            @click="cornerDialogOpen = true"
+          >
+            <Settings class="w-3 h-3" />
+            공종 편집
+          </button>
+        </template>
+        <!-- 주단위화면: 공종/구역/층 -->
+        <template v-else>
+          <span>공종 / 구역 / 층</span>
+          <div class="mt-0.5 flex items-center gap-1">
+            <button
+              class="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] text-muted-foreground hover:bg-background hover:text-foreground transition-colors"
+              @click="cornerDialogOpen = true"
+            >
+              <Settings class="w-3 h-3" />
+              공종
+            </button>
+            <button
+              class="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] text-muted-foreground hover:bg-background hover:text-foreground transition-colors"
+              @click="zoneDialogOpen = true"
+            >
+              <Settings class="w-3 h-3" />
+              구역
+            </button>
+            <button
+              class="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] text-muted-foreground hover:bg-background hover:text-foreground transition-colors"
+              @click="floorDialogOpen = true"
+            >
+              <Settings class="w-3 h-3" />
+              층
+            </button>
+          </div>
+        </template>
       </div>
       <ReferenceEditDialog
         v-model:open="cornerDialogOpen"
         type="work-classification"
         @close="handleCornerDialogClose"
       />
+      <ReferenceEditDialog
+        v-model:open="zoneDialogOpen"
+        type="zone"
+        @close="handleCornerDialogClose"
+      />
+      <ReferenceEditDialog
+        v-model:open="floorDialogOpen"
+        type="floor"
+        @close="handleCornerDialogClose"
+      />
 
-      <!-- 5단 날짜 헤더 바 -->
+      <!-- 날짜 헤더 바 -->
       <div
         class="absolute top-0 right-0 bg-muted/80 border-b border-border z-20 overflow-hidden"
-        :style="{ left: `${LEFT_HEADER_WIDTH}px`, height: `${HEADER_HEIGHT}px` }"
+        :style="{ left: `${LEFT_HEADER_WIDTH}px`, height: `${activeHeaderHeight}px` }"
       >
         <div class="absolute w-full h-full" :style="{ transform: `translateX(${viewport.x}px)` }">
           <!-- Row 1: 년 -->
@@ -1878,7 +2011,8 @@ onUnmounted(() => {
             {{ cell.label }}
           </div>
 
-          <!-- Row 4: 날짜 (일자만) -->
+          <!-- Row 4~5: 날짜/요일 — 주단위화면에서 숨김 -->
+          <template v-if="!isWeeklyMode">
           <div
             v-for="dateInfo in visibleDates"
             :key="`date-${dateInfo.dayIndex}`"
@@ -1929,32 +2063,35 @@ onUnmounted(() => {
           >
             {{ dateInfo.dayName }}
           </div>
+          </template>
         </div>
       </div>
 
       <!-- 왼쪽 헤더 -->
       <LeftHeader
         :row-layout="rowLayout"
+        :weekly-row-layout="weeklyRowLayout"
+        :weekly-mode="isWeeklyMode"
         :viewport-y="viewport.y"
         :zoom="viewport.zoom"
-        :header-height="HEADER_HEIGHT"
+        :header-height="activeHeaderHeight"
       />
 
       <!-- VueFlow wrapper: 헤더/좌측 패널 아래 영역에만 배치 (좌표계 정렬) -->
       <div
         class="absolute right-0 bottom-0"
-        :style="{ top: `${HEADER_HEIGHT}px`, left: `${LEFT_HEADER_WIDTH}px` }"
+        :style="{ top: `${activeHeaderHeight}px`, left: `${LEFT_HEADER_WIDTH}px` }"
       >
         <VueFlow
-          v-model:nodes="nodes"
-          :edges="styledEdges"
-          :node-types="{ work: markRaw(WorkNode) }"
+          v-model:nodes="activeNodes"
+          :edges="isWeeklyMode ? [] : styledEdges"
+          :node-types="{ work: markRaw(WorkNode), workblock: markRaw(WorkBlockNode) }"
           class="w-full h-full"
           :class="{
             'connecting-mode': !!connectingFrom,
           }"
           fit-view-on-init
-          :min-zoom="0.3"
+          :min-zoom="0.01"
           :zoom-on-scroll="false"
           :zoom-on-double-click="false"
           :disable-keyboard-a11y="true"
@@ -1968,7 +2105,7 @@ onUnmounted(() => {
           @pane-click="onPaneClick"
           @edge-click="onEdgeClick"
         >
-          <!-- 세로 줄 패턴 (40px 간격) - 프로젝트 기간 내에서만 -->
+          <!-- 세로 줄 패턴 - 프로젝트 기간 내에서만 -->
           <svg
             style="position: absolute; width: 100%; height: 100%; pointer-events: none; z-index: 0"
           >
@@ -1985,27 +2122,31 @@ onUnmounted(() => {
               </pattern>
             </defs>
             <g :transform="`translate(${viewport.x}, ${viewport.y}) scale(${viewport.zoom})`">
-              <!-- 비활성일 배경 (회색 50%) -->
-              <rect
-                v-for="dayIndex in deactivatedIndices"
-                :key="`deactivated-bg-${dayIndex}`"
-                :x="dayIndex * DAY_WIDTH"
-                y="-50000"
-                :width="DAY_WIDTH"
-                height="100000"
-                fill="rgba(107, 114, 128, 0.2)"
-              />
-              <!-- 휴일 배경 (붉은색 30%) -->
-              <rect
-                v-for="dayIndex in holidayIndices"
-                :key="`holiday-bg-${dayIndex}`"
-                :x="dayIndex * DAY_WIDTH"
-                y="-50000"
-                :width="DAY_WIDTH"
-                height="100000"
-                fill="rgba(239, 68, 68, 0.1)"
-              />
-              <!-- 오늘 배경 (파란색 30%) -->
+              <!-- 비활성일 배경 (회색) — 주단위화면에서 숨김 -->
+              <template v-if="!isWeeklyMode">
+                <rect
+                  v-for="dayIndex in deactivatedIndices"
+                  :key="`deactivated-bg-${dayIndex}`"
+                  :x="dayIndex * DAY_WIDTH"
+                  y="-50000"
+                  :width="DAY_WIDTH"
+                  height="100000"
+                  fill="rgba(107, 114, 128, 0.2)"
+                />
+              </template>
+              <!-- 휴일 배경 (붉은색) — 주단위화면에서 숨김 -->
+              <template v-if="!isWeeklyMode">
+                <rect
+                  v-for="dayIndex in holidayIndices"
+                  :key="`holiday-bg-${dayIndex}`"
+                  :x="dayIndex * DAY_WIDTH"
+                  y="-50000"
+                  :width="DAY_WIDTH"
+                  height="100000"
+                  fill="rgba(239, 68, 68, 0.1)"
+                />
+              </template>
+              <!-- 오늘 배경 (파란색) -->
               <rect
                 v-if="todayInProject !== null"
                 :x="todayInProject * DAY_WIDTH"
@@ -2014,25 +2155,48 @@ onUnmounted(() => {
                 height="100000"
                 fill="rgba(59, 130, 246, 0.3)"
               />
-              <!-- 세로선 그리드 -->
+              <!-- 세로선 그리드: 일별(기본) / 주별(주단위화면) -->
+              <template v-if="isWeeklyMode">
+                <line
+                  v-for="cell in weekCells"
+                  :key="`week-vline-${cell.startIndex}`"
+                  :x1="cell.startIndex * DAY_WIDTH"
+                  y1="-50000"
+                  :x2="cell.startIndex * DAY_WIDTH"
+                  y2="50000"
+                  stroke="#888"
+                  stroke-opacity="0.7"
+                  stroke-width="2"
+                />
+              </template>
               <rect
+                v-else
                 :x="projectGridBounds.startX"
                 y="-50000"
                 :width="projectGridBounds.width"
                 height="100000"
                 fill="url(#vertical-lines)"
               />
+              <!-- 우클릭 행 강조 -->
+              <rect
+                v-if="highlightedRowIndex !== null"
+                x="-50000"
+                :y="highlightedRowIndex * activeRowUnit"
+                width="100000"
+                :height="activeRowUnit"
+                fill="rgba(255, 255, 0, 0.15)"
+              />
               <!-- 가로 구분선 (행 경계) -->
               <line
-                v-for="ri in rowLayout.totalRows + 1"
+                v-for="ri in (isWeeklyMode ? (weeklyRowLayout?.totalRows ?? 0) : rowLayout.totalRows) + 1"
                 :key="`hline-${ri}`"
                 x1="-50000"
-                :y1="(ri - 1) * ROW_UNIT"
+                :y1="(ri - 1) * activeRowUnit"
                 x2="50000"
-                :y2="(ri - 1) * ROW_UNIT"
-                stroke="#d1d5db"
-                stroke-opacity="0.4"
-                stroke-width="1"
+                :y2="(ri - 1) * activeRowUnit"
+                :stroke="isWeeklyMode ? '#aaa' : '#d1d5db'"
+                :stroke-opacity="isWeeklyMode ? 0.8 : 0.4"
+                :stroke-width="isWeeklyMode ? 1 : 1"
               />
               <!-- 그루핑 박스 (SVG 비인터랙티브 배경만) -->
               <g v-if="!isPathEditMode">
@@ -2070,7 +2234,8 @@ onUnmounted(() => {
                   </template>
                 </template>
               </g>
-              <!-- 휴일명/비활성일 사유 세로 텍스트 -->
+              <!-- 휴일명/비활성일 사유 세로 텍스트 — 주단위화면에서 숨김 -->
+              <template v-if="!isWeeklyMode">
               <template v-for="dateInfo in allProjectDates" :key="`reason-${dateInfo.dayIndex}`">
                 <text
                   v-if="dateInfo.holidayName || dateInfo.deactivatedReason"
@@ -2085,6 +2250,7 @@ onUnmounted(() => {
                 >
                   {{ dateInfo.deactivatedReason || dateInfo.holidayName }}
                 </text>
+              </template>
               </template>
 
               <!-- 패스 연결 중인 베지어 곡선 (source → 커서) -->
@@ -2384,16 +2550,17 @@ onUnmounted(() => {
 
       <!-- 리사이즈 핸들 (VueFlow 바깥, 컨테이너 직속 — 노드 드래그 이벤트 간섭 방지) -->
       <template v-if="resizeHandles && !connectingFrom">
-        <!-- 왼쪽 모서리 ◀▶ -->
+        <!-- 왼쪽 모서리 ◀▶ — scale 중심: 노드 왼쪽 모서리 중앙 -->
         <div
           class="absolute z-40 cursor-col-resize flex items-center justify-center"
           style="pointer-events: auto; background: transparent"
           :style="{
             left: `${LEFT_HEADER_WIDTH + resizeHandles.left.x * viewport.zoom + viewport.x}px`,
-            top: `${HEADER_HEIGHT + (resizeHandles.left.y - resizeHandles.halfH) * viewport.zoom + viewport.y}px`,
-            width: `${16 * viewport.zoom}px`,
-            height: `${resizeHandles.halfH * 2 * viewport.zoom}px`,
-            transform: 'translateX(-50%)',
+            top: `${activeHeaderHeight + resizeHandles.left.y * viewport.zoom + viewport.y}px`,
+            width: '16px',
+            height: `${resizeHandles.halfH * 2}px`,
+            transform: `translate(-50%, -50%) scale(${viewport.zoom})`,
+            transformOrigin: 'center center',
           }"
           @pointerdown.stop.prevent="onResizeStart('left', $event)"
           @mouseenter="cancelHoverClear"
@@ -2401,35 +2568,24 @@ onUnmounted(() => {
         >
           <div style="display: flex; align-items: center; gap: 5px">
             <div
-              :style="{
-                width: '0',
-                height: '0',
-                borderTop: `${Math.max(4, 5 * viewport.zoom)}px solid transparent`,
-                borderBottom: `${Math.max(4, 5 * viewport.zoom)}px solid transparent`,
-                borderRight: `${Math.max(5, 6 * viewport.zoom)}px solid #1f2937`,
-              }"
+              style="width: 0; height: 0; border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-right: 6px solid #1f2937"
             />
             <div
-              :style="{
-                width: '0',
-                height: '0',
-                borderTop: `${Math.max(4, 5 * viewport.zoom)}px solid transparent`,
-                borderBottom: `${Math.max(4, 5 * viewport.zoom)}px solid transparent`,
-                borderLeft: `${Math.max(5, 6 * viewport.zoom)}px solid #1f2937`,
-              }"
+              style="width: 0; height: 0; border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-left: 6px solid #1f2937"
             />
           </div>
         </div>
-        <!-- 오른쪽 모서리 ◀▶ -->
+        <!-- 오른쪽 모서리 ◀▶ — scale 중심: 노드 오른쪽 모서리 중앙 -->
         <div
           class="absolute z-40 cursor-col-resize flex items-center justify-center"
           style="pointer-events: auto; background: transparent"
           :style="{
             left: `${LEFT_HEADER_WIDTH + resizeHandles.right.x * viewport.zoom + viewport.x}px`,
-            top: `${HEADER_HEIGHT + (resizeHandles.right.y - resizeHandles.halfH) * viewport.zoom + viewport.y}px`,
-            width: `${16 * viewport.zoom}px`,
-            height: `${resizeHandles.halfH * 2 * viewport.zoom}px`,
-            transform: 'translateX(-50%)',
+            top: `${activeHeaderHeight + resizeHandles.right.y * viewport.zoom + viewport.y}px`,
+            width: '16px',
+            height: `${resizeHandles.halfH * 2}px`,
+            transform: `translate(-50%, -50%) scale(${viewport.zoom})`,
+            transformOrigin: 'center center',
           }"
           @pointerdown.stop.prevent="onResizeStart('right', $event)"
           @mouseenter="cancelHoverClear"
@@ -2437,22 +2593,10 @@ onUnmounted(() => {
         >
           <div style="display: flex; align-items: center; gap: 5px">
             <div
-              :style="{
-                width: '0',
-                height: '0',
-                borderTop: `${Math.max(4, 5 * viewport.zoom)}px solid transparent`,
-                borderBottom: `${Math.max(4, 5 * viewport.zoom)}px solid transparent`,
-                borderRight: `${Math.max(5, 6 * viewport.zoom)}px solid #1f2937`,
-              }"
+              style="width: 0; height: 0; border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-right: 6px solid #1f2937"
             />
             <div
-              :style="{
-                width: '0',
-                height: '0',
-                borderTop: `${Math.max(4, 5 * viewport.zoom)}px solid transparent`,
-                borderBottom: `${Math.max(4, 5 * viewport.zoom)}px solid transparent`,
-                borderLeft: `${Math.max(5, 6 * viewport.zoom)}px solid #1f2937`,
-              }"
+              style="width: 0; height: 0; border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-left: 6px solid #1f2937"
             />
           </div>
         </div>

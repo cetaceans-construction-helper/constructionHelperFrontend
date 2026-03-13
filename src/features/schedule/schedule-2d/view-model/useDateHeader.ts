@@ -30,6 +30,7 @@ export interface MergedHeaderCell {
 export const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토']
 export const ROW_HEIGHT = 20
 export const HEADER_HEIGHT = ROW_HEIGHT * 5 // 100px (5단 헤더)
+export const WEEKLY_HEADER_HEIGHT = ROW_HEIGHT * 3 // 60px (주단위화면: 년/월/주 3단 헤더)
 
 // 병합 셀 생성 함수
 function createMergedCells(
