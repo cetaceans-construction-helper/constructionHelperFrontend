@@ -13,6 +13,8 @@ const {
   confirmExcludeAndCreate,
   deliveryByWorkType,
   equipmentByGroup,
+  generateHomepageDailyReport,
+  isCreatingHomepageDailyReport,
   fileInputRef,
   generateDailyReport,
   isCreatingDailyReport,
@@ -45,6 +47,14 @@ const {
         <div class="flex items-center justify-between mb-3">
           <h3 class="text-lg font-semibold">작업일보</h3>
           <div class="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              :disabled="isCreatingHomepageDailyReport"
+              @click="generateHomepageDailyReport"
+            >
+              {{ isCreatingHomepageDailyReport ? '생성 중...' : '홈페이지에 작업일보생성' }}
+            </Button>
             <Button
               variant="outline"
               size="sm"

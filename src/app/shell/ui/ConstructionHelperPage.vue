@@ -23,6 +23,7 @@ import {
   CalendarOff,
   Upload,
   RefreshCw,
+  Globe,
 } from 'lucide-vue-next'
 import type { Component } from 'vue'
 import {
@@ -112,6 +113,7 @@ const menusBySection: Record<string, MenuItem[]> = {
     { id: 'daily-report-setting', label: '작업일보', path: '/helper/admin/daily-report', icon: FileText },
     { id: 'holiday', label: '휴일관리', path: '/helper/admin/holiday', icon: CalendarOff },
     { id: 'bulk-deployment', label: '대량 출역 입력', path: '/helper/admin/bulk-deployment', icon: Upload },
+    { id: 'homepage-setting', label: '홈페이지 입력정보', path: '/helper/admin/homepage-setting', icon: Globe },
     { id: 'rebuild-work-names', label: '공정명 재생성 (임시)', path: '/helper/admin/rebuild-work-names', icon: RefreshCw },
   ],
 }

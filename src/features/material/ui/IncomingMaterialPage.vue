@@ -645,12 +645,19 @@ async function loadDeliveries() {
   }
 }
 
+// 화면 가로세로 비율 감지 — 1:1보다 세로가 길면 카드 내부를 세로 배치
+const isPortrait = ref(window.innerHeight > window.innerWidth)
+function onWindowResize() {
+  isPortrait.value = window.innerHeight > window.innerWidth
+}
+
 onMounted(() => {
   loadOrders()
   loadDeliveries()
   getMaterialInspectionRequests(materialInspectionRequestRepository)
     .then((list) => (mirList.value = list))
     .catch(() => {})
+  window.addEventListener('resize', onWindowResize)
 })
 
 onUnmounted(() => {
@@ -658,6 +665,7 @@ onUnmounted(() => {
   Object.values(deliveryImageUrls.value).forEach((urls) => {
     urls.forEach((url) => URL.revokeObjectURL(url))
   })
+  window.removeEventListener('resize', onWindowResize)
 })
 </script>
 
@@ -754,21 +762,15 @@ onUnmounted(() => {
             </div>
 
             <template v-else>
-              <div class="flex gap-4">
+              <div class="gap-4" :class="isPortrait ? 'flex flex-col' : 'flex'">
                 <!-- 좌측: 이미지 뷰어 (고정 높이) -->
-                <div class="w-1/2 flex flex-col gap-2">
+                <div class="flex flex-col gap-2" :class="isPortrait ? 'w-full' : 'w-1/2'">
                   <div v-if="isLoadingDeliveryImages[delivery.materialDeliveryId]" class="h-[720px] flex items-center justify-center border border-border rounded-lg bg-muted/20">
                     <p class="text-sm text-muted-foreground">이미지 로딩 중...</p>
                   </div>
                   <template v-else-if="(deliveryImageUrls[delivery.materialDeliveryId] ?? []).length > 0">
                     <div
                       class="h-[720px] border border-border rounded-lg overflow-hidden bg-muted/20 relative"
-                      :class="{ 'cursor-grab': (deliveryImageScale[delivery.materialDeliveryId] ?? 1) > 1, 'cursor-grabbing': deliveryImageDragging[delivery.materialDeliveryId] }"
-                      @wheel.prevent="onDeliveryImageWheel(delivery.materialDeliveryId, $event)"
-                      @pointerdown="onDeliveryImagePointerDown(delivery.materialDeliveryId, $event)"
-                      @pointermove="onDeliveryImagePointerMove(delivery.materialDeliveryId, $event)"
-                      @pointerup="onDeliveryImagePointerUp(delivery.materialDeliveryId)"
-                      @pointercancel="onDeliveryImagePointerUp(delivery.materialDeliveryId)"
                     >
                       <img
                         :src="deliveryImageUrls[delivery.materialDeliveryId]?.[deliveryImageIndex[delivery.materialDeliveryId] ?? 0]"
@@ -824,7 +826,7 @@ onUnmounted(() => {
                 </div>
 
                 <!-- 우측: 수정 폼 -->
-                <div class="w-1/2 space-y-4 overflow-y-auto">
+                <div class="space-y-4 overflow-y-auto" :class="isPortrait ? 'w-full' : 'w-1/2'">
                   <!-- 공급업체 / 납품일 -->
                   <div class="grid grid-cols-2 gap-4">
                     <div class="space-y-1.5">

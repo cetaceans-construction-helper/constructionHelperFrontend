@@ -21,6 +21,7 @@ import {
   validateDailyReport,
   createDailyReport,
 } from '@/features/document/public'
+import { createHomepageDailyReport } from '@/features/dashboard/use-cases/create-homepage-daily-report'
 import type { ValidateDailyReportResponse } from '@/features/document/public'
 import { dailyReportRepository } from '@/features/document/public'
 
@@ -131,6 +132,26 @@ export const useDashboardPage = () => {
     return grouped
   })
 
+  const tomorrowWorksByType = computed(() => {
+    const grouped = new Map<string, WorkResponse[]>()
+    for (const work of tomorrowWorks.value) {
+      const workType = work.workType || '미분류'
+      if (!grouped.has(workType)) grouped.set(workType, [])
+      grouped.get(workType)?.push(work)
+    }
+    return grouped
+  })
+
+  const simpleTomorrowWorksByType = computed(() => {
+    const grouped = new Map<string, WorkResponse[]>()
+    for (const work of simpleTomorrowWorks.value) {
+      const workType = work.workType || '미분류'
+      if (!grouped.has(workType)) grouped.set(workType, [])
+      grouped.get(workType)?.push(work)
+    }
+    return grouped
+  })
+
   const activeTomorrowWorks = computed(() =>
     tomorrowWorkMode.value === 1 ? tomorrowWorks.value : simpleTomorrowWorks.value,
   )
@@ -214,6 +235,32 @@ export const useDashboardPage = () => {
     return groups
   })
 
+  // 홈페이지 작업일보 생성
+  const isCreatingHomepageDailyReport = ref(false)
+
+  const generateHomepageDailyReport = async () => {
+    isCreatingHomepageDailyReport.value = true
+    try {
+      await createHomepageDailyReport({
+        todayDayName,
+        todayWeather: todayWeather.value,
+        todayWorksByType: todayWorksByType.value,
+        tomorrowWorksByType: tomorrowWorksByType.value,
+        simpleTomorrowWorksByType: simpleTomorrowWorksByType.value,
+        deliveryByWorkType: deliveryByWorkType.value,
+        equipmentByGroup: equipmentByGroup.value,
+        attendanceByGroup: attendanceByGroup.value,
+      })
+      alert('홈페이지에 작업일보가 생성되었습니다.')
+    } catch (error: unknown) {
+      console.error('홈페이지 작업일보 생성 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+    } finally {
+      isCreatingHomepageDailyReport.value = false
+    }
+  }
+
   // 작업일보 생성
   const isCreatingDailyReport = ref(false)
   const showExcludeDialog = ref(false)
@@ -222,14 +269,14 @@ export const useDashboardPage = () => {
   const generateDailyReport = async () => {
     isCreatingDailyReport.value = true
     try {
-      const result = await validateDailyReport(dailyReportRepository, todayString, tomorrowWorkMode.value)
+      const result = await validateDailyReport(dailyReportRepository, todayString)
       const hasExceeded = result.sections.some((s) => s.exceeded) || (result.photos?.exceeded ?? false)
 
       if (hasExceeded) {
         validateResult.value = result
         showExcludeDialog.value = true
       } else {
-        await createDailyReport(dailyReportRepository, { date: todayString, tomorrowWorkMode: tomorrowWorkMode.value })
+        await createDailyReport(dailyReportRepository, { date: todayString })
         router.push('/helper/document/daily-report')
       }
     } catch (error: unknown) {
@@ -252,7 +299,6 @@ export const useDashboardPage = () => {
         date: todayString,
         excludedIds,
         excludedPhotoIndices,
-        tomorrowWorkMode: tomorrowWorkMode.value,
       })
       router.push('/helper/document/daily-report')
     } catch (error: unknown) {
@@ -299,6 +345,8 @@ export const useDashboardPage = () => {
     confirmExcludeAndCreate,
     deliveryByWorkType,
     equipmentByGroup,
+    generateHomepageDailyReport,
+    isCreatingHomepageDailyReport,
     fileInputRef,
     generateDailyReport,
     isCreatingDailyReport,

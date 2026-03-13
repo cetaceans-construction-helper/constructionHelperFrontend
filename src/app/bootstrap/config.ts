@@ -7,8 +7,14 @@ const apiBaseUrls: Record<Env, string> = {
   production: 'https://api.conhelp.kr/api',
 }
 
+const batApiBaseUrls: Record<Env, string> = {
+  development: 'http://localhost:3000',
+  production: 'https://api2.conhelp.kr',
+}
+
 export const appConfig = {
   apiBaseUrl: apiBaseUrls[env],
+  batApiBaseUrl: batApiBaseUrls[env],
 
   chart: {
     pixelPerDay: 60,
