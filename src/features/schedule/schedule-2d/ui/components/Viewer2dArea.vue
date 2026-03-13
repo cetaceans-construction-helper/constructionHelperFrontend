@@ -33,6 +33,7 @@ import {
   workToNode,
   computeNodeX,
   dayIndexToDate,
+  dateToDayIndex,
 } from '@/features/schedule/schedule-2d/use-cases/nodeConfig'
 import {
   computeRowLayout,
@@ -44,6 +45,8 @@ import { referenceApi } from '@/shared/network-core/apis/reference'
 import WorkNode from './WorkNode.vue'
 import LeftHeader from './LeftHeader.vue'
 import ReferenceEditTrigger from '@/shared/helper-ui/ReferenceEditTrigger.vue'
+import ReferenceEditDialog from '@/shared/helper-ui/ReferenceEditDialog.vue'
+import { Settings } from 'lucide-vue-next'
 import { appConfig } from '@/app/bootstrap/config'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
@@ -75,6 +78,12 @@ const isLoadingWorks = ref(false)
 
 // Reference tree (API 순서 보존)
 const refTree = ref<RefWorkType[]>([])
+const cornerDialogOpen = ref(false)
+
+function handleCornerDialogClose() {
+  loadRefTree()
+  td.loadReferenceData()
+}
 
 const loadRefTree = async () => {
   try {
@@ -83,13 +92,13 @@ const loadRefTree = async () => {
 
     // 2라운드: 모든 division의 workTypes 병렬
     const workTypesByDiv = await Promise.all(
-      divisions.map((div) => referenceApi.getWorkTypeList(div.id))
+      divisions.map((div) => referenceApi.getWorkTypeList(div.id)),
     )
 
     // 3라운드: 모든 workType의 subWorkTypes 병렬
     const allWorkTypes = workTypesByDiv.flat()
     const subsByWorkType = await Promise.all(
-      allWorkTypes.map((wt) => referenceApi.getSubWorkTypeList(wt.id))
+      allWorkTypes.map((wt) => referenceApi.getSubWorkTypeList(wt.id)),
     )
 
     // 순서 유지하며 트리 재구성
@@ -316,10 +325,36 @@ function styledWorkToNode(work: WorkResponse, yOverride?: number): Node {
   const node = workToNode(work, yOverride)
   const wtIdx = workTypePaletteMap.value.get(work.workType || '미분류')
   const palette = wtIdx !== undefined ? GROUP_PALETTE[wtIdx % GROUP_PALETTE.length]! : undefined
-  const result = buildNodeStyle(work, node.data.computedWidth as number, node.data.computedHeight as number, palette)
+  const result = buildNodeStyle(
+    work,
+    node.data.computedWidth as number,
+    node.data.computedHeight as number,
+    palette,
+  )
   node.style = result.style
   node.class = result.class
   return node
+}
+
+/** 날짜 겹침 + Y 위치를 판단하여 엣지 연결 Handle을 결정 */
+function getEdgeHandles(sourceWorkId: number, targetWorkId: number): { sourceHandle: string; targetHandle: string } {
+  const sourceNode = nodes.value.find((n) => n.id === `work-${sourceWorkId}`)
+  const targetNode = nodes.value.find((n) => n.id === `work-${targetWorkId}`)
+  if (!sourceNode || !targetNode) return { sourceHandle: 'source-right', targetHandle: 'target-left' }
+
+  const sourceEnd = dateToDayIndex((sourceNode.data.work as WorkResponse).completionDate)
+  const targetStart = dateToDayIndex((targetNode.data.work as WorkResponse).startDate)
+  const overlap = targetStart <= sourceEnd
+
+  if (!overlap) {
+    return { sourceHandle: 'source-right', targetHandle: 'target-left' }
+  }
+
+  // 수직 연결: source가 target보다 아래에 있으면 위로 올라감
+  const sourceBelow = sourceNode.position.y > targetNode.position.y
+  return sourceBelow
+    ? { sourceHandle: 'source-top', targetHandle: 'target-bottom' }
+    : { sourceHandle: 'source-bottom', targetHandle: 'target-top' }
 }
 
 // 그루핑 박스
@@ -510,7 +545,10 @@ const updateEdgeOverlapLocal = (
   const edgeIdx = edges.value.findIndex((e) => e.id === edgeId)
   if (edgeIdx !== -1) {
     const e = edges.value[edgeIdx]!
-    edges.value[edgeIdx] = { ...e, data: { ...e.data, isFollowing: days !== undefined && days !== null } }
+    edges.value[edgeIdx] = {
+      ...e,
+      data: { ...e.data, isFollowing: days !== undefined && days !== null },
+    }
     edges.value = [...edges.value]
   }
 }
@@ -549,14 +587,22 @@ const loadWorkData = async () => {
         const offset =
           offsetIndex === 0 ? 0 : (offsetIndex % 2 === 1 ? 1 : -1) * Math.ceil(offsetIndex / 2) * 3
 
+        const handles = getEdgeHandles(edge.sourceWorkId, edge.targetWorkId)
         return {
           id: `edge-${path.workPathId}-${edge.sourceWorkId}-${edge.targetWorkId}`,
           source: `work-${edge.sourceWorkId}`,
           target: `work-${edge.targetWorkId}`,
+          sourceHandle: handles.sourceHandle,
+          targetHandle: handles.targetHandle,
           type: 'smoothstep',
           pathOptions: { borderRadius: 20, offset: 15 },
           style: { stroke: path.workPathColor },
-          data: { pathId: path.workPathId, pathName: path.workPathName, offset, isFollowing: edge.lagDays !== undefined && edge.lagDays !== null },
+          data: {
+            pathId: path.workPathId,
+            pathName: path.workPathName,
+            offset,
+            isFollowing: edge.lagDays !== undefined && edge.lagDays !== null,
+          },
         }
       }),
     )
@@ -651,14 +697,22 @@ const applyMutation = (mutation: MutationResponse) => {
           currentCount === 0
             ? 0
             : (currentCount % 2 === 1 ? 1 : -1) * Math.ceil(currentCount / 2) * 3
+        const handles = getEdgeHandles(edge.sourceWorkId, edge.targetWorkId)
         return {
           id: `edge-${path.workPathId}-${edge.sourceWorkId}-${edge.targetWorkId}`,
           source: `work-${edge.sourceWorkId}`,
           target: `work-${edge.targetWorkId}`,
+          sourceHandle: handles.sourceHandle,
+          targetHandle: handles.targetHandle,
           type: 'smoothstep',
           pathOptions: { borderRadius: 20, offset: 15 },
           style: { stroke: path.workPathColor },
-          data: { pathId: path.workPathId, pathName: path.workPathName, offset, isFollowing: edge.lagDays !== undefined && edge.lagDays !== null },
+          data: {
+            pathId: path.workPathId,
+            pathName: path.workPathName,
+            offset,
+            isFollowing: edge.lagDays !== undefined && edge.lagDays !== null,
+          },
         }
       }),
     )
@@ -748,7 +802,7 @@ const {
   savePathEdges,
   updatePath,
   updateLagDays,
-} = usePathEditor(nodes, edges, paths, applyMutation)
+} = usePathEditor(nodes, edges, paths, applyMutation, getEdgeHandles)
 
 // 패스 연결 모드 상태 (watch보다 먼저 선언 필요)
 const connectingFrom = ref<{
@@ -773,12 +827,20 @@ watch(
       }
       // 연결 모드 source 노드 하이라이트
       if (connecting && connecting.workId === workId) {
-        const color = connecting.mode === 'add' && connecting.pathId
-          ? paths.value.find((p) => p.workPathId === connecting.pathId)?.workPathColor || '#3b82f6'
-          : '#3b82f6'
+        const color =
+          connecting.mode === 'add' && connecting.pathId
+            ? paths.value.find((p) => p.workPathId === connecting.pathId)?.workPathColor ||
+              '#3b82f6'
+            : '#3b82f6'
         highlight = { color }
       }
-      const result = buildNodeStyle(work, node.data.computedWidth as number, node.data.computedHeight as number, palette, highlight)
+      const result = buildNodeStyle(
+        work,
+        node.data.computedWidth as number,
+        node.data.computedHeight as number,
+        palette,
+        highlight,
+      )
       return { ...node, style: result.style, class: result.class }
     })
   },
@@ -884,12 +946,18 @@ const hoveredNodeId = ref<string | null>(null)
 let hoverClearTimer: ReturnType<typeof setTimeout> | null = null
 
 const setHoveredNode = (nodeId: string) => {
-  if (hoverClearTimer) { clearTimeout(hoverClearTimer); hoverClearTimer = null }
+  if (hoverClearTimer) {
+    clearTimeout(hoverClearTimer)
+    hoverClearTimer = null
+  }
   hoveredNodeId.value = nodeId
 }
 
 const cancelHoverClear = () => {
-  if (hoverClearTimer) { clearTimeout(hoverClearTimer); hoverClearTimer = null }
+  if (hoverClearTimer) {
+    clearTimeout(hoverClearTimer)
+    hoverClearTimer = null
+  }
 }
 
 const scheduleHoverClear = () => {
@@ -902,7 +970,8 @@ const scheduleHoverClear = () => {
 
 // hover 또는 선택된 노드의 양쪽 핸들 위치 computed (모서리 중앙)
 const resizeHandles = computed(() => {
-  const targetId = hoveredNodeId.value ?? (selectedWorkId.value ? `work-${selectedWorkId.value}` : null)
+  const targetId =
+    hoveredNodeId.value ?? (selectedWorkId.value ? `work-${selectedWorkId.value}` : null)
   if (!targetId) return null
   const node = nodes.value.find((n) => n.id === targetId)
   if (!node) return null
@@ -1088,9 +1157,14 @@ const connectingLine = computed(() => {
   // 수평 오프셋으로 부드러운 커브 생성
   const dx = Math.abs(x2 - x1) * 0.5
   return {
-    x1, y1, x2, y2,
-    cx1: x1 + dx, cy1: y1,
-    cx2: x2 - dx, cy2: y2,
+    x1,
+    y1,
+    x2,
+    y2,
+    cx1: x1 + dx,
+    cy1: y1,
+    cx2: x2 - dx,
+    cy2: y2,
   }
 })
 
@@ -1131,14 +1205,22 @@ const handleConnect = async (params: { source: string; target: string }) => {
       edgePairCount.set(pairKey, currentCount + 1)
       const offset =
         currentCount === 0 ? 0 : (currentCount % 2 === 1 ? 1 : -1) * Math.ceil(currentCount / 2) * 3
+      const handles = getEdgeHandles(edge.sourceWorkId, edge.targetWorkId)
       return {
         id: `edge-${newPath.workPathId}-${edge.sourceWorkId}-${edge.targetWorkId}`,
         source: `work-${edge.sourceWorkId}`,
         target: `work-${edge.targetWorkId}`,
+        sourceHandle: handles.sourceHandle,
+        targetHandle: handles.targetHandle,
         type: 'smoothstep',
         pathOptions: { borderRadius: 20, offset: 15 },
         style: { stroke: newPath.workPathColor },
-        data: { pathId: newPath.workPathId, pathName: newPath.workPathName, offset, isFollowing: edge.lagDays !== undefined && edge.lagDays !== null },
+        data: {
+          pathId: newPath.workPathId,
+          pathName: newPath.workPathName,
+          offset,
+          isFollowing: edge.lagDays !== undefined && edge.lagDays !== null,
+        },
       }
     })
     edges.value = [...edges.value, ...newEdges]
@@ -1344,7 +1426,8 @@ const onContainerContextMenu = (event: MouseEvent) => {
   const container = containerRef.value
   if (!container) return
   const rect = container.getBoundingClientRect()
-  const flowX = (event.clientX - rect.left - LEFT_HEADER_WIDTH - viewport.value.x) / viewport.value.zoom
+  const flowX =
+    (event.clientX - rect.left - LEFT_HEADER_WIDTH - viewport.value.x) / viewport.value.zoom
   const flowY = (event.clientY - rect.top - HEADER_HEIGHT - viewport.value.y) / viewport.value.zoom
 
   contextMenu.value = {
@@ -1503,7 +1586,8 @@ const onNodeDragStop = async (event: { node: Node }) => {
 
 // 리사이즈 드래그 시작
 const onResizeStart = (side: 'left' | 'right', e: PointerEvent | MouseEvent) => {
-  const targetId = hoveredNodeId.value ?? (selectedWorkId.value ? `work-${selectedWorkId.value}` : null)
+  const targetId =
+    hoveredNodeId.value ?? (selectedWorkId.value ? `work-${selectedWorkId.value}` : null)
   if (!targetId) return
   const node = nodes.value.find((n) => n.id === targetId)
   const work = node?.data.work as WorkResponse
@@ -1725,11 +1809,23 @@ onUnmounted(() => {
     >
       <!-- 코너 셀 (공종/세부공종 라벨) -->
       <div
-        class="absolute z-30 bg-muted border-b border-r border-border flex items-center justify-center text-xs font-medium"
+        class="absolute z-30 bg-muted border-b border-r border-border flex flex-col items-center justify-center text-xs font-medium"
         :style="{ width: `${LEFT_HEADER_WIDTH}px`, height: `${HEADER_HEIGHT}px` }"
       >
-        공종 / 세부공종
+        <span>공종 / 세부공종</span>
+        <button
+          class="mt-1 flex items-center gap-0.5 px-2 py-0.5 rounded text-[13px] text-muted-foreground hover:bg-background hover:text-foreground transition-colors"
+          @click="cornerDialogOpen = true"
+        >
+          <Settings class="w-3 h-3" />
+          공종 편집
+        </button>
       </div>
+      <ReferenceEditDialog
+        v-model:open="cornerDialogOpen"
+        type="work-classification"
+        @close="handleCornerDialogClose"
+      />
 
       <!-- 5단 날짜 헤더 바 -->
       <div
@@ -2169,7 +2265,9 @@ onUnmounted(() => {
                       >
                         −
                       </button>
-                      <span class="h-5 text-[11px] text-center leading-5 select-none">{{ pred.lagDays }}일</span>
+                      <span class="h-5 text-[11px] text-center leading-5 select-none"
+                        >{{ pred.lagDays }}일</span
+                      >
                       <button
                         type="button"
                         class="flex items-center justify-center w-5 h-5 text-[11px] font-medium rounded border border-border bg-background hover:bg-muted transition-colors"
@@ -2249,7 +2347,6 @@ onUnmounted(() => {
                   휴일 휴무
                 </button>
               </div>
-
             </div>
             <!-- 삼각형 화살표 (콘텐츠 밖 flow 배치 → translateY(-100%)에 높이 반영) -->
             <div class="flex justify-center">
@@ -2263,7 +2360,6 @@ onUnmounted(() => {
               </div>
             </div>
           </div>
-
 
           <!-- 패스 편집 모드: 삭제 버튼들 -->
           <template v-if="isPathEditMode">
@@ -2652,7 +2748,10 @@ onUnmounted(() => {
 
         <!-- 공종 (생성 모드: 더블클릭 위치에서 자동 결정, 수정 모드: 3계층 선택) -->
         <div v-if="td.isCreateMode" class="space-y-1.5">
-          <label class="text-sm font-medium">세부공종</label>
+          <div class="flex items-center gap-1">
+            <label class="text-sm font-medium">세부공종</label>
+            <ReferenceEditTrigger type="work-classification" @refresh="td.loadReferenceData" />
+          </div>
           <div class="h-8 flex items-center text-sm rounded-md border border-border bg-muted px-3">
             {{ td.createSubWorkTypeName }}
           </div>
@@ -2795,7 +2894,9 @@ onUnmounted(() => {
             <label class="text-sm font-medium">부재</label>
             <ReferenceEditTrigger type="component" @refresh="td.loadReferenceData" />
           </div>
-          <div v-if="!td.componentTypes.length" class="text-sm text-muted-foreground">등록된 부재 타입 없음</div>
+          <div v-if="!td.componentTypes.length" class="text-sm text-muted-foreground">
+            등록된 부재 타입 없음
+          </div>
           <div class="flex flex-wrap gap-x-4 gap-y-1.5">
             <label
               v-for="ct in td.componentTypes"
@@ -2834,9 +2935,14 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* 엣지 핸들 완전 숨김 (Handle 제거됨) */
+/* 엣지 핸들 숨김 (위치 계산용으로 렌더링은 유지) */
 :deep(.vue-flow__handle) {
-  display: none !important;
+  opacity: 0 !important;
+  width: 1px !important;
+  height: 1px !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  pointer-events: none !important;
 }
 
 /* 패스 연결 모드: 커서 변경 */
@@ -2861,10 +2967,34 @@ onUnmounted(() => {
 :deep(.vue-flow__node-work.holiday-node) {
   border: none !important;
   background-image:
-    repeating-linear-gradient(to right, var(--node-border, #d1d5db) 0, var(--node-border, #d1d5db) 12px, transparent 12px, transparent 24px),
-    repeating-linear-gradient(to right, var(--node-border, #d1d5db) 0, var(--node-border, #d1d5db) 12px, transparent 12px, transparent 24px),
-    repeating-linear-gradient(to bottom, var(--node-border, #d1d5db) 0, var(--node-border, #d1d5db) 12px, transparent 12px, transparent 24px),
-    repeating-linear-gradient(to bottom, var(--node-border, #d1d5db) 0, var(--node-border, #d1d5db) 12px, transparent 12px, transparent 24px);
+    repeating-linear-gradient(
+      to right,
+      var(--node-border, #d1d5db) 0,
+      var(--node-border, #d1d5db) 12px,
+      transparent 12px,
+      transparent 24px
+    ),
+    repeating-linear-gradient(
+      to right,
+      var(--node-border, #d1d5db) 0,
+      var(--node-border, #d1d5db) 12px,
+      transparent 12px,
+      transparent 24px
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      var(--node-border, #d1d5db) 0,
+      var(--node-border, #d1d5db) 12px,
+      transparent 12px,
+      transparent 24px
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      var(--node-border, #d1d5db) 0,
+      var(--node-border, #d1d5db) 12px,
+      transparent 12px,
+      transparent 24px
+    );
   background-size:
     100% 1.5px,
     100% 1.5px,

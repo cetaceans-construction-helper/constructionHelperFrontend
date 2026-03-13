@@ -20,15 +20,13 @@ const {
   isLoadingToday,
   contractors,
   workTypeBoxes,
-  addEmptyBox: addLaborBox,
   selectCompany: selectLaborCompany,
-  removeWorkTypeBox,
+
   getCount: getLaborCount,
   incrementCount: incrementLaborCount,
   decrementCount: decrementLaborCount,
   setCount: setLaborCount,
   submitAttendance,
-  resetAttendance,
   init: initAttendance,
 } = useAttendance()
 
@@ -38,9 +36,9 @@ const {
   todayEquipment,
   isLoadingEquipment,
   equipmentBoxes,
-  addEmptyBox: addEquipmentBox,
+
   selectCompany: selectEquipmentCompany,
-  removeEquipmentBox,
+
   addSpecToBox,
   removeSpecFromBox,
   getCount: getEquipmentCount,
@@ -54,7 +52,6 @@ const {
   setFullDay,
   setHalfDay,
   submitEquipmentDeployment,
-  resetEquipmentDeployment,
   init: initEquipment,
 } = useEquipmentDeployment(selectedDate, contractors)
 
@@ -134,7 +131,7 @@ onMounted(async () => {
         <!-- 공종 박스 목록 -->
         <div class="flex-1 overflow-y-auto p-4">
           <div v-if="workTypeBoxes.length === 0" class="flex items-center justify-center h-full">
-            <p class="text-muted-foreground text-sm">추가 버튼을 눌러 업체를 추가하세요.</p>
+            <p class="text-muted-foreground text-sm">오늘 출역 대상 업체가 없습니다.</p>
           </div>
 
           <div v-else class="space-y-4">
@@ -149,7 +146,6 @@ onMounted(async () => {
               :is-loading="box.isLoading"
               :contractors="contractors"
               :get-count="getLaborCount"
-              @remove="removeWorkTypeBox"
               @select-company="selectLaborCompany"
               @increment="incrementLaborCount"
               @decrement="decrementLaborCount"
@@ -158,17 +154,8 @@ onMounted(async () => {
           </div>
         </div>
 
-        <!-- 하단: 추가 + 초기화 + 제출 -->
-        <div class="flex items-center justify-between px-4 py-3 border-t border-border">
-          <div class="flex items-center gap-2">
-            <Button size="sm" @click="addLaborBox">
-              <Plus class="w-4 h-4 mr-2" />
-              추가
-            </Button>
-            <Button variant="destructive" size="sm" @click="resetAttendance">
-              출역인원 초기화
-            </Button>
-          </div>
+        <!-- 하단: 제출 -->
+        <div class="flex items-center justify-end px-4 py-3 border-t border-border">
           <Button
             size="lg"
             :disabled="workTypeBoxes.length === 0 || isSubmitting"
@@ -206,7 +193,6 @@ onMounted(async () => {
               :contractors="contractors"
               :get-count="getEquipmentCount"
               :get-work-time="getWorkTime"
-              @remove="removeEquipmentBox"
               @select-company="selectEquipmentCompany"
               @add-spec="addSpecToBox"
               @remove-spec="removeSpecFromBox"
@@ -222,17 +208,8 @@ onMounted(async () => {
           </div>
         </div>
 
-        <!-- 하단: 추가 + 초기화 + 제출 -->
-        <div class="flex items-center justify-between px-4 py-3 border-t border-border">
-          <div class="flex items-center gap-2">
-            <Button size="sm" @click="addEquipmentBox">
-              <Plus class="w-4 h-4 mr-2" />
-              추가
-            </Button>
-            <Button variant="destructive" size="sm" @click="resetEquipmentDeployment">
-              출역장비 초기화
-            </Button>
-          </div>
+        <!-- 하단: 제출 -->
+        <div class="flex items-center justify-end px-4 py-3 border-t border-border">
           <Button
             size="lg"
             :disabled="equipmentBoxes.length === 0 || isSubmittingEquipment"

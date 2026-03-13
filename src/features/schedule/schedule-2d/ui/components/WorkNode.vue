@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { type NodeProps } from '@vue-flow/core'
+import { Handle, Position, type NodeProps } from '@vue-flow/core'
 
 const props = defineProps<NodeProps>()
 
@@ -34,7 +34,13 @@ const lines = computed(() => splitLabel(labelText.value))
 
 <template>
   <div class="flex flex-col items-center justify-center w-full h-full px-1 leading-loose text-center overflow-visible whitespace-nowrap">
+    <Handle id="target-left" type="target" :position="Position.Left" />
+    <Handle id="target-top" type="target" :position="Position.Top" />
+    <Handle id="target-bottom" type="target" :position="Position.Bottom" />
     <span class="text-[11px]" style="transform: scaleY(1.5); display: inline-block">{{ lines[0] }}</span>
     <span v-if="lines[1]" class="text-[11px]" style="transform: scaleY(1.5); display: inline-block">{{ lines[1] }}</span>
+    <Handle id="source-right" type="source" :position="Position.Right" />
+    <Handle id="source-bottom" type="source" :position="Position.Bottom" />
+    <Handle id="source-top" type="source" :position="Position.Top" />
   </div>
 </template>

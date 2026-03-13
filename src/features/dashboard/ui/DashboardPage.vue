@@ -262,6 +262,13 @@ const {
           <div class="mt-4 flex-1 min-h-0">
             <div class="border border-border rounded-lg p-3 h-full overflow-y-auto text-sm">
               <p>
+                26.03.13 금요일<br />
+                1. 공종편집할수있는 위치를 공정표 코너 셀에 추가.<br />
+                2. 캘린더 작동방식수정<br />
+                3. 캘린더 휴일/비활성일 변경시 작업 갱신 안되는 오류 수정<br />
+              </p>
+              <br />
+              <p>
                 26.03.12 목요일<br />
                 1. 2D공정표 작동방식 대규모 수정.<br />
                 2. 작업 오른쪽클릭 -> 메뉴 기반으로 행동선택<br />

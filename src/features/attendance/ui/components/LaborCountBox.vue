@@ -8,7 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/shared/ui/select'
-import { X, Plus, Minus, Loader2 } from 'lucide-vue-next'
+import { Plus, Minus, Loader2 } from 'lucide-vue-next'
 import type { LaborTypeResponse } from '@/shared/network-core/apis/reference'
 import type { Contractor } from '@/features/attendance/infra/attendance-api'
 
@@ -26,7 +26,6 @@ interface Props {
 const props = defineProps<Props>()
 
 const emit = defineEmits<{
-  remove: [boxId: string]
   selectCompany: [boxId: string, companyId: string]
   increment: [boxId: string, laborTypeId: number]
   decrement: [boxId: string, laborTypeId: number]
@@ -48,11 +47,11 @@ function handleInputChange(laborTypeId: number, val: string | number) {
 <template>
   <div class="border border-border rounded-lg bg-card">
     <!-- 헤더 -->
-    <div class="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/50">
+    <div class="flex items-center px-4 py-3 border-b border-border bg-muted/50">
       <div v-if="companyId" class="font-medium text-sm">
         {{ workTypeName }} ({{ companyName }})
       </div>
-      <div v-else class="flex-1 mr-4">
+      <div v-else class="flex-1">
         <Select @update:model-value="handleCompanyChange">
           <SelectTrigger>
             <SelectValue placeholder="공종 선택" />
@@ -71,9 +70,6 @@ function handleInputChange(laborTypeId: number, val: string | number) {
           </SelectContent>
         </Select>
       </div>
-      <Button variant="ghost" size="icon-sm" @click="emit('remove', boxId)">
-        <X class="w-4 h-4" />
-      </Button>
     </div>
 
     <!-- 직종별 인원 입력 -->

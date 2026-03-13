@@ -79,6 +79,8 @@ export function useAttendance() {
     }
     // 조회된 데이터로 입력 카드 자동 생성
     await populateBoxesFromAttendance()
+    // eligible 업체 중 아직 박스가 없는 업체 자동 생성
+    await createBoxesForEligibleContractors()
   }
 
   // 조회된 출역인원 데이터로 입력 박스 자동 생성
@@ -129,6 +131,64 @@ export function useAttendance() {
         })
         .catch((error: unknown) => {
           console.error(`직종 목록 로드 실패 (${first.companyDisplayName}):`, error)
+        })
+        .finally(() => {
+          const box = workTypeBoxes.value.find((b) => b.id === boxId)
+          if (box) box.isLoading = false
+        })
+
+      loadPromises.push(loadPromise)
+    }
+
+    await Promise.all(loadPromises)
+
+    // Map 재할당으로 reactivity 강제 트리거
+    laborCounts.value = new Map(laborCounts.value)
+  }
+
+  // eligible 업체 중 아직 박스가 없는 업체에 대해 자동 박스 생성
+  async function createBoxesForEligibleContractors() {
+    const eligibleContractors = contractors.value.filter(
+      (c) => c.eligible && c.workTypeId,
+    )
+
+    const existingCompanyIds = new Set(
+      workTypeBoxes.value.map((b) => b.companyId).filter(Boolean),
+    )
+
+    const newContractors = eligibleContractors.filter(
+      (c) => !existingCompanyIds.has(c.companyId),
+    )
+
+    if (newContractors.length === 0) return
+
+    const loadPromises: Promise<void>[] = []
+
+    for (const company of newContractors) {
+      const boxId = `box-${++boxIdCounter}`
+
+      workTypeBoxes.value.push({
+        id: boxId,
+        companyId: company.companyId,
+        companyName: company.companyDisplayName,
+        workTypeId: company.workTypeId,
+        workTypeName: company.workTypeName || '',
+        laborTypes: [],
+        isLoading: true,
+      })
+
+      const loadPromise = referenceApi
+        .getLaborTypeListByWorkType(company.workTypeId!)
+        .then((laborTypes) => {
+          const box = workTypeBoxes.value.find((b) => b.id === boxId)
+          if (!box) return
+          box.laborTypes = laborTypes
+          for (const lt of laborTypes) {
+            laborCounts.value.set(`${boxId}-${lt.id}`, 0)
+          }
+        })
+        .catch((error: unknown) => {
+          console.error(`직종 목록 로드 실패 (${company.companyDisplayName}):`, error)
         })
         .finally(() => {
           const box = workTypeBoxes.value.find((b) => b.id === boxId)
@@ -271,20 +331,18 @@ export function useAttendance() {
       return
     }
 
-    // flat list로 수집
+    // flat list로 수집 (0값 포함)
     const entries: { laborTypeId: number; count: number }[] = []
 
     for (const box of validBoxes) {
       for (const lt of box.laborTypes) {
         const count = getCount(box.id, lt.id)
-        if (count > 0) {
-          entries.push({ laborTypeId: lt.id, count })
-        }
+        entries.push({ laborTypeId: lt.id, count })
       }
     }
 
     if (entries.length === 0) {
-      alert('입력된 인원이 없습니다.')
+      alert('제출할 직종이 없습니다.')
       return
     }
 
@@ -325,9 +383,10 @@ export function useAttendance() {
     }
   }
 
-  // 초기 데이터 로드
+  // 초기 데이터 로드 (업체 목록 먼저 → 출역인원 조회)
   async function init() {
-    await Promise.all([loadContractors(), loadTodayAttendance()])
+    await loadContractors()
+    await loadTodayAttendance()
   }
 
   return {
@@ -343,7 +402,6 @@ export function useAttendance() {
     // 메서드
     loadContractors,
     loadTodayAttendance,
-    addEmptyBox,
     selectCompany,
     removeWorkTypeBox,
     getCount,

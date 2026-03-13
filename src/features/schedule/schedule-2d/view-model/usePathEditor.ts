@@ -48,7 +48,8 @@ export function usePathEditor(
   nodes: Ref<Node[]>,
   edges: Ref<Edge[]>,
   paths: Ref<PathResponse[]>,
-  onPathUpdated: (mutation: MutationResponse) => void
+  onPathUpdated: (mutation: MutationResponse) => void,
+  getEdgeHandles?: (sourceWorkId: number, targetWorkId: number) => { sourceHandle: string; targetHandle: string }
 ) {
   // 패스 선택 및 수정 상태
   const selectedPathId = ref<number | null>(null)
@@ -185,10 +186,13 @@ export function usePathEditor(
     // 편집 중인 edge들 (패스 색상으로 표시)
     const editingEdges = editingPathEdges.value.map((edge, index) => {
       const isFollowing = edge.lagDays !== undefined && edge.lagDays !== null
+      const handles = getEdgeHandles?.(edge.sourceWorkId, edge.targetWorkId)
       return {
         id: `editing-${selectedPathId.value}-${edge.sourceWorkId}-${edge.targetWorkId}-${index}`,
         source: `work-${edge.sourceWorkId}`,
         target: `work-${edge.targetWorkId}`,
+        sourceHandle: handles?.sourceHandle,
+        targetHandle: handles?.targetHandle,
         type: 'smoothstep',
         pathOptions: { borderRadius: 20, offset: 15 },
         style: { stroke: pathColor, strokeWidth: 2, strokeDasharray: isFollowing ? undefined : '12 8' },

@@ -19,14 +19,12 @@ const {
   divisions,
   workTypes,
   subWorkTypes,
-  workSteps,
   selectedDivisionId,
   selectedWorkTypeId,
   selectedSubWorkTypeId,
   newDivisionName,
   newWorkTypeName,
   newSubWorkTypeName,
-  newWorkStepName,
   isCreating,
   isDeleting,
   loadDivisions,
@@ -36,19 +34,15 @@ const {
   addDivision,
   addWorkType,
   addSubWorkType,
-  addWorkStep,
   deleteDivision,
   deleteWorkType,
   deleteSubWorkType,
-  deleteWorkStep,
   updateDivisionName,
   updateWorkTypeName,
   updateSubWorkTypeName,
-  updateWorkStepName,
   reorderDivisions,
   reorderWorkTypes,
   reorderSubWorkTypes,
-  reorderWorkSteps,
 } = useWorkClassification()
 
 const showDeleteDialog = ref(false)
@@ -78,7 +72,7 @@ defineExpose({ load })
 </script>
 
 <template>
-  <div class="grid grid-cols-4 gap-4">
+  <div class="grid grid-cols-3 gap-4">
     <div class="space-y-2">
       <p class="text-xs text-muted-foreground font-medium">분류</p>
       <div class="flex gap-1">
@@ -174,35 +168,6 @@ defineExpose({ load })
       />
     </div>
 
-    <div class="space-y-2">
-      <p class="text-xs text-muted-foreground font-medium">작업절차</p>
-      <div class="flex gap-1">
-        <Input
-          v-model="newWorkStepName"
-          placeholder="이름 입력"
-          class="h-8 text-sm"
-          :disabled="!selectedSubWorkTypeId"
-          @keydown.enter="(e: KeyboardEvent) => { if (!e.isComposing) addWorkStep() }"
-        />
-        <Button
-          size="sm"
-          class="h-8 shrink-0"
-          :disabled="isCreating || !newWorkStepName.trim() || !selectedSubWorkTypeId"
-          @click="addWorkStep"
-        >
-          추가
-        </Button>
-      </div>
-      <SortableReferenceList
-        :items="workSteps"
-        :selectable="false"
-        :disabled="isDeleting"
-        :empty-message="selectedSubWorkTypeId ? '항목 없음' : '세부공종을 선택하세요'"
-        @delete="(id, name) => openDeleteDialog(id, name, deleteWorkStep)"
-        @update-name="({ id, name }) => updateWorkStepName(id, name)"
-        @reorder="reorderWorkSteps"
-      />
-    </div>
   </div>
 
   <AlertDialog :open="showDeleteDialog" @update:open="showDeleteDialog = $event">
