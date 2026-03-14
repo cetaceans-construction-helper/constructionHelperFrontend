@@ -8,9 +8,12 @@ const props = withDefaults(
     modelValue: File[]
     removable?: boolean
     hint?: string
+    size?: number
   }>(),
-  { removable: false, hint: '사진을 눌러서 회전' },
+  { removable: false, hint: '사진을 눌러서 회전', size: 120 },
 )
+
+const sizeStyle = computed(() => ({ width: `${props.size}px`, height: `${props.size}px` }))
 
 const emit = defineEmits<{
   'update:modelValue': [files: File[]]
@@ -78,8 +81,9 @@ function removeAt(index: number) {
         <!-- 이미지 썸네일 -->
         <div
           v-if="isImage(file)"
-          class="w-[120px] h-[120px] rounded border border-border overflow-hidden cursor-pointer"
+          class="rounded border border-border overflow-hidden cursor-pointer"
           :class="{ 'opacity-50': rotatingIndex === index }"
+          :style="sizeStyle"
           @click="rotateAt(index)"
         >
           <img
@@ -94,7 +98,8 @@ function removeAt(index: number) {
         <!-- PDF 아이콘 -->
         <div
           v-else
-          class="w-[120px] h-[120px] rounded border border-border flex flex-col items-center justify-center bg-muted/50"
+          class="rounded border border-border flex flex-col items-center justify-center bg-muted/50"
+          :style="sizeStyle"
         >
           <span class="text-lg">PDF</span>
           <span class="text-[10px] text-muted-foreground truncate max-w-[72px]">{{ file.name }}</span>

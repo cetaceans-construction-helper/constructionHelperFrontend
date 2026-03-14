@@ -291,6 +291,16 @@ const {
           <div class="mt-4 flex-1 min-h-0">
             <div class="border border-border rounded-lg p-3 h-full overflow-y-auto text-sm">
               <p>
+                26.03.15 토요일<br />
+                1. 사진 업로드 시 프리뷰 확인 및 회전/설명 입력 기능 추가.<br />
+                2. 홈페이지 작업일보 생성/수정 지원.<br />
+                3. 작업일보 영역 글자크기 1.5배 확대.<br />
+                4. 자재반입 송장/사진 업로드 시 이미지 회전 프리뷰 추가.<br />
+                5. MIR 문서번호 수정 기능 추가.<br />
+                6. 반입자재 목록에 MIR 문서번호 표시.
+              </p>
+              <br />
+              <p>
                 26.03.13 금요일<br />
                 1. 공종편집할수있는 위치를 공정표 코너 셀에 추가.<br />
                 2. 캘린더 작동방식수정<br />
@@ -429,12 +439,12 @@ const {
 
     <!-- 사진 프리뷰 다이얼로그 -->
     <Dialog v-model:open="photoPreviewDialogOpen">
-      <DialogContent class="sm:max-w-[480px]">
+      <DialogContent class="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>사진 업로드</DialogTitle>
         </DialogHeader>
         <div class="space-y-4 py-2">
-          <ImageRotatePreview v-model="pendingPhotos" />
+          <ImageRotatePreview v-model="pendingPhotos" :size="240" />
           <div v-for="(file, index) in pendingPhotos" :key="`desc-${index}`" class="space-y-1">
             <label class="text-xs text-muted-foreground">{{ file.name }}</label>
             <Input
