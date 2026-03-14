@@ -5,6 +5,7 @@ import {
   deleteMaterialInspectionRequest,
   downloadMaterialInspectionRequest,
   getMaterialInspectionRequests,
+  updateMirDocumentNumber,
 } from '@/features/document/use-cases/material-inspection-request'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
@@ -85,6 +86,18 @@ export const useMaterialInspectionPage = () => {
     }
   }
 
+  const handleUpdateDocumentNumber = async (mir: MaterialInspectionRequestResponse) => {
+    const newDocNumber = prompt('새 문서번호를 입력하세요', mir.documentNumber)
+    if (newDocNumber == null || newDocNumber.trim() === '' || newDocNumber === mir.documentNumber) return
+    try {
+      await updateMirDocumentNumber(materialInspectionRequestRepository, mir.id, newDocNumber.trim())
+      await loadList()
+    } catch (error: unknown) {
+      console.error('문서번호 수정 실패:', error)
+      alert(getErrorMessage(error))
+    }
+  }
+
   const formatDate = (dateStr: string): string => dateStr.split('T')[0] ?? ''
 
   onMounted(() => {
@@ -96,6 +109,7 @@ export const useMaterialInspectionPage = () => {
     deleteTargetName,
     downloadMir,
     formatDate,
+    handleUpdateDocumentNumber,
     isDeleting,
     isDownloading,
     isLoading,

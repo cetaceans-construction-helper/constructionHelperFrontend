@@ -11,6 +11,7 @@ export {
   deleteMaterialInspectionRequest,
   downloadMaterialInspectionRequest,
   getMaterialInspectionRequests,
+  updateMirDocumentNumber,
   validateMaterialInspectionRequest,
 } from '@/features/document/use-cases/material-inspection-request'
 export {

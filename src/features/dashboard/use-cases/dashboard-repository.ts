@@ -12,5 +12,5 @@ export interface DashboardRepository {
   getEquipmentDeploymentListByDate(date: string): Promise<EquipmentDeploymentByDateItem[]>
   getWorkListByDate(date: string): Promise<WorkResponse[]>
   downloadWorkPhoto(url: string): Promise<string>
-  createWorkPhoto(workId: number, date: string, files: File[]): Promise<void>
+  createWorkPhoto(workId: number, date: string, files: File[], descriptions?: string[]): Promise<void>
 }

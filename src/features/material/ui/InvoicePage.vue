@@ -33,6 +33,7 @@ import {
 import { Checkbox } from '@/shared/ui/checkbox'
 import { Label } from '@/shared/ui/label'
 import { X } from 'lucide-vue-next'
+import ImageRotatePreview from '@/shared/helper-ui/ImageRotatePreview.vue'
 import { materialOrderApi } from '@/features/material/infra/material-order-api'
 import {
   formatMaterialOrderLineLocation as formatLocation,
@@ -327,7 +328,10 @@ onMounted(() => {
         <div class="space-y-5 py-2">
           <!-- 송장파일 -->
           <div class="space-y-2">
-            <Label>송장파일</Label>
+            <div class="flex items-center gap-2">
+              <Label>송장파일</Label>
+              <span class="text-xs text-muted-foreground">미입력 가능, 다시 눌러서 사진 재선택</span>
+            </div>
             <input
               type="file"
               multiple
@@ -335,11 +339,15 @@ onMounted(() => {
               class="block w-full text-sm text-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded file:border file:border-input file:bg-muted file:text-sm file:font-medium hover:file:bg-muted/80 cursor-pointer"
               @change="onDeliveryNotesChange"
             />
+            <ImageRotatePreview v-model="deliveryNotes" />
           </div>
 
           <!-- 반입사진 -->
           <div class="space-y-2">
-            <Label>반입사진</Label>
+            <div class="flex items-center gap-2">
+              <Label>반입사진</Label>
+              <span class="text-xs text-muted-foreground">미입력 가능, 다시 눌러서 사진 재선택</span>
+            </div>
             <input
               type="file"
               multiple
@@ -347,6 +355,7 @@ onMounted(() => {
               class="block w-full text-sm text-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded file:border file:border-input file:bg-muted file:text-sm file:font-medium hover:file:bg-muted/80 cursor-pointer"
               @change="onDeliveryPhotosChange"
             />
+            <ImageRotatePreview v-model="deliveryPhotos" />
           </div>
 
           <!-- 위치정보 -->

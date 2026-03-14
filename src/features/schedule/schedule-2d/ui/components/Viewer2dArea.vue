@@ -2093,6 +2093,7 @@ onUnmounted(() => {
           fit-view-on-init
           :min-zoom="0.01"
           :zoom-on-scroll="false"
+          :zoom-on-pinch="false"
           :zoom-on-double-click="false"
           :disable-keyboard-a11y="true"
           :nodes-connectable="false"

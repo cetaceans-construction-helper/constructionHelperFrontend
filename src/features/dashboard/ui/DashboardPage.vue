@@ -1,7 +1,16 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import AreaCard from '@/shared/helper-ui/AreaCard.vue'
+import ImageRotatePreview from '@/shared/helper-ui/ImageRotatePreview.vue'
 import { Button } from '@/shared/ui/button'
+import { Input } from '@/shared/ui/input'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/shared/ui/dialog'
 import WorkPhotoDialog from '@/features/dashboard/ui/components/WorkPhotoDialog.vue'
 import DailyReportExcludeDialog from '@/features/dashboard/ui/components/DailyReportExcludeDialog.vue'
 import { useDashboardPage } from '@/features/dashboard/view-model/useDashboardPage'
@@ -10,11 +19,14 @@ const router = useRouter()
 const {
   allTodayPhotos,
   attendanceByGroup,
+  cancelPhotoUpload,
   confirmExcludeAndCreate,
+  confirmPhotoUpload,
   deliveryByWorkType,
   equipmentByGroup,
   generateHomepageDailyReport,
   isCreatingHomepageDailyReport,
+  isUploadingPhotos,
   fileInputRef,
   generateDailyReport,
   isCreatingDailyReport,
@@ -22,8 +34,11 @@ const {
   onPhotoFileChange,
   onPhotoUpdated,
   openPhotoDialog,
+  pendingPhotos,
+  pendingPhotoDescriptions,
   photoDialogRef,
   photoObjectUrls,
+  photoPreviewDialogOpen,
   showExcludeDialog,
   today,
   todayWeather,
@@ -43,7 +58,11 @@ const {
   <div class="flex-1 flex flex-col gap-4">
     <div class="dashboard-layout">
       <!-- 작업일보 영역 -->
-      <AreaCard height="flex-none" min-height="auto" class="dashboard-col-main dashboard-order-1">
+      <AreaCard
+        height="flex-none"
+        min-height="auto"
+        class="dashboard-col-main dashboard-order-1 daily-report-area"
+      >
         <div class="flex items-center justify-between mb-3">
           <h3 class="text-lg font-semibold">작업일보</h3>
           <div class="flex gap-2">
@@ -53,7 +72,7 @@ const {
               :disabled="isCreatingHomepageDailyReport"
               @click="generateHomepageDailyReport"
             >
-              {{ isCreatingHomepageDailyReport ? '생성 중...' : '홈페이지에 작업일보생성' }}
+              {{ isCreatingHomepageDailyReport ? '생성 중...' : '홈페이지에 작업일보생성/수정' }}
             </Button>
             <Button
               variant="outline"
@@ -75,7 +94,7 @@ const {
           <div class="flex items-center justify-between">
             <div>
               <p class="text-lg font-semibold">
-                {{ today.getMonth() + 1 }}월 {{ today.getDate() }}일 ({{ todayDayName }})
+                {{ today.getMonth() + 1 }}월 {{ today.getDate() }}일 ({{ todayDayName }}요일)
               </p>
               <p class="text-sm text-muted-foreground">{{ todayString }}</p>
             </div>
@@ -149,7 +168,7 @@ const {
           <!-- 내일 작업 -->
           <div class="border border-border rounded-lg p-3">
             <div class="flex items-center gap-2 mb-2">
-              <h4 class="text-sm font-semibold text-foreground w-52 shrink-0">
+              <h4 class="text-sm font-semibold text-foreground shrink-0">
                 {{ tomorrowWorkMode === 1 ? '다음 작업일' : '내일'
                 }}{{ activeTomorrowDateLabel ? ` - ${activeTomorrowDateLabel}` : '' }}
               </h4>
@@ -408,6 +427,32 @@ const {
       </div>
     </div>
 
+    <!-- 사진 프리뷰 다이얼로그 -->
+    <Dialog v-model:open="photoPreviewDialogOpen">
+      <DialogContent class="sm:max-w-[480px]">
+        <DialogHeader>
+          <DialogTitle>사진 업로드</DialogTitle>
+        </DialogHeader>
+        <div class="space-y-4 py-2">
+          <ImageRotatePreview v-model="pendingPhotos" />
+          <div v-for="(file, index) in pendingPhotos" :key="`desc-${index}`" class="space-y-1">
+            <label class="text-xs text-muted-foreground">{{ file.name }}</label>
+            <Input
+              :model-value="pendingPhotoDescriptions[index]"
+              placeholder="사진 설명 (선택)"
+              @update:model-value="pendingPhotoDescriptions[index] = String($event)"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" @click="cancelPhotoUpload">취소</Button>
+          <Button :disabled="isUploadingPhotos" @click="confirmPhotoUpload">
+            {{ isUploadingPhotos ? '업로드 중...' : '업로드' }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
     <input
       ref="fileInputRef"
       type="file"
@@ -479,6 +524,27 @@ const {
 .dashboard-bottom-item {
   flex: 1 1 0;
   min-width: 0;
+}
+
+/* 작업일보 영역 텍스트 1.5배 확대 */
+.daily-report-area :is(.text-xs) {
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+}
+
+.daily-report-area :is(.text-sm) {
+  font-size: 1.3125rem;
+  line-height: 1.875rem;
+}
+
+.daily-report-area :is(.text-base) {
+  font-size: 1.5rem;
+  line-height: 2.25rem;
+}
+
+.daily-report-area :is(.text-lg) {
+  font-size: 1.6875rem;
+  line-height: 2.25rem;
 }
 
 @media (max-aspect-ratio: 1/1) {

@@ -8,8 +8,8 @@ const apiBaseUrls: Record<Env, string> = {
 }
 
 const batApiBaseUrls: Record<Env, string> = {
-  development: 'http://localhost:3000',
-  production: 'https://api2.conhelp.kr',
+  development: 'https://bat.conhelp.kr',
+  production: 'https://bat.conhelp.kr',
 }
 
 export const appConfig = {

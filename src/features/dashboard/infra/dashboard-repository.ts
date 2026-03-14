@@ -13,7 +13,7 @@ export const dashboardRepository: DashboardRepository = {
   getEquipmentDeploymentListByDate: (date) => equipmentApi.getEquipmentDeploymentListByDate(date),
   getWorkListByDate: (date) => workApi.getWorkListByDate(date),
   downloadWorkPhoto: (url) => workApi.downloadWorkPhoto(url),
-  createWorkPhoto: async (workId, date, files) => {
-    await workApi.createWorkPhoto(workId, date, files)
+  createWorkPhoto: async (workId, date, files, descriptions) => {
+    await workApi.createWorkPhoto(workId, date, files, descriptions)
   },
 }

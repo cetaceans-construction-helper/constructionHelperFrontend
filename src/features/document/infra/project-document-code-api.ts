@@ -104,6 +104,10 @@ export const materialInspectionRequestApi = {
     await apiClient.delete(`/materialInspectionRequest/deleteMaterialInspectionRequest/${mirId}`)
   },
 
+  async updateMirDocumentNumber(mirId: number, documentNumber: string): Promise<void> {
+    await apiClient.put(`/materialInspectionRequest/updateMirDocumentNumber/${mirId}`, { documentNumber })
+  },
+
   async downloadMaterialInspectionRequestFile(url: string): Promise<string> {
     const { data } = await apiClient.get<Blob>('/materialDelivery/downloadFile', {
       params: { url },

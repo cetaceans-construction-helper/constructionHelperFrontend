@@ -39,14 +39,14 @@ export const loadDashboardData = async (
   const nextDateStr = twoDaysWork.dates[1]?.date
   if (nextDateStr) {
     const d = new Date(nextDateStr)
-    nextWorkDateLabel = `${d.getMonth() + 1}월 ${d.getDate()}일 (${dayNames[d.getDay()]})`
+    nextWorkDateLabel = `${d.getMonth() + 1}월 ${d.getDate()}일 (${dayNames[d.getDay()]}요일)`
   }
 
   let simpleTomorrowDateLabel = ''
   const simpleDateStr = simpleTwoDaysWork.dates[1]?.date
   if (simpleDateStr) {
     const d = new Date(simpleDateStr)
-    simpleTomorrowDateLabel = `${d.getMonth() + 1}월 ${d.getDate()}일 (${dayNames[d.getDay()]})`
+    simpleTomorrowDateLabel = `${d.getMonth() + 1}월 ${d.getDate()}일 (${dayNames[d.getDay()]}요일)`
   }
 
   return {

@@ -9,7 +9,7 @@ import MaterialMasterArea from '@/features/project-admin/master-data/ui/componen
 
 <template>
   <PageContainer title="자원정보 관리">
-    <AreaCard title="직종관리" height="flex-1" min-height="600px">
+    <AreaCard title="자원정보관리" height="flex-1" min-height="600px">
       <div class="p-4 space-y-6">
         <LaborTypeArea />
         <Separator />

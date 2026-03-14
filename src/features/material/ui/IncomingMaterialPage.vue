@@ -41,6 +41,7 @@ import {
   AlertDialogTitle,
 } from '@/shared/ui/alert-dialog'
 import { X } from 'lucide-vue-next'
+import ImageRotatePreview from '@/shared/helper-ui/ImageRotatePreview.vue'
 import ReferenceEditTrigger from '@/shared/helper-ui/ReferenceEditTrigger.vue'
 import { materialOrderApi } from '@/features/material/infra/material-order-api'
 import { validateDirectMaterialDeliveryInput } from '@/features/material/model/material-order-rules'
@@ -708,6 +709,9 @@ onUnmounted(() => {
               <span class="text-xs text-muted-foreground">{{ expandedDeliveries[delivery.materialDeliveryId] ? '▲' : '▼' }}</span>
               <span class="text-sm font-medium">{{ delivery.materialOrderNumber }}</span>
               <span v-if="delivery.location" class="text-sm text-muted-foreground">{{ delivery.location }}</span>
+              <span v-if="mirDeliveryIds.has(delivery.materialDeliveryId)" class="text-xs text-muted-foreground">
+                문서번호 : {{ getMirForDelivery(delivery.materialDeliveryId)?.documentNumber }}
+              </span>
               <div class="flex items-center gap-1 ml-auto" @click.stop>
                 <Button
                   v-if="!mirDeliveryIds.has(delivery.materialDeliveryId)"
@@ -1042,7 +1046,7 @@ onUnmounted(() => {
           <div class="space-y-2">
             <div class="flex items-center gap-2">
               <Label>송장파일</Label>
-              <span class="text-xs text-muted-foreground">없으면 미입력</span>
+              <span class="text-xs text-muted-foreground">미입력 가능, 다시 눌러서 사진 재선택</span>
             </div>
             <input
               type="file"
@@ -1051,13 +1055,14 @@ onUnmounted(() => {
               class="block w-full text-sm text-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded file:border file:border-input file:bg-muted file:text-sm file:font-medium hover:file:bg-muted/80 cursor-pointer"
               @change="onDirectDeliveryNotesChange"
             />
+            <ImageRotatePreview v-model="directDeliveryNotes" />
           </div>
 
           <!-- 반입사진 -->
           <div class="space-y-2">
             <div class="flex items-center gap-2">
               <Label>반입사진</Label>
-              <span class="text-xs text-muted-foreground">없으면 미입력</span>
+              <span class="text-xs text-muted-foreground">미입력 가능, 다시 눌러서 사진 재선택</span>
             </div>
             <input
               type="file"
@@ -1066,6 +1071,7 @@ onUnmounted(() => {
               class="block w-full text-sm text-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded file:border file:border-input file:bg-muted file:text-sm file:font-medium hover:file:bg-muted/80 cursor-pointer"
               @change="onDirectDeliveryPhotosChange"
             />
+            <ImageRotatePreview v-model="directDeliveryPhotos" />
           </div>
 
           <!-- 위치정보 -->

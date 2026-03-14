@@ -8,6 +8,7 @@ export interface MaterialInspectionRequestRepository {
   createMaterialInspectionRequest(deliveryId: number, body?: { excludedIndices: number[] }): Promise<void>
   getMaterialInspectionRequestList(): Promise<MaterialInspectionRequestResponse[]>
   deleteMaterialInspectionRequest(mirId: number): Promise<void>
+  updateMirDocumentNumber(mirId: number, documentNumber: string): Promise<void>
   downloadMaterialInspectionRequestFile(url: string): Promise<string>
 }
 
@@ -37,6 +38,14 @@ export const deleteMaterialInspectionRequest = async (
   mirId: number,
 ): Promise<void> => {
   await repository.deleteMaterialInspectionRequest(mirId)
+}
+
+export const updateMirDocumentNumber = async (
+  repository: MaterialInspectionRequestRepository,
+  mirId: number,
+  documentNumber: string,
+): Promise<void> => {
+  await repository.updateMirDocumentNumber(mirId, documentNumber)
 }
 
 export const downloadMaterialInspectionRequest = async (

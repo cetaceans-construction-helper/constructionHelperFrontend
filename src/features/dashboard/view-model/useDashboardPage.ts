@@ -48,6 +48,12 @@ export const useDashboardPage = () => {
   const selectedWorkForPhoto = ref<WorkResponse | null>(null)
   const photoDialogRef = ref<WorkPhotoDialogExpose | null>(null)
 
+  // 사진 프리뷰 다이얼로그 상태
+  const pendingPhotos = ref<File[]>([])
+  const pendingPhotoDescriptions = ref<string[]>([])
+  const photoPreviewDialogOpen = ref(false)
+  const isUploadingPhotos = ref(false)
+
   const revokeAllObjectUrls = () => {
     for (const url of photoObjectUrls.value.values()) {
       URL.revokeObjectURL(url)
@@ -80,13 +86,31 @@ export const useDashboardPage = () => {
     fileInputRef.value?.click()
   }
 
-  const onPhotoFileChange = async (event: Event) => {
+  const onPhotoFileChange = (event: Event) => {
     const input = event.target as HTMLInputElement
     const files = input.files ? Array.from(input.files) : []
+    input.value = ''
     if (files.length === 0 || !selectedWorkForPhoto.value) return
 
+    pendingPhotos.value = files
+    pendingPhotoDescriptions.value = files.map(() => '')
+    photoPreviewDialogOpen.value = true
+  }
+
+  const confirmPhotoUpload = async () => {
+    if (!selectedWorkForPhoto.value || pendingPhotos.value.length === 0) return
+    isUploadingPhotos.value = true
     try {
-      await dashboardRepository.createWorkPhoto(selectedWorkForPhoto.value.workId, todayString, files)
+      const descriptions = pendingPhotoDescriptions.value.some((d) => d.trim())
+        ? pendingPhotoDescriptions.value
+        : undefined
+      await dashboardRepository.createWorkPhoto(
+        selectedWorkForPhoto.value.workId,
+        todayString,
+        pendingPhotos.value,
+        descriptions,
+      )
+      photoPreviewDialogOpen.value = false
       todayWorks.value = await dashboardRepository.getWorkListByDate(todayString)
       await loadAllPhotos()
     } catch (error: unknown) {
@@ -94,9 +118,18 @@ export const useDashboardPage = () => {
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
-      input.value = ''
+      isUploadingPhotos.value = false
+      pendingPhotos.value = []
+      pendingPhotoDescriptions.value = []
       selectedWorkForPhoto.value = null
     }
+  }
+
+  const cancelPhotoUpload = () => {
+    photoPreviewDialogOpen.value = false
+    pendingPhotos.value = []
+    pendingPhotoDescriptions.value = []
+    selectedWorkForPhoto.value = null
   }
 
   const allTodayPhotos = computed<PhotoWithWork[]>(() => {
@@ -251,7 +284,7 @@ export const useDashboardPage = () => {
         equipmentByGroup: equipmentByGroup.value,
         attendanceByGroup: attendanceByGroup.value,
       })
-      alert('홈페이지에 작업일보가 생성되었습니다.')
+      alert('홈페이지에 작업일보가 생성/수정되었습니다.')
     } catch (error: unknown) {
       console.error('홈페이지 작업일보 생성 실패:', error)
       const err = error as { response?: { data?: { message?: string } }; message?: string }
@@ -342,11 +375,14 @@ export const useDashboardPage = () => {
   return {
     allTodayPhotos,
     attendanceByGroup,
+    cancelPhotoUpload,
     confirmExcludeAndCreate,
+    confirmPhotoUpload,
     deliveryByWorkType,
     equipmentByGroup,
     generateHomepageDailyReport,
     isCreatingHomepageDailyReport,
+    isUploadingPhotos,
     fileInputRef,
     generateDailyReport,
     isCreatingDailyReport,
@@ -354,8 +390,11 @@ export const useDashboardPage = () => {
     onPhotoFileChange,
     onPhotoUpdated,
     openPhotoDialog,
+    pendingPhotos,
+    pendingPhotoDescriptions,
     photoDialogRef,
     photoObjectUrls,
+    photoPreviewDialogOpen,
     showExcludeDialog,
     today,
     todayWeather,

@@ -9,6 +9,8 @@ export const materialInspectionRequestRepository: MaterialInspectionRequestRepos
   getMaterialInspectionRequestList: () => materialInspectionRequestApi.getMaterialInspectionRequestList(),
   deleteMaterialInspectionRequest: (mirId) =>
     materialInspectionRequestApi.deleteMaterialInspectionRequest(mirId),
+  updateMirDocumentNumber: (mirId, documentNumber) =>
+    materialInspectionRequestApi.updateMirDocumentNumber(mirId, documentNumber),
   downloadMaterialInspectionRequestFile: (url) =>
     materialInspectionRequestApi.downloadMaterialInspectionRequestFile(url),
 }
