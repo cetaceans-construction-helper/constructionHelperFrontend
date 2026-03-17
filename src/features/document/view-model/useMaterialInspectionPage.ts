@@ -91,9 +91,11 @@ export const useMaterialInspectionPage = () => {
     if (newDocNumber == null || newDocNumber.trim() === '' || newDocNumber === mir.documentNumber) return
     try {
       await updateMirDocumentNumber(materialInspectionRequestRepository, mir.id, newDocNumber.trim())
+      analyticsClient.trackAction('material_delivery', 'update_mir_document_number', 'success')
       await loadList()
     } catch (error: unknown) {
       console.error('문서번호 수정 실패:', error)
+      analyticsClient.trackAction('material_delivery', 'update_mir_document_number', 'fail')
       alert(getErrorMessage(error))
     }
   }

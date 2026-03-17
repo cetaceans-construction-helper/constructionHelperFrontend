@@ -173,6 +173,7 @@
 - `create_mir`
 - `delete_mir`
 - `download_mir`
+- `update_mir_document_number`
 
 #### `material_order`
 
@@ -257,13 +258,7 @@
 - `app_open`
 - `system_admin` 계열 액션
 
-### 6.2 부분 구현
-
-- `src/features/document/view-model/useMaterialInspectionPage.ts`
-  - `delete_mir`, `download_mir`는 수집됨
-  - 문서번호 수정은 미수집
-
-### 6.3 page_view만 있고 액션 추적이 없는 대표 화면
+### 6.2 page_view만 있고 액션 추적이 없는 대표 화면
 
 - `/helper/dashboard`
 - `/helper/attendance/register`
@@ -323,4 +318,3 @@
 3. 현재 `page_view`만 있는 주요 화면의 저장/수정/삭제 액션 보강
 4. `section/usage` 기능 재활성화 시 관련 액션 복구
 5. `api_error` 샘플링 기본값을 운영 정책에 맞게 재결정
-

@@ -167,6 +167,7 @@
 - `create_mir`
 - `delete_mir`
 - `download_mir`
+- `update_mir_document_number`
 
 #### `material_order`
 
@@ -278,18 +279,12 @@
 해석:
 - 이 화면들은 `page_view`는 수집되지만, 사용자가 실제로 저장/생성/수정/삭제를 했는지까지는 현재 GA로 구분하기 어렵다.
 
-### 5.4 부분 적용된 화면 안의 미수집 액션
-
-- `src/features/document/view-model/useMaterialInspectionPage.ts`
-  - `delete_mir`, `download_mir`는 추적됨
-  - 문서번호 수정은 추적되지 않음
-
 ## 6. 최신 정합성 메모
 
 - 전략 문서는 이제 `docs/ga/GA4_ACTION_TRACKING_STRATEGY.md`를 기준으로 본다.
 - 현재 전략 문서와 실제 코드의 이벤트 카탈로그는 대체로 맞춰져 있다.
 - 남은 차이는 대부분 "미구현 후보" 또는 "비활성화 기능"에 해당한다.
-- 가장 최근 반영된 변경은 `schedule_2d / change_layout_by_scroll` 추가와 해당 로직의 `analyticsClient` 공통화다.
+- 가장 최근 반영된 변경은 `schedule_2d / change_layout_by_scroll`, `material_delivery / update_mir_document_number` 추가다.
 
 ## 7. 현재 상태 결론
 
@@ -302,4 +297,3 @@
   - 현재 page_view만 있는 관리자/문서/자재 화면의 저장/수정/삭제 액션 추가
   - `section/usage` 기능 재활성화 시 해당 GA도 함께 복구
   - `api_error` 샘플링 기본값을 운영 정책에 맞게 재결정
-
