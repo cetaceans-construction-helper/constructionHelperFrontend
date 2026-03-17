@@ -1832,10 +1832,12 @@ const handleVueFlowWheel = (e: WheelEvent) => {
   // 부동소수점 오차 허용 (0.04 단위 계산 시 정확히 0.4에 안 떨어질 수 있음)
   const EPS = 0.005
   if (zoomingOut && !isWeeklyMode.value && oldZoom <= WEEKLY_THRESHOLD + EPS) {
+    analyticsClient.trackLayoutChangeByScroll('daily', 'weekly')
     isWeeklyMode.value = true
     return
   }
   if (!zoomingOut && isWeeklyMode.value && oldZoom >= WEEKLY_THRESHOLD - EPS) {
+    analyticsClient.trackLayoutChangeByScroll('weekly', 'daily')
     isWeeklyMode.value = false
     return
   }
