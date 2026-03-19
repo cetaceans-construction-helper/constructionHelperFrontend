@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted, onUnmounted, markRaw } from 'vue'
 import { VueFlow, useVueFlow, type Node, type Edge } from '@vue-flow/core'
-import { Controls } from '@vue-flow/controls'
+
 import { Button } from '@/shared/ui/button'
 import {
   AlertDialog,
@@ -52,6 +52,8 @@ import ReferenceEditDialog from '@/shared/helper-ui/ReferenceEditDialog.vue'
 import { Settings } from 'lucide-vue-next'
 import { appConfig } from '@/app/bootstrap/config'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
+import { scheduleApi } from '@/shared/network-core/apis/schedule'
+import ExcludeSubWorkTypeDialog from './ExcludeSubWorkTypeDialog.vue'
 
 // Composables
 import {
@@ -71,7 +73,7 @@ const emit = defineEmits<{
 // VueFlow
 const nodes = ref<Node[]>([])
 const edges = ref<Edge[]>([])
-const { zoomIn, zoomOut, viewport, setViewport } = useVueFlow()
+const { viewport, setViewport } = useVueFlow()
 
 // 패스 관련 상태
 const paths = ref<PathResponse[]>([])
@@ -197,78 +199,6 @@ const activeNodes = computed({
     if (!isWeeklyMode.value) nodes.value = val
   },
 })
-
-// 그루핑 박스 표시 상태
-const showWorkTypeGroup = ref(false)
-const showSubWorkTypeGroup = ref(false)
-
-// 그루핑 박스 선택
-const selectedGroupIndex = ref<number | null>(null)
-
-const selectGroup = (index: number, event: MouseEvent) => {
-  event.stopPropagation()
-  selectedGroupIndex.value = index
-}
-
-// 화면 좌표 → flow 좌표 변환 후 그룹박스 히트 테스트 (공통 헬퍼)
-const hitTestGroupBox = (event: MouseEvent): number => {
-  if (isPathEditMode.value) return -1
-  if (!showWorkTypeGroup.value && !showSubWorkTypeGroup.value) return -1
-  const container = containerRef.value
-  if (!container) return -1
-  const rect = container.getBoundingClientRect()
-  const flowX =
-    (event.clientX - rect.left - LEFT_HEADER_WIDTH - viewport.value.x) / viewport.value.zoom
-  const flowY = (event.clientY - rect.top - activeHeaderHeight.value - viewport.value.y) / viewport.value.zoom
-  return groupBoxes.value.findIndex((box) => {
-    const visible =
-      (box.level === 'workType' && showWorkTypeGroup.value) ||
-      (box.level === 'subWorkType' && showSubWorkTypeGroup.value)
-    return (
-      visible &&
-      flowX >= box.x &&
-      flowX <= box.x + box.width &&
-      flowY >= box.y &&
-      flowY <= box.y + box.height
-    )
-  })
-}
-
-const getGroupLabelOffset = (box: {
-  x: number
-  y: number
-  width: number
-  height: number
-}): { top: string; left: string } => {
-  const zoom = viewport.value.zoom
-  const overlayLeft = box.x * zoom + viewport.value.x
-  const overlayTop = box.y * zoom + viewport.value.y
-  const overlayWidth = box.width * zoom
-  const overlayHeight = box.height * zoom
-
-  let labelLeft = 4
-  if (overlayLeft < 0) {
-    labelLeft = Math.max(4, -overlayLeft + 4)
-  }
-
-  let labelTop = 2
-  if (overlayTop < 0) {
-    labelTop = Math.max(2, -overlayTop + 2)
-  }
-
-  // 라벨이 박스 밖으로 넘어가지 않도록 clamp
-  labelLeft = Math.min(labelLeft, Math.max(0, overlayWidth - 80))
-  labelTop = Math.min(labelTop, Math.max(0, overlayHeight - 16))
-
-  return { top: `${labelTop}px`, left: `${labelLeft}px` }
-}
-
-// 그룹 드래그 비활성화 (Y축이 rowLayout 기반이므로)
-const startGroupDrag = (_index: number, event: MouseEvent) => {
-  event.preventDefault()
-  event.stopPropagation()
-  selectedGroupIndex.value = _index
-}
 
 // 삭제 팝업 상태
 const showDeleteDialog = ref(false)
@@ -425,17 +355,6 @@ function getEdgeHandles(
     : { sourceHandle: 'source-bottom', targetHandle: 'target-top' }
 }
 
-// 그루핑 박스
-interface GroupBox {
-  level: 'workType' | 'subWorkType'
-  label: string
-  x: number
-  y: number
-  width: number
-  height: number
-  fillColor: string
-  borderColor: string
-}
 
 const GROUP_PALETTE = [
   {
@@ -488,83 +407,6 @@ const GROUP_PALETTE = [
   },
 ]
 
-function calcBBox(nodeList: Node[]) {
-  let minX = Infinity,
-    minY = Infinity,
-    maxX = -Infinity,
-    maxY = -Infinity
-  nodeList.forEach((n) => {
-    const w = (n.data.computedWidth as number) || 0
-    const h = (n.data.computedHeight as number) || 0
-    minX = Math.min(minX, n.position.x)
-    minY = Math.min(minY, n.position.y)
-    maxX = Math.max(maxX, n.position.x + w)
-    maxY = Math.max(maxY, n.position.y + h)
-  })
-  return { minX, minY, maxX, maxY }
-}
-
-const groupBoxes = computed<GroupBox[]>(() => {
-  const workNodes = nodes.value.filter((n) => n.id.startsWith('work-'))
-  if (workNodes.length === 0) return []
-
-  const boxes: GroupBox[] = []
-
-  // workType별 그룹핑
-  const byWorkType = new Map<string, Node[]>()
-  workNodes.forEach((n) => {
-    const work = n.data.work as WorkResponse
-    const key = work.workType || '미분류'
-    if (!byWorkType.has(key)) byWorkType.set(key, [])
-    byWorkType.get(key)!.push(n)
-  })
-
-  byWorkType.forEach((typeNodes, workType) => {
-    const typeIdx = workTypePaletteMap.value.get(workType) ?? 0
-    const palette = GROUP_PALETTE[typeIdx % GROUP_PALETTE.length]!
-
-    // subWorkType별 분류
-    const bySubType = new Map<string, Node[]>()
-    typeNodes.forEach((n) => {
-      const work = n.data.work as WorkResponse
-      const key = work.subWorkType || '미분류'
-      if (!bySubType.has(key)) bySubType.set(key, [])
-      bySubType.get(key)!.push(n)
-    })
-
-    // workType 박스 (항상 생성)
-    const wtPadding = 15
-    const { minX, minY, maxX, maxY } = calcBBox(typeNodes)
-    boxes.push({
-      level: 'workType',
-      label: workType,
-      x: minX - wtPadding,
-      y: minY - wtPadding,
-      width: maxX - minX + wtPadding * 2,
-      height: maxY - minY + wtPadding * 2,
-      fillColor: palette.bg,
-      borderColor: palette.border,
-    })
-
-    // subWorkType 박스들
-    const subPadding = 8
-    bySubType.forEach((subNodes, subType) => {
-      const sb = calcBBox(subNodes)
-      boxes.push({
-        level: 'subWorkType',
-        label: subType,
-        x: sb.minX - subPadding,
-        y: sb.minY - subPadding,
-        width: sb.maxX - sb.minX + subPadding * 2,
-        height: sb.maxY - sb.minY + subPadding * 2,
-        fillColor: palette.subBg,
-        borderColor: palette.subBorder,
-      })
-    })
-  })
-
-  return boxes
-})
 
 // 프로젝트 및 캘린더 데이터
 const projectStore = useProjectStore()
@@ -947,15 +789,6 @@ function handleDeleteFromPath(workId: number) {
   savePathEdges()
 }
 
-function handleWorkTypeGroupToggle(checked: boolean | 'indeterminate') {
-  showWorkTypeGroup.value = !!checked
-  if (checked) showSubWorkTypeGroup.value = false
-}
-
-function handleSubWorkTypeGroupToggle(checked: boolean | 'indeterminate') {
-  showSubWorkTypeGroup.value = !!checked
-  if (checked) showWorkTypeGroup.value = false
-}
 
 function handleSavePathAndClose() {
   savePathChanges()
@@ -1436,8 +1269,8 @@ const handleWorkEditSubmit = async () => {
   )
 }
 
-// 빈 영역 클릭 시 — 그룹박스 내부면 그룹 선택, 아니면 선택 해제
-const onPaneClick = (event: MouseEvent) => {
+// 빈 영역 클릭 시 — 선택 해제
+const onPaneClick = () => {
   contextMenu.value = null
   highlightedRowIndex.value = null
   if (connectingFrom.value) {
@@ -1452,37 +1285,19 @@ const onPaneClick = (event: MouseEvent) => {
     clearWorkSelection()
   }
 
-  // 그룹박스 표시 중이면 클릭 위치가 그룹박스 내부인지 체크
-  const hitIndex = hitTestGroupBox(event)
-  if (hitIndex >= 0) {
-    selectedGroupIndex.value = hitIndex
-    return
-  }
-  selectedGroupIndex.value = null
 }
 
-// 컨테이너 mousedown capture → 그룹박스 내부(노드 아닌 영역)에서 드래그 시작
+// 컨테이너 mousedown capture
 const onContainerMouseDown = (event: MouseEvent) => {
   if (event.button !== 0) return
   const target = event.target as HTMLElement
-  // 노드·컨트롤·말풍선·토글 위 mousedown은 해당 요소가 처리
+  // 노드·컨트롤·말풍선 위 mousedown은 해당 요소가 처리
   if (
     target.closest('.vue-flow__node') ||
     target.closest('.vue-flow__panel') ||
-    target.closest('[data-tooltip-balloon]') ||
-    target.closest('[data-group-toggle]')
+    target.closest('[data-tooltip-balloon]')
   )
     return
-  // 헤더 영역 mousedown은 무시
-  const container = containerRef.value
-  if (!container) return
-  const rect = container.getBoundingClientRect()
-  if (event.clientY - rect.top < activeHeaderHeight.value) return
-
-  const hitIndex = hitTestGroupBox(event)
-  if (hitIndex >= 0) {
-    startGroupDrag(hitIndex, event)
-  }
 }
 
 // 컨테이너 우클릭 → 배경 컨텍스트 메뉴 (작업 생성) — 주단위화면에서 비활성
@@ -1890,6 +1705,40 @@ onUnmounted(() => {
   document.removeEventListener('mousemove', onConnectingMouseMove)
   cleanupResizeObserver()
 })
+
+// ── 3주/3개월 공정표 생성 ──
+const showExcludeDialog = ref(false)
+const excludeDialogTitle = ref('')
+const excludeDialogType = ref<'3week' | '3month'>('3week')
+
+function openExcludeDialog(type: '3week' | '3month') {
+  excludeDialogType.value = type
+  excludeDialogTitle.value = type === '3week' ? '3주 공정표' : '3개월 공정표'
+  showExcludeDialog.value = true
+}
+
+async function handleExcludeConfirm(excludedIds: number[]) {
+  const type = excludeDialogType.value
+  const actionName = type === '3week' ? 'create_3week_schedule' : 'create_3month_schedule'
+  try {
+    const url =
+      type === '3week'
+        ? await scheduleApi.create3WeekSchedule(excludedIds.length > 0 ? excludedIds : undefined)
+        : await scheduleApi.create3MonthSchedule(excludedIds.length > 0 ? excludedIds : undefined)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = type === '3week' ? '3주공정표.xlsx' : '3개월공정표.xlsx'
+    a.click()
+    URL.revokeObjectURL(url)
+    analyticsClient.trackAction('schedule_2d', actionName, 'success')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } catch (e: any) {
+    console.error('공정표 생성 실패:', e)
+    const errorMessage = e.response?.data?.message || e.message
+    alert(errorMessage)
+    analyticsClient.trackAction('schedule_2d', actionName, 'fail')
+  }
+}
 </script>
 
 <template>
@@ -2201,42 +2050,6 @@ onUnmounted(() => {
                 :stroke-opacity="isWeeklyMode ? 0.8 : 0.4"
                 :stroke-width="isWeeklyMode ? 1 : 1"
               />
-              <!-- 그루핑 박스 (SVG 비인터랙티브 배경만) -->
-              <g v-if="!isPathEditMode">
-                <template v-if="showWorkTypeGroup">
-                  <template v-for="(box, i) in groupBoxes" :key="`group-wt-svg-${i}`">
-                    <rect
-                      v-if="box.level === 'workType'"
-                      :x="box.x"
-                      :y="box.y"
-                      :width="box.width"
-                      :height="box.height"
-                      :fill="box.fillColor"
-                      :stroke="box.borderColor"
-                      stroke-width="1"
-                      rx="6"
-                      ry="6"
-                    />
-                  </template>
-                </template>
-                <template v-if="showSubWorkTypeGroup">
-                  <template v-for="(box, i) in groupBoxes" :key="`group-swt-svg-${i}`">
-                    <rect
-                      v-if="box.level === 'subWorkType'"
-                      :x="box.x"
-                      :y="box.y"
-                      :width="box.width"
-                      :height="box.height"
-                      :fill="box.fillColor"
-                      :stroke="box.borderColor"
-                      stroke-width="1"
-                      rx="4"
-                      ry="4"
-                      stroke-dasharray="4 2"
-                    />
-                  </template>
-                </template>
-              </g>
               <!-- 휴일명/비활성일 사유 세로 텍스트 — 주단위화면에서 숨김 -->
               <template v-if="!isWeeklyMode">
               <template v-for="dateInfo in allProjectDates" :key="`reason-${dateInfo.dayIndex}`">
@@ -2275,77 +2088,6 @@ onUnmounted(() => {
               />
             </g>
           </svg>
-
-          <!-- 그루핑 박스 인터랙티브 오버레이 (viewport z:4 위에 배치, pointer-events 전략으로 노드 클릭 투과) -->
-          <template v-if="!isPathEditMode">
-            <template v-for="(box, i) in groupBoxes" :key="`group-overlay-${i}`">
-              <div
-                v-if="
-                  (box.level === 'workType' && showWorkTypeGroup) ||
-                  (box.level === 'subWorkType' && showSubWorkTypeGroup)
-                "
-                class="absolute z-[5]"
-                :style="{
-                  left: `${box.x * viewport.zoom + viewport.x}px`,
-                  top: `${box.y * viewport.zoom + viewport.y}px`,
-                  width: `${box.width * viewport.zoom}px`,
-                  height: `${box.height * viewport.zoom}px`,
-                  pointerEvents: 'none',
-                  borderRadius: box.level === 'workType' ? '6px' : '4px',
-                }"
-              >
-                <!-- 테두리 8px 영역 (상/하/좌/우) — 여기서만 드래그 캡처 -->
-                <div
-                  class="absolute top-0 left-0 right-0 h-[8px]"
-                  style="pointer-events: auto; cursor: grab"
-                  @mousedown.stop="startGroupDrag(i, $event)"
-                  @click.stop="selectGroup(i, $event)"
-                  @dblclick.stop
-                />
-                <div
-                  class="absolute bottom-0 left-0 right-0 h-[8px]"
-                  style="pointer-events: auto; cursor: grab"
-                  @mousedown.stop="startGroupDrag(i, $event)"
-                  @click.stop="selectGroup(i, $event)"
-                  @dblclick.stop
-                />
-                <div
-                  class="absolute top-0 bottom-0 left-0 w-[8px]"
-                  style="pointer-events: auto; cursor: grab"
-                  @mousedown.stop="startGroupDrag(i, $event)"
-                  @click.stop="selectGroup(i, $event)"
-                  @dblclick.stop
-                />
-                <div
-                  class="absolute top-0 bottom-0 right-0 w-[8px]"
-                  style="pointer-events: auto; cursor: grab"
-                  @mousedown.stop="startGroupDrag(i, $event)"
-                  @click.stop="selectGroup(i, $event)"
-                  @dblclick.stop
-                />
-                <!-- 라벨 -->
-                <span
-                  class="absolute text-[11px] font-semibold px-1 select-none"
-                  style="pointer-events: auto; cursor: grab"
-                  :style="{ color: box.borderColor, ...getGroupLabelOffset(box) }"
-                  @mousedown.stop="startGroupDrag(i, $event)"
-                  @click.stop="selectGroup(i, $event)"
-                  @dblclick.stop
-                  >{{ box.label }}</span
-                >
-                <!-- 선택 border (pointer-events: none) -->
-                <div
-                  v-if="selectedGroupIndex === i"
-                  class="absolute inset-0"
-                  :style="{
-                    pointerEvents: 'none',
-                    border: `2px solid ${box.borderColor}`,
-                    borderRadius: box.level === 'workType' ? '6px' : '4px',
-                  }"
-                />
-              </div>
-            </template>
-          </template>
 
           <!-- 말풍선 - VueFlow 내부에 배치, 뷰포트 반응형 바인딩 -->
           <div
@@ -2547,7 +2289,7 @@ onUnmounted(() => {
             </button>
           </template>
 
-          <Controls position="bottom-right" />
+
         </VueFlow>
       </div>
 
@@ -2690,31 +2432,24 @@ onUnmounted(() => {
         </div>
       </Teleport>
 
-      <!-- 그루핑 박스 토글 (우측 하단) -->
+      <!-- 공정표 생성 버튼 (우측 하단) -->
       <div
         v-if="!isPathEditMode"
-        data-group-toggle
-        class="absolute bottom-4 right-4 z-30 flex flex-col gap-1 bg-background/80 backdrop-blur-sm rounded-md border border-border px-2 py-1.5"
+        class="absolute bottom-4 right-4 z-30 flex flex-col gap-2"
       >
-        <label class="flex items-center gap-1.5 cursor-pointer">
-          <Checkbox
-            :model-value="showWorkTypeGroup"
-            class="h-3.5 w-3.5"
-            @update:model-value="handleWorkTypeGroupToggle"
-          />
-          <span class="text-[11px] text-muted-foreground">공종 그룹</span>
-        </label>
-        <label class="flex items-center gap-1.5 cursor-pointer">
-          <Checkbox
-            :model-value="showSubWorkTypeGroup"
-            class="h-3.5 w-3.5"
-            @update:model-value="handleSubWorkTypeGroupToggle"
-          />
-          <span class="text-[11px] text-muted-foreground">세부공종 그룹</span>
-        </label>
+        <Button variant="outline" class="text-base h-14 px-6" @click="openExcludeDialog('3week')">3주 공정표 생성</Button>
+        <Button variant="outline" class="text-base h-14 px-6" @click="openExcludeDialog('3month')">3개월 공정표 생성</Button>
       </div>
     </div>
   </div>
+
+  <!-- 세부공종 제외 다이얼로그 -->
+  <ExcludeSubWorkTypeDialog
+    :open="showExcludeDialog"
+    :title="excludeDialogTitle"
+    @update:open="showExcludeDialog = $event"
+    @confirm="handleExcludeConfirm"
+  />
 
   <!-- 패스 편집 다이얼로그 (중앙) -->
   <Dialog v-model:open="showPathDialog">

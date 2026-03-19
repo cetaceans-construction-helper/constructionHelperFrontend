@@ -291,6 +291,13 @@ const {
           <div class="mt-4 flex-1 min-h-0">
             <div class="border border-border rounded-lg p-3 h-full overflow-y-auto text-sm">
               <p>
+                26.03.20 목요일<br />
+                1. 2D공정표에서 3주 공정표 / 3개월 공정표 엑셀 생성 기능 추가.<br />
+                2. 공정표 생성 시 제외할 세부공종 선택 가능.<br />
+                3. 2D공정표 확대/축소 버튼 및 공종/세부공종 그룹 기능 제거.
+              </p>
+              <br />
+              <p>
                 26.03.15 토요일<br />
                 1. 사진 업로드 시 프리뷰 확인 및 회전/설명 입력 기능 추가.<br />
                 2. 홈페이지 작업일보 생성/수정 지원.<br />
