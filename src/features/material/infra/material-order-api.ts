@@ -42,6 +42,10 @@ export const materialOrderApi = {
     return data
   },
 
+  async deleteMaterialOrder(orderId: number): Promise<void> {
+    await apiClient.delete(`/materialOrder/deleteMaterialOrder/${orderId}`)
+  },
+
   async createMaterialDelivery(params: {
     orderId?: number
     materialTypeId: number
@@ -50,16 +54,18 @@ export const materialOrderApi = {
     deliveryPhotos: File[]
     zoneIds: number[]
     floorIds: number[]
-    sectionIds: number[]
-    usageIds: number[]
+    // TODO: section/usage 임시 비활성화
+    // sectionIds: number[]
+    // usageIds: number[]
   }): Promise<CreateDeliveryResponse> {
     const formData = new FormData()
     params.deliveryNotes.forEach((file) => formData.append('deliveryNotes', file))
     params.deliveryPhotos.forEach((file) => formData.append('deliveryPhotos', file))
     params.zoneIds.forEach((id) => formData.append('zoneIds', String(id)))
     params.floorIds.forEach((id) => formData.append('floorIds', String(id)))
-    params.sectionIds.forEach((id) => formData.append('sectionIds', String(id)))
-    params.usageIds.forEach((id) => formData.append('usageIds', String(id)))
+    // TODO: section/usage 임시 비활성화
+    // params.sectionIds.forEach((id) => formData.append('sectionIds', String(id)))
+    // params.usageIds.forEach((id) => formData.append('usageIds', String(id)))
 
     const queryParams: Record<string, string> = {
       materialTypeId: String(params.materialTypeId),
@@ -107,7 +113,6 @@ export const materialOrderApi = {
       deliveryDate: string
       location?: string | null
       deliveryLines: {
-        deliveryLineId: number | null
         manufacturer: string | null
         specId: number | null
         quantity: string

@@ -48,9 +48,10 @@ export function useEquipmentMaster() {
 
     isCreating.value = true
     try {
-      await referenceApi.createEquipmentType(name)
+      const result = await referenceApi.createEquipmentType(name)
       newEquipmentTypeName.value = ''
       await loadEquipmentTypes()
+      selectEquipmentType(result.id)
       analyticsClient.trackAction('admin_resource_data', 'create_equipment_type', 'success')
     } catch (error: unknown) {
       console.error('EquipmentType 추가 실패:', error)

@@ -16,6 +16,17 @@ export interface CalendarCell {
   isInProjectRange: boolean
 }
 
+export type InactiveFlowMode = 'idle' | 'set' | 'release'
+export type InactiveFlowStep = 'select_start' | 'select_end' | 'confirm'
+
+export interface InactiveFlowState {
+  mode: InactiveFlowMode
+  step: InactiveFlowStep
+  startDate: string | null
+  endDate: string | null
+  reason: string
+}
+
 function formatDate(year: number, month: number, day: number): string {
   const m = String(month + 1).padStart(2, '0')
   const d = String(day).padStart(2, '0')
@@ -45,8 +56,13 @@ export function useHolidayManagement() {
   const isLoading = ref(false)
   const isUpdating = ref(false)
 
-  const showSetDialog = ref(false)
-  const showReleaseDialog = ref(false)
+  const inactiveFlow = ref<InactiveFlowState>({
+    mode: 'idle',
+    step: 'select_start',
+    startDate: null,
+    endDate: null,
+    reason: '',
+  })
 
   const projectStartDate = computed(() => calendarStore.calendarData?.projectStartDate ?? '')
   const projectEndDate = computed(() => calendarStore.calendarData?.projectEndDate ?? '')
@@ -68,8 +84,8 @@ export function useHolidayManagement() {
     const lastDay = new Date(year, month + 1, 0)
     const daysInMonth = lastDay.getDate()
 
-    // 월요일 시작: Mon=0, Tue=1, ..., Sun=6
-    const startDayOfWeek = (firstDay.getDay() + 6) % 7
+    // 일요일 시작: Sun=0, Mon=1, ..., Sat=6
+    const startDayOfWeek = firstDay.getDay()
 
     const cells: CalendarCell[] = []
 
@@ -180,22 +196,80 @@ export function useHolidayManagement() {
     }
   }
 
-  async function submitInactiveSet(form: {
-    startDate: string
-    endDate: string
-    reason: string
-  }) {
+  // 비활성일 플로우 시작
+  function startInactiveFlow(mode: 'set' | 'release') {
+    inactiveFlow.value = {
+      mode,
+      step: 'select_start',
+      startDate: null,
+      endDate: null,
+      reason: '',
+    }
+  }
+
+  // 비활성일 플로우에서 날짜 선택
+  function selectInactiveDate(dateStr: string) {
+    const flow = inactiveFlow.value
+    if (flow.mode === 'idle') return
+
+    if (flow.step === 'select_start') {
+      flow.startDate = dateStr
+      flow.endDate = null
+      flow.step = 'select_end'
+    } else if (flow.step === 'select_end') {
+      // 시작일보다 이전이면 swap
+      if (dateStr < flow.startDate!) {
+        flow.endDate = flow.startDate
+        flow.startDate = dateStr
+      } else {
+        flow.endDate = dateStr
+      }
+      flow.step = 'confirm'
+    }
+  }
+
+  // 날짜 재선택
+  function resetInactiveSelection() {
+    const flow = inactiveFlow.value
+    flow.step = 'select_start'
+    flow.startDate = null
+    flow.endDate = null
+  }
+
+  // 비활성일 플로우 취소
+  function cancelInactiveFlow() {
+    inactiveFlow.value = {
+      mode: 'idle',
+      step: 'select_start',
+      startDate: null,
+      endDate: null,
+      reason: '',
+    }
+  }
+
+  // 비활성일 설정 확정
+  async function confirmInactiveFlow() {
+    const flow = inactiveFlow.value
+    if (!flow.startDate || !flow.endDate) return
+
     isUpdating.value = true
     try {
-      await projectCalendarApi.updateWorkDate({
-        dates: generateDateRange(form.startDate, form.endDate),
-        isActivated: false,
-        deactivatedReason: form.reason,
-      })
+      if (flow.mode === 'set') {
+        await projectCalendarApi.updateWorkDate({
+          dates: generateDateRange(flow.startDate, flow.endDate),
+          isActivated: false,
+          deactivatedReason: flow.reason,
+        })
+      } else {
+        await projectCalendarApi.updateWorkDate({
+          dates: generateDateRange(flow.startDate, flow.endDate),
+          isActivated: true,
+        })
+      }
       await calendarStore.refreshCalendar()
-      showSetDialog.value = false
+      cancelInactiveFlow()
     } catch (error: unknown) {
-      console.error('비활성일 지정 실패:', error)
+      console.error('비활성일 처리 실패:', error)
       const e = error as { response?: { data?: { message?: string } }; message?: string }
       alert(e.response?.data?.message || e.message)
     } finally {
@@ -203,26 +277,17 @@ export function useHolidayManagement() {
     }
   }
 
-  async function submitInactiveRelease(form: {
-    startDate: string
-    endDate: string
-    reason: string
-  }) {
-    isUpdating.value = true
-    try {
-      await projectCalendarApi.updateWorkDate({
-        dates: generateDateRange(form.startDate, form.endDate),
-        isActivated: true,
-      })
-      await calendarStore.refreshCalendar()
-      showReleaseDialog.value = false
-    } catch (error: unknown) {
-      console.error('비활성일 해제 실패:', error)
-      const e = error as { response?: { data?: { message?: string } }; message?: string }
-      alert(e.response?.data?.message || e.message)
-    } finally {
-      isUpdating.value = false
+  // 날짜가 선택 범위에 포함되는지 확인
+  function isInSelectedRange(dateStr: string): boolean {
+    const flow = inactiveFlow.value
+    if (flow.mode === 'idle') return false
+    if (flow.startDate && !flow.endDate) {
+      return dateStr === flow.startDate
     }
+    if (flow.startDate && flow.endDate) {
+      return dateStr >= flow.startDate && dateStr <= flow.endDate
+    }
+    return false
   }
 
   // 프로젝트 변경 시 캘린더 다시 로드
@@ -235,8 +300,7 @@ export function useHolidayManagement() {
     currentMonth,
     isLoading,
     isUpdating,
-    showSetDialog,
-    showReleaseDialog,
+    inactiveFlow,
     projectStartDate,
     projectEndDate,
     calendarGrid,
@@ -244,7 +308,11 @@ export function useHolidayManagement() {
     goToPrevMonth,
     goToNextMonth,
     toggleHoliday,
-    submitInactiveSet,
-    submitInactiveRelease,
+    startInactiveFlow,
+    selectInactiveDate,
+    resetInactiveSelection,
+    cancelInactiveFlow,
+    confirmInactiveFlow,
+    isInSelectedRange,
   }
 }

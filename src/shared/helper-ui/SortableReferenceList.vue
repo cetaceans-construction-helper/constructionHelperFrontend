@@ -19,6 +19,8 @@ const props = withDefaults(
     emptyMessage?: string
     selectable?: boolean
     unitEditable?: boolean
+    unitKey?: string
+    unitLabel?: string
   }>(),
   {
     selectedId: null,
@@ -28,6 +30,8 @@ const props = withDefaults(
     emptyMessage: '항목 없음',
     selectable: true,
     unitEditable: false,
+    unitKey: 'unit',
+    unitLabel: '단위',
   },
 )
 
@@ -68,7 +72,7 @@ function startEditing(item: ListItem) {
   editingId.value = item.id
   editingName.value = String(item[props.displayKey] ?? '')
   if (props.unitEditable) {
-    editingUnit.value = String(item.unit ?? '')
+    editingUnit.value = String(item[props.unitKey] ?? '')
   }
   nextTick(() => {
     const inputEl = editInputRef.value?.$el?.querySelector('input') as HTMLInputElement | undefined
@@ -99,6 +103,7 @@ function cancelEdit() {
 }
 
 function onEditKeydown(e: KeyboardEvent) {
+  if (e.isComposing) return
   if (e.key === 'Enter') {
     confirmEdit()
   } else if (e.key === 'Escape') {
@@ -140,7 +145,8 @@ function onEditKeydown(e: KeyboardEvent) {
             <Input
               ref="editInputRef"
               v-model="editingName"
-              class="h-6 text-sm flex-1"
+              class="h-6 text-sm"
+              :class="unitEditable ? 'basis-3/5 min-w-0' : 'flex-1'"
               @keydown="onEditKeydown"
               @click.stop
             />
@@ -148,8 +154,8 @@ function onEditKeydown(e: KeyboardEvent) {
               v-if="unitEditable"
               ref="editUnitInputRef"
               v-model="editingUnit"
-              placeholder="단위"
-              class="h-6 text-sm w-16"
+              :placeholder="unitLabel"
+              class="h-6 text-sm basis-2/5 min-w-0"
               @keydown="onEditKeydown"
               @click.stop
             />

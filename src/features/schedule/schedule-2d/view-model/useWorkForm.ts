@@ -24,8 +24,9 @@ export function useWorkForm(onWorkCreated: (mutation: MutationResponse) => void)
     component_type_ids: [] as string[],
     zone_ids: [] as number[],
     floor_ids: [] as number[],
-    section_ids: [] as number[],
-    usage_ids: [] as number[],
+    // TODO: section/usage 임시 비활성화
+    // section_ids: [] as number[],
+    // usage_ids: [] as number[],
     start_date: today,
     work_days: 7,
     isWorkingOnHoliday: true,
@@ -44,13 +45,15 @@ export function useWorkForm(onWorkCreated: (mutation: MutationResponse) => void)
   const locationOptions = ref<{
     zone: IdNameResponse[]
     floor: IdNameResponse[]
-    section: IdNameResponse[]
-    usage: IdNameResponse[]
+    // TODO: section/usage 임시 비활성화
+    // section: IdNameResponse[]
+    // usage: IdNameResponse[]
   }>({
     zone: [],
     floor: [],
-    section: [],
-    usage: [],
+    // TODO: section/usage 임시 비활성화
+    // section: [],
+    // usage: [],
   })
 
   // 프로젝트 목록
@@ -69,8 +72,9 @@ export function useWorkForm(onWorkCreated: (mutation: MutationResponse) => void)
       component_type_ids,
       zone_ids,
       floor_ids,
-      section_ids,
-      usage_ids,
+      // TODO: section/usage 임시 비활성화
+      // section_ids,
+      // usage_ids,
       isWorkingOnHoliday,
       annotation,
     } = workFormState.value
@@ -91,8 +95,9 @@ export function useWorkForm(onWorkCreated: (mutation: MutationResponse) => void)
         isWorkingOnHoliday,
         zoneIds: zone_ids,
         floorIds: floor_ids,
-        sectionIds: section_ids,
-        usageIds: usage_ids,
+        // TODO: section/usage 임시 비활성화
+        // sectionIds: section_ids,
+        // usageIds: usage_ids,
         ...(annotation && { annotation }),
       }
 
@@ -115,12 +120,13 @@ export function useWorkForm(onWorkCreated: (mutation: MutationResponse) => void)
   // 초기 데이터 로드
   const loadInitialData = async () => {
     try {
-      const [divisionList, zones, floors, sections, usages, projectList, componentTypeList] = await Promise.all([
+      // TODO: section/usage 임시 비활성화
+      const [divisionList, zones, floors, /* sections, usages, */ projectList, componentTypeList] = await Promise.all([
         referenceApi.getDivisionList(),
         referenceApi.getZoneList(),
         referenceApi.getFloorList(),
-        referenceApi.getSectionList(),
-        referenceApi.getUsageList(),
+        // referenceApi.getSectionList(),
+        // referenceApi.getUsageList(),
         projectApi.getProjects(),
         referenceApi.getComponentTypeList(),
       ])
@@ -131,8 +137,9 @@ export function useWorkForm(onWorkCreated: (mutation: MutationResponse) => void)
       locationOptions.value = {
         zone: zones,
         floor: floors,
-        section: sections,
-        usage: usages,
+        // TODO: section/usage 임시 비활성화
+        // section: sections,
+        // usage: usages,
       }
     } catch (error) {
       console.error('초기 데이터 로드 실패:', error)

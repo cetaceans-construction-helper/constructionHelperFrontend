@@ -36,6 +36,7 @@ export interface MirCellReference {
       quantity?: number
       unit?: number
     }
+    overflow?: { startCell: string; maxRows: number }[]
   }
   lineConcat?: {
     cell: string
@@ -55,7 +56,9 @@ export interface ProjectDocumentCodeResponse {
   id: number
   mirDocumentNumberCode: string
   mirCellReference: string
-  templateUrl: string | null
+  mirTemplateUrl: string | null
+  dailyReportTemplateUrl: string | null
+  dailyReportCellReference: string
   createdAt: string
   updatedAt: string
 }
@@ -67,6 +70,20 @@ export interface MaterialInspectionRequestResponse {
   mirUrl: string | null
   deliveryDate: string
   createdAt: string
+}
+
+export interface ValidateMirItem {
+  index: number
+  specName: string
+  quantity: number
+  unit: string
+}
+
+export interface ValidateMirResponse {
+  totalMaxRows: number
+  dataRowCount: number
+  exceeded: boolean
+  items: ValidateMirItem[]
 }
 
 export interface SlotConfig {
@@ -86,4 +103,45 @@ export interface ImageCategory {
 export interface DocumentNumberOptionsResponse {
   dateFormats: string[]
   imageCategories: ImageCategory[]
+}
+
+// Daily Report types
+export interface DailyReportResponse {
+  id: number
+  date: string
+  dailyReportUrl: string | null
+  createdAt: string
+}
+
+export interface ValidateDailyReportSectionItem {
+  index: number
+  rowKey: string
+  values: (string | number | null)[]
+}
+
+export interface ValidateDailyReportSection {
+  sectionName: string
+  totalMaxRows: number
+  dataRowCount: number
+  exceeded: boolean
+  columns: Record<string, number>
+  items: ValidateDailyReportSectionItem[]
+}
+
+export interface ValidateDailyReportPhotoItem {
+  index: number
+  thumbnailUrl: string
+  description: string
+}
+
+export interface ValidateDailyReportPhotos {
+  totalCells: number
+  photoCount: number
+  exceeded: boolean
+  items: ValidateDailyReportPhotoItem[]
+}
+
+export interface ValidateDailyReportResponse {
+  sections: ValidateDailyReportSection[]
+  photos: ValidateDailyReportPhotos | null
 }

@@ -19,6 +19,7 @@ export interface CreateWorkPayload {
 export interface WorkPhotoResponse {
   photoId: number
   url: string
+  thumbnailUrl: string
   description: string
 }
 
@@ -70,6 +71,14 @@ export interface UpdateWorkPayload {
   annotation?: string
 }
 
+// 2일치 작업 목록 응답 타입
+export interface TwoDaysWorkListResponse {
+  dates: {
+    date: string
+    works: WorkResponse[]
+  }[]
+}
+
 export const workApi = {
   // 작업 생성
   async createWork(payload: CreateWorkPayload): Promise<MutationResponse> {
@@ -109,6 +118,24 @@ export const workApi = {
     return data
   },
 
+  // 오늘 + 다음 작업일 2일치 작업 목록 조회
+  async get2DaysWorkListByDate(date: string): Promise<TwoDaysWorkListResponse> {
+    const { data } = await apiClient.get<TwoDaysWorkListResponse>(
+      '/work/get2DaysWorkListByDate',
+      { params: { date } },
+    )
+    return data
+  },
+
+  // 오늘 + 내일(단순 date+1) 2일치 작업 목록 조회
+  async get2DaysWorkListByDateWithNoCheck(date: string): Promise<TwoDaysWorkListResponse> {
+    const { data } = await apiClient.get<TwoDaysWorkListResponse>(
+      '/work/get2DaysWorkListByDateWithNoCheck',
+      { params: { date } },
+    )
+    return data
+  },
+
   // 작업 사진 업로드
   async createWorkPhoto(
     workId: number,
@@ -137,6 +164,12 @@ export const workApi = {
   // 작업 사진 삭제
   async deleteWorkPhoto(photoId: number): Promise<void> {
     await apiClient.delete(`/work/deleteWorkPhoto/${photoId}`)
+  },
+
+  // 공정명 재생성 (임시)
+  async rebuildAllWorkNames(): Promise<string> {
+    const { data } = await apiClient.post<string>('/work/rebuildAllWorkNames')
+    return data
   },
 
   // 작업 사진 다운로드 (ObjectURL 반환)

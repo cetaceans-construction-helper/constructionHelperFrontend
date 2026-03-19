@@ -18,31 +18,37 @@ import { useLocationMaster } from '@/features/project-admin/master-data/view-mod
 const {
   zones,
   floors,
-  sections,
-  usages,
+  // TODO: section/usage 임시 비활성화
+  // sections,
+  // usages,
   newZone,
   newFloor,
-  newSection,
-  newUsage,
+  // TODO: section/usage 임시 비활성화
+  // newSection,
+  // newUsage,
   isCreating,
   isDeleting,
   loadAll,
   addZone,
   addFloor,
-  addSection,
-  addUsage,
+  // TODO: section/usage 임시 비활성화
+  // addSection,
+  // addUsage,
   deleteZone,
   deleteFloor,
-  deleteSection,
-  deleteUsage,
+  // TODO: section/usage 임시 비활성화
+  // deleteSection,
+  // deleteUsage,
   updateZoneName,
   updateFloorName,
-  updateSectionName,
-  updateUsageName,
+  // TODO: section/usage 임시 비활성화
+  // updateSectionName,
+  // updateUsageName,
   reorderZones,
   reorderFloors,
-  reorderSections,
-  reorderUsages,
+  // TODO: section/usage 임시 비활성화
+  // reorderSections,
+  // reorderUsages,
 } = useLocationMaster()
 
 onMounted(() => {
@@ -52,8 +58,9 @@ onMounted(() => {
 const columns = [
   { label: 'Zone', items: zones, input: newZone, creating: 'zone', deleting: 'zone', add: addZone, deleteFn: deleteZone, updateName: updateZoneName, reorder: reorderZones },
   { label: 'Floor', items: floors, input: newFloor, creating: 'floor', deleting: 'floor', add: addFloor, deleteFn: deleteFloor, updateName: updateFloorName, reorder: reorderFloors },
-  { label: 'Section', items: sections, input: newSection, creating: 'section', deleting: 'section', add: addSection, deleteFn: deleteSection, updateName: updateSectionName, reorder: reorderSections },
-  { label: 'Usage', items: usages, input: newUsage, creating: 'usage', deleting: 'usage', add: addUsage, deleteFn: deleteUsage, updateName: updateUsageName, reorder: reorderUsages },
+  // TODO: section/usage 임시 비활성화
+  // { label: 'Section', items: sections, input: newSection, creating: 'section', deleting: 'section', add: addSection, deleteFn: deleteSection, updateName: updateSectionName, reorder: reorderSections },
+  // { label: 'Usage', items: usages, input: newUsage, creating: 'usage', deleting: 'usage', add: addUsage, deleteFn: deleteUsage, updateName: updateUsageName, reorder: reorderUsages },
 ]
 
 // 삭제 다이얼로그 상태
@@ -80,7 +87,7 @@ async function confirmDelete() {
 <template>
   <div>
     <h3 class="text-sm font-semibold mb-3">위치분류</h3>
-    <div class="grid grid-cols-4 gap-4">
+    <div class="grid grid-cols-2 gap-4">
       <div v-for="col in columns" :key="col.label" class="space-y-2">
         <p class="text-xs text-muted-foreground font-medium">{{ col.label }}</p>
         <div class="flex gap-1">
@@ -88,7 +95,7 @@ async function confirmDelete() {
             v-model="col.input.value"
             placeholder="이름 입력"
             class="h-8 text-sm"
-            @keyup.enter="col.add"
+            @keydown.enter="(e: KeyboardEvent) => { if (!e.isComposing) col.add() }"
           />
           <Button
             size="sm"

@@ -11,6 +11,8 @@ type AuthEventName =
 type ActionResult = 'success' | 'fail'
 type StatusGroup = '4xx' | '5xx' | 'network'
 type ProjectSelectionState = 'manual' | 'auto_initial' | 'auto_recovery'
+type Schedule2dLayoutMode = 'daily' | 'weekly'
+type LayoutChangeTrigger = 'scroll'
 
 interface RouteTrackInput {
   routeName: unknown
@@ -110,6 +112,14 @@ class AnalyticsClient {
       feature,
       action,
       result,
+    })
+  }
+
+  trackLayoutChangeByScroll(fromLayout: Schedule2dLayoutMode, toLayout: Schedule2dLayoutMode) {
+    this.trackAction('schedule_2d', 'change_layout_by_scroll', 'success', {
+      from_layout: fromLayout,
+      to_layout: toLayout,
+      trigger: 'scroll' satisfies LayoutChangeTrigger,
     })
   }
 

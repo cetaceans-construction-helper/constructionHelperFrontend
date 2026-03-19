@@ -1,14 +1,37 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import { Button } from '@/shared/ui/button'
-import { Sun, Moon } from 'lucide-vue-next'
+import {
+  Sun,
+  Moon,
+  Grid2x2,
+  Box,
+  UserPlus,
+  UserCog,
+  FileText,
+  PackagePlus,
+  PackageMinus,
+  Package,
+  Shield,
+  FolderOpen,
+  CalendarCheck,
+  ClipboardCheck,
+  Wrench,
+  Database,
+  Users,
+  FileCheck,
+  CalendarOff,
+  Upload,
+  RefreshCw,
+  Globe,
+} from 'lucide-vue-next'
+import type { Component } from 'vue'
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -38,48 +61,60 @@ type ProjectSelectionState = 'manual' | 'auto_initial' | 'auto_recovery'
 
 // Section 정의 (1단계 구조)
 const sections = [
-  { id: 'dashboard', label: '대시보드', path: '/helper/dashboard' },
-  { id: 'process', label: '공정관리', path: '/helper/schedule/2d' },
-  { id: 'attendance', label: '출역관리', path: '/helper/attendance/input' },
-  { id: 'material', label: '자재관리', path: '/helper/material/order' },
-  { id: 'safety', label: '안전관리', path: '/helper/safety' },
-  { id: 'document', label: '문서관리', path: '/helper/document/manager' },
-  { id: 'utility', label: '유용한 기능', path: '/helper/functions' },
-  { id: 'admin', label: '관리자', path: '/helper/admin' },
+  { id: 'dashboard', label: '대시보드', shortLabel: '대시', path: '/helper/dashboard' },
+  { id: 'process', label: '공정관리', shortLabel: '공정', path: '/helper/schedule/2d' },
+  { id: 'attendance', label: '출역관리', shortLabel: '출역', path: '/helper/attendance/input' },
+  { id: 'material', label: '자재관리', shortLabel: '자재', path: '/helper/material/incoming' },
+  { id: 'safety', label: '안전관리', shortLabel: '안전', path: '/helper/safety' },
+  { id: 'document', label: '문서관리', shortLabel: '문서', path: '/helper/document/daily-report' },
+  { id: 'utility', label: '유용한 기능', shortLabel: '기능', path: '/helper/functions' },
+  { id: 'admin', label: '관리자', shortLabel: '관리', path: '/helper/admin' },
 ]
 
 // 각 Section별 Menu 정의 (2단계 구조)
-const menusBySection: Record<string, { id: string; label: string; path: string }[]> = {
+interface MenuItem {
+  id: string
+  label: string
+  path: string
+  icon: Component
+}
+
+const menusBySection: Record<string, MenuItem[]> = {
   process: [
-    { id: '2d-schedule', label: '2D공정표', path: '/helper/schedule/2d' },
-    { id: '3d-schedule', label: '3D공정표', path: '/helper/schedule/3d' },
+    { id: '2d-schedule', label: '2D공정표', path: '/helper/schedule/2d', icon: Grid2x2 },
+    { id: '3d-schedule', label: '3D공정표', path: '/helper/schedule/3d', icon: Box },
   ],
   attendance: [
-    { id: 'attendance-input', label: '출역입력', path: '/helper/attendance/input' },
-    { id: 'worker-register', label: '작업자등록', path: '/helper/attendance/register' },
+    { id: 'attendance-input', label: '출역입력', path: '/helper/attendance/input', icon: UserPlus },
+    { id: 'worker-register', label: '작업자등록', path: '/helper/attendance/register', icon: UserCog },
   ],
   material: [
-    { id: 'order', label: '자재발주서', path: '/helper/material/order' },
-    { id: 'incoming', label: '반입자재', path: '/helper/material/incoming' },
-    { id: 'outgoing', label: '반출자재', path: '/helper/material/outgoing' },
-    { id: 'remaining', label: '잔여자재', path: '/helper/material/remaining' },
+    { id: 'incoming', label: '반입자재', path: '/helper/material/incoming', icon: PackagePlus },
+    { id: 'order', label: '자재발주서', path: '/helper/material/order', icon: FileText },
+    { id: 'outgoing', label: '반출자재', path: '/helper/material/outgoing', icon: PackageMinus },
+    { id: 'remaining', label: '잔여자재', path: '/helper/material/remaining', icon: Package },
   ],
-  safety: [{ id: 'placeholder', label: '(구현예정)', path: '/helper/safety' }],
+  safety: [{ id: 'placeholder', label: '(구현예정)', path: '/helper/safety', icon: Shield }],
   document: [
-    { id: 'manager', label: '문서관리', path: '/helper/document/manager' },
-    { id: 'daily-report', label: '일일작업일보', path: '/helper/document/daily-report' },
+    { id: 'daily-report', label: '일일작업일보', path: '/helper/document/daily-report', icon: CalendarCheck },
     {
       id: 'inspection',
       label: '자재반입검수요청서',
       path: '/helper/document/material-inspection',
+      icon: ClipboardCheck,
     },
+    { id: 'manager', label: '문서관리', path: '/helper/document/manager', icon: FolderOpen },
   ],
-  utility: [{ id: 'placeholder', label: '(구현예정)', path: '/helper/functions' }],
+  utility: [{ id: 'placeholder', label: '(구현예정)', path: '/helper/functions', icon: Wrench }],
   admin: [
-    { id: 'master-data', label: '기준정보 관리', path: '/helper/admin' },
-    { id: 'resource-info', label: '자원정보 관리', path: '/helper/admin/resource' },
-    { id: 'document-setting', label: '자재검수요청서', path: '/helper/admin/document' },
-    { id: 'holiday', label: '휴일관리', path: '/helper/admin/holiday' },
+    { id: 'master-data', label: '기준정보 관리', path: '/helper/admin', icon: Database },
+    { id: 'resource-info', label: '자원정보 관리', path: '/helper/admin/resource', icon: Users },
+    { id: 'document-setting', label: '자재검수요청서', path: '/helper/admin/document', icon: FileCheck },
+    { id: 'daily-report-setting', label: '작업일보', path: '/helper/admin/daily-report', icon: FileText },
+    { id: 'holiday', label: '휴일관리', path: '/helper/admin/holiday', icon: CalendarOff },
+    { id: 'bulk-deployment', label: '대량 출역 입력', path: '/helper/admin/bulk-deployment', icon: Upload },
+    { id: 'homepage-setting', label: '홈페이지 입력정보', path: '/helper/admin/homepage-setting', icon: Globe },
+    { id: 'rebuild-work-names', label: '공정명 재생성 (임시)', path: '/helper/admin/rebuild-work-names', icon: RefreshCw },
   ],
 }
 
@@ -231,29 +266,30 @@ onUnmounted(() => {
       <header class="border-b border-border bg-background">
         <div class="flex items-center justify-between p-3">
           <!-- Logo -->
-          <div class="flex items-center gap-3 px-3">
-            <span class="font-semibold text-2xl hidden md:inline">건설업무도우미</span>
+          <div class="flex items-center gap-3 px-3 shrink-0 hidden [@media(min-aspect-ratio:3/2)]:flex">
+            <span class="font-semibold text-2xl whitespace-nowrap">건설업무도우미</span>
           </div>
 
           <!-- Section Buttons (Segmented Design) -->
-          <div class="flex-1 flex justify-center">
+          <div class="flex-1 flex justify-center min-w-0">
             <div class="inline-flex rounded-lg bg-muted p-1.5">
               <Button
                 v-for="section in sections"
                 :key="section.id"
                 :variant="currentSection === section.id ? 'default' : 'ghost'"
                 @click="selectSection(section.id)"
-                class="rounded-md text-base px-4 py-2"
+                class="rounded-md text-base px-2 [@media(min-aspect-ratio:1/1)]:px-4 py-2"
               >
-                {{ section.label }}
+                <span class="hidden [@media(min-aspect-ratio:1/1)]:inline">{{ section.label }}</span>
+                <span class="[@media(min-aspect-ratio:1/1)]:hidden">{{ section.shortLabel }}</span>
               </Button>
             </div>
           </div>
 
           <!-- User Actions -->
-          <div class="flex items-center gap-3">
+          <div class="flex items-center gap-3 shrink-0">
             <Select v-model="selectedProject" :disabled="isLoadingProjects">
-              <SelectTrigger class="w-72 h-10 text-base">
+              <SelectTrigger class="w-40 [@media(min-aspect-ratio:3/2)]:w-72 h-10 text-base">
                 <SelectValue :placeholder="isLoadingProjects ? '로딩 중...' : '프로젝트 선택'" />
               </SelectTrigger>
               <SelectContent>
@@ -262,7 +298,7 @@ onUnmounted(() => {
                 </SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" @click="handleLogout" class="text-base px-4 py-2">로그아웃</Button>
+            <Button variant="outline" @click="handleLogout" class="text-xs [@media(min-aspect-ratio:3/2)]:text-base px-2 py-1 [@media(min-aspect-ratio:3/2)]:px-4 [@media(min-aspect-ratio:3/2)]:py-2 shrink-0">로그아웃</Button>
           </div>
         </div>
       </header>
@@ -273,9 +309,6 @@ onUnmounted(() => {
         <Sidebar v-if="currentSection !== 'dashboard'" collapsible="none" class="border-r shadow-lg">
           <SidebarContent>
             <SidebarGroup>
-              <SidebarGroupLabel>{{
-                sections.find((s) => s.id === currentSection)?.label
-              }}</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
                   <SidebarMenuItem v-for="menu in currentMenus" :key="menu.id">
@@ -283,7 +316,8 @@ onUnmounted(() => {
                       :is-active="$route.path === menu.path"
                       @click="handleMenuClick(menu.path)"
                     >
-                      <span>{{ menu.label }}</span>
+                      <component :is="menu.icon" class="sidebar-menu-icon" />
+                      <span class="sidebar-menu-label">{{ menu.label }}</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 </SidebarMenu>
@@ -314,3 +348,27 @@ onUnmounted(() => {
     </div>
   </SidebarProvider>
 </template>
+
+<style>
+.sidebar-menu-icon {
+  display: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
+}
+
+@media (max-aspect-ratio: 1/1) {
+  [data-slot="sidebar-wrapper"] {
+    --sidebar-width: 3.5rem !important;
+  }
+
+  .sidebar-menu-icon {
+    display: block;
+  }
+
+  .sidebar-menu-label {
+    display: none;
+  }
+
+}
+</style>

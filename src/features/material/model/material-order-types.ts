@@ -48,6 +48,12 @@ export interface DeliveryFileInfo {
   description: string
 }
 
+export interface DeliverySpecQuantity {
+  materialSpecId: number
+  materialSpecName: string
+  quantity: number
+}
+
 export interface MaterialDeliverySummary {
   materialDeliveryId: number
   materialOrderId: number
@@ -58,6 +64,7 @@ export interface MaterialDeliverySummary {
   noteFiles: DeliveryFileInfo[]
   photoFiles: DeliveryFileInfo[]
   unit: string
+  specQuantities: DeliverySpecQuantity[]
 }
 
 export interface CreateDeliveryResponse {

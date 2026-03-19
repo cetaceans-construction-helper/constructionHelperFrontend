@@ -18,6 +18,7 @@ import type {
   User,
   Worker,
   UpdateWorkerPayload,
+  UpdateUserPayload,
 } from '@/features/system-admin/model/system-admin-types'
 
 export const systemAdminApi = {
@@ -64,6 +65,11 @@ export const systemAdminApi = {
   // User
   async getUserList(): Promise<User[]> {
     const { data } = await apiClient.get<User[]>('/super/getUserList')
+    return data
+  },
+
+  async updateUser(id: string, payload: UpdateUserPayload): Promise<User> {
+    const { data } = await apiClient.put<User>(`/super/updateUser/${id}`, payload)
     return data
   },
 

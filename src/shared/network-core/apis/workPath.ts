@@ -21,7 +21,7 @@ export interface CreatePathRequest {
 }
 
 export interface UpdateWorkPathPayload {
-  edges?: PathEdge[]
+  edges?: Pick<PathEdge, 'sourceWorkId' | 'targetWorkId'>[]
   workPathName?: string
   workPathColor?: string
   critical?: boolean
@@ -41,6 +41,12 @@ export const workPathApi = {
   // 패스 수정
   async updateWorkPath(pathId: number, payload: UpdateWorkPathPayload): Promise<MutationResponse> {
     const { data } = await apiClient.put<MutationResponse>(`/workPath/updateWorkPath/${pathId}`, payload)
+    return data
+  },
+
+  // lagDays 수정
+  async updateWorkPathLagDays(pathId: number, body: { workId: number; lagDays: number | null }): Promise<MutationResponse> {
+    const { data } = await apiClient.put<MutationResponse>(`/workPath/updateWorkPathLagDays/${pathId}`, body)
     return data
   },
 

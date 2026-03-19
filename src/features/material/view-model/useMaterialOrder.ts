@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import { materialOrderRepository } from '@/features/material/infra/material-order-repository'
 import type { MaterialOrderResponse } from '@/features/material/model/material-order-types'
 import { getMaterialOrders } from '@/features/material/use-cases/getMaterialOrders'
+import { deleteMaterialOrder as deleteMaterialOrderUseCase } from '@/features/material/use-cases/deleteMaterialOrder'
 
 export function useMaterialOrder() {
   const orders = ref<MaterialOrderResponse[]>([])
@@ -20,5 +21,9 @@ export function useMaterialOrder() {
     }
   }
 
-  return { orders, isLoading, loadOrders }
+  async function deleteOrder(orderId: number) {
+    await deleteMaterialOrderUseCase(materialOrderRepository, orderId)
+  }
+
+  return { orders, isLoading, loadOrders, deleteOrder }
 }

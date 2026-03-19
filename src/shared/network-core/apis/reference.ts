@@ -10,6 +10,7 @@ export interface IdNameResponse {
 export interface WorkTypeResponse {
   id: number
   name: string
+  displayName: string
   divisionId: number
 }
 
@@ -491,6 +492,12 @@ export const referenceApi = {
 
   async deleteCwmMapping(id: number): Promise<void> {
     await apiClient.delete(`/reference/deleteCwmMapping/${id}`)
+  },
+
+  // ========== WorkType displayName ==========
+
+  async updateWorkTypeDisplayName(workTypeId: number, displayName: string): Promise<void> {
+    await apiClient.put(`/reference/updateWorkTypeDisplayName/${workTypeId}`, { displayName })
   },
 
   // ========== 세부작업 생성 ==========

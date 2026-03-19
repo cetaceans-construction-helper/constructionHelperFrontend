@@ -20,7 +20,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/shared/ui/alert-dialog'
-import { Download, Trash2 } from 'lucide-vue-next'
+import { Download, RefreshCw, Trash2 } from 'lucide-vue-next'
 import { useMaterialInspectionPage } from '@/features/document/view-model/useMaterialInspectionPage'
 
 const {
@@ -28,6 +28,7 @@ const {
   deleteTargetName,
   downloadMir,
   formatDate,
+  handleUpdateDocumentNumber,
   isDeleting,
   isDownloading,
   isLoading,
@@ -54,6 +55,7 @@ const {
             <TableHead>문서번호</TableHead>
             <TableHead>납품일</TableHead>
             <TableHead>생성일</TableHead>
+            <TableHead class="w-20 text-center">문서번호수정</TableHead>
             <TableHead class="w-20 text-center">다운로드</TableHead>
             <TableHead class="w-20 text-center">삭제</TableHead>
           </TableRow>
@@ -63,6 +65,16 @@ const {
             <TableCell class="font-medium">{{ mir.documentNumber }}</TableCell>
             <TableCell>{{ mir.deliveryDate }}</TableCell>
             <TableCell>{{ formatDate(mir.createdAt) }}</TableCell>
+            <TableCell class="text-center">
+              <Button
+                variant="ghost"
+                size="sm"
+                class="h-8 w-8 p-0"
+                @click="handleUpdateDocumentNumber(mir)"
+              >
+                <RefreshCw class="h-4 w-4 text-muted-foreground" />
+              </Button>
+            </TableCell>
             <TableCell class="text-center">
               <Button
                 v-if="mir.mirUrl"

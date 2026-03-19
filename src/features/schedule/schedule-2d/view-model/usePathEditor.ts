@@ -1,6 +1,6 @@
 import { ref, computed, type Ref } from 'vue'
 import type { Node, Edge } from '@vue-flow/core'
-import { workPathApi, type PathResponse, type PathEdge } from '@/shared/network-core/apis/workPath'
+import { workPathApi, type PathResponse, type PathEdge, type UpdateWorkPathPayload } from '@/shared/network-core/apis/workPath'
 import type { WorkResponse, MutationResponse } from '@/shared/network-core/apis/work'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
@@ -48,7 +48,8 @@ export function usePathEditor(
   nodes: Ref<Node[]>,
   edges: Ref<Edge[]>,
   paths: Ref<PathResponse[]>,
-  onPathUpdated: (mutation: MutationResponse) => void
+  onPathUpdated: (mutation: MutationResponse) => void,
+  getEdgeHandles?: (sourceWorkId: number, targetWorkId: number) => { sourceHandle: string; targetHandle: string }
 ) {
   // 패스 선택 및 수정 상태
   const selectedPathId = ref<number | null>(null)
@@ -150,10 +151,12 @@ export function usePathEditor(
       // 미선택: 기본 색상 + transform offset 적용 (X, Y 모두)
       return edges.value.map(e => {
         const offset = e.data?.offset || 0
+        const isFollowing = e.data?.isFollowing !== false
         return {
           ...e,
           style: {
             stroke: (e.style as { stroke?: string })?.stroke,
+            strokeDasharray: isFollowing ? undefined : '12 8',
             transform: `translate(${offset}px, ${offset}px)`
           }
         }
@@ -168,26 +171,34 @@ export function usePathEditor(
       .filter(e => e.data?.pathId !== selectedPathId.value)
       .map(e => {
         const offset = e.data?.offset || 0
+        const isFollowing = e.data?.isFollowing !== false
         return {
           ...e,
           style: {
             stroke: '#9ca3af',
             strokeWidth: 1,
+            strokeDasharray: isFollowing ? undefined : '12 8',
             transform: `translate(${offset}px, ${offset}px)`
           }
         }
       })
 
     // 편집 중인 edge들 (패스 색상으로 표시)
-    const editingEdges = editingPathEdges.value.map((edge, index) => ({
-      id: `editing-${selectedPathId.value}-${edge.sourceWorkId}-${edge.targetWorkId}-${index}`,
-      source: `work-${edge.sourceWorkId}`,
-      target: `work-${edge.targetWorkId}`,
-      type: 'smoothstep',
-      pathOptions: { borderRadius: 20, offset: 15 },
-      style: { stroke: pathColor, strokeWidth: 2 },
-      data: { pathId: selectedPathId.value, editing: true }
-    }))
+    const editingEdges = editingPathEdges.value.map((edge, index) => {
+      const isFollowing = edge.lagDays !== undefined && edge.lagDays !== null
+      const handles = getEdgeHandles?.(edge.sourceWorkId, edge.targetWorkId)
+      return {
+        id: `editing-${selectedPathId.value}-${edge.sourceWorkId}-${edge.targetWorkId}-${index}`,
+        source: `work-${edge.sourceWorkId}`,
+        target: `work-${edge.targetWorkId}`,
+        sourceHandle: handles?.sourceHandle,
+        targetHandle: handles?.targetHandle,
+        type: 'smoothstep',
+        pathOptions: { borderRadius: 20, offset: 15 },
+        style: { stroke: pathColor, strokeWidth: 2, strokeDasharray: isFollowing ? undefined : '12 8' },
+        data: { pathId: selectedPathId.value, editing: true }
+      }
+    })
 
     return [...otherEdges, ...editingEdges]
   })
@@ -211,13 +222,31 @@ export function usePathEditor(
     }
   }
 
+  // edges 변경 여부 확인
+  const hasEdgesChanged = () => {
+    if (!selectedPathId.value) return false
+    const path = paths.value.find(p => p.workPathId === selectedPathId.value)
+    if (!path) return false
+    const newEdges = editingPathEdges.value.map(({ sourceWorkId, targetWorkId }) => ({ sourceWorkId, targetWorkId }))
+    const origEdges = path.edges.map(({ sourceWorkId, targetWorkId }) => ({ sourceWorkId, targetWorkId }))
+    return JSON.stringify(newEdges) !== JSON.stringify(origEdges)
+  }
+
   // 패스 수정 제출 (선택 해제 포함)
   const submitPathUpdate = async () => {
     if (!selectedPathId.value) return
 
+    if (!hasEdgesChanged()) {
+      selectedPathId.value = null
+      editingPathEdges.value = []
+      return
+    }
+
     isUpdatingPath.value = true
     try {
-      const mutation = await workPathApi.updateWorkPath(selectedPathId.value, { edges: editingPathEdges.value })
+      const mutation = await workPathApi.updateWorkPath(selectedPathId.value, {
+        edges: editingPathEdges.value.map(({ sourceWorkId, targetWorkId }) => ({ sourceWorkId, targetWorkId })),
+      })
       onPathUpdated(mutation)
       analyticsClient.trackAction('schedule_2d', 'update_path', 'success')
       selectedPathId.value = null
@@ -236,10 +265,13 @@ export function usePathEditor(
   // 패스 수정 즉시 저장 (선택 유지)
   const savePathEdges = async () => {
     if (!selectedPathId.value) return
+    if (!hasEdgesChanged()) return
 
     isUpdatingPath.value = true
     try {
-      const mutation = await workPathApi.updateWorkPath(selectedPathId.value, { edges: editingPathEdges.value })
+      const mutation = await workPathApi.updateWorkPath(selectedPathId.value, {
+        edges: editingPathEdges.value.map(({ sourceWorkId, targetWorkId }) => ({ sourceWorkId, targetWorkId })),
+      })
       onPathUpdated(mutation)
       analyticsClient.trackAction('schedule_2d', 'update_path', 'success')
     } catch (error: unknown) {
@@ -250,6 +282,37 @@ export function usePathEditor(
       alert(errorMessage)
     } finally {
       isUpdatingPath.value = false
+    }
+  }
+
+  // 패스 속성 수정 (이름, 색상, critical, edges 등)
+  const updatePath = async (pathId: number, payload: UpdateWorkPathPayload): Promise<MutationResponse | null> => {
+    if (Object.keys(payload).length === 0) return null
+    try {
+      const mutation = await workPathApi.updateWorkPath(pathId, payload)
+      onPathUpdated(mutation)
+      analyticsClient.trackAction('schedule_2d', 'update_path', 'success')
+      return mutation
+    } catch (error: unknown) {
+      console.error('패스 수정 실패:', error)
+      analyticsClient.trackAction('schedule_2d', 'update_path', 'fail')
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+      return null
+    }
+  }
+
+  // lagDays 수정
+  const updateLagDays = async (pathId: number, targetWorkId: number, days: number | null) => {
+    try {
+      const mutation = await workPathApi.updateWorkPathLagDays(pathId, { workId: targetWorkId, lagDays: days })
+      onPathUpdated(mutation)
+      analyticsClient.trackAction('schedule_2d', 'update_path_lag_days', 'success')
+    } catch (error: unknown) {
+      console.error('lagDays 수정 실패:', error)
+      analyticsClient.trackAction('schedule_2d', 'update_path_lag_days', 'fail')
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
     }
   }
 
@@ -324,25 +387,28 @@ export function usePathEditor(
     return null
   }
 
-  // 패스에서 노드 제거 (중간 노드는 앞뒤 자동 연결)
+  // 패스에서 노드 제거 (체인 기반 재구성으로 순서 보장)
   const removeNodeFromPath = (workId: number) => {
-    // incoming edge 찾기 (이 노드로 들어오는 edge)
-    const incomingEdge = editingPathEdges.value.find(e => e.targetWorkId === workId)
-    // outgoing edge 찾기 (이 노드에서 나가는 edge)
-    const outgoingEdge = editingPathEdges.value.find(e => e.sourceWorkId === workId)
+    const currentChain = edgesToChain(editingPathEdges.value)
+    if (!currentChain.includes(workId)) return
 
-    // 해당 노드 관련 edge 모두 제거
-    editingPathEdges.value = editingPathEdges.value.filter(
-      e => e.sourceWorkId !== workId && e.targetWorkId !== workId
-    )
-
-    // 중간 노드인 경우: 앞뒤 자동 연결
-    if (incomingEdge && outgoingEdge) {
-      editingPathEdges.value.push({
-        sourceWorkId: incomingEdge.sourceWorkId,
-        targetWorkId: outgoingEdge.targetWorkId
-      })
+    const newChain = currentChain.filter(id => id !== workId)
+    if (newChain.length < 2) {
+      editingPathEdges.value = []
+      return
     }
+
+    const lagMap = new Map<string, number | null>()
+    editingPathEdges.value.forEach(e => {
+      if (e.lagDays != null) {
+        lagMap.set(`${e.sourceWorkId}-${e.targetWorkId}`, e.lagDays)
+      }
+    })
+
+    editingPathEdges.value = chainToEdges(newChain).map(e => {
+      const lag = lagMap.get(`${e.sourceWorkId}-${e.targetWorkId}`)
+      return lag != null ? { ...e, lagDays: lag } : e
+    })
   }
 
   // 패스 편집 모드 초기화 (외부에서 사용)
@@ -370,6 +436,8 @@ export function usePathEditor(
     togglePathSelection,
     submitPathUpdate,
     savePathEdges,
+    updatePath,
+    updateLagDays,
     cancelPathEdit,
     onConnect,
     removeNodeFromPath,

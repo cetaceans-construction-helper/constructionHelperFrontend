@@ -160,48 +160,64 @@ export function useEquipmentDeployment(
   function populateBoxesFromDeployment() {
     equipmentBoxes.value = []
 
-    if (todayEquipment.value.length === 0) {
-      equipmentWorkTimes.value = new Map()
-      equipmentCounts.value = new Map()
-      return
-    }
-
     const newWT = new Map<string, number>()
     const newCT = new Map<string, number>()
 
-    const companyGroups = new Map<string, EquipmentDeploymentByDateItem[]>()
-    for (const item of todayEquipment.value) {
-      if (!companyGroups.has(item.companyId)) {
-        companyGroups.set(item.companyId, [])
+    if (todayEquipment.value.length > 0) {
+      const companyGroups = new Map<string, EquipmentDeploymentByDateItem[]>()
+      for (const item of todayEquipment.value) {
+        if (!companyGroups.has(item.companyId)) {
+          companyGroups.set(item.companyId, [])
+        }
+        companyGroups.get(item.companyId)!.push(item)
       }
-      companyGroups.get(item.companyId)!.push(item)
+
+      for (const [companyId, items] of companyGroups) {
+        const first = items[0]
+        if (!first) continue
+        const boxId = `ebox-${++boxIdCounter}`
+
+        // contractors에서 companyToProjectId 조회
+        const contractor = contractors.value.find((c) => c.companyId === companyId)
+
+        const selectedSpecs: EquipmentSpecResponse[] = []
+        for (const item of items) {
+          const spec = allEquipmentSpecs.value.find((s) => s.id === item.equipmentSpecId)
+          if (spec) {
+            selectedSpecs.push(spec)
+            newWT.set(getKey(boxId, spec.id), item.workTime)
+            newCT.set(getKey(boxId, spec.id), item.count)
+          }
+        }
+
+        equipmentBoxes.value.push({
+          id: boxId,
+          companyId,
+          companyToProjectId: contractor?.companyToProjectId ?? null,
+          companyName: first.companyDisplayName,
+          workTypeName: contractor?.workTypeName || '',
+          selectedSpecs,
+          isLoading: false,
+        })
+      }
     }
 
-    for (const [companyId, items] of companyGroups) {
-      const first = items[0]
-      if (!first) continue
+    // eligible 업체 중 아직 박스가 없는 업체 자동 생성
+    const existingCompanyIds = new Set(
+      equipmentBoxes.value.map((b) => b.companyId).filter(Boolean),
+    )
+    const newContractors = contractors.value.filter(
+      (c) => c.eligible && c.workTypeId && !existingCompanyIds.has(c.companyId),
+    )
+    for (const company of newContractors) {
       const boxId = `ebox-${++boxIdCounter}`
-
-      // contractors에서 companyToProjectId 조회
-      const contractor = contractors.value.find((c) => c.companyId === companyId)
-
-      const selectedSpecs: EquipmentSpecResponse[] = []
-      for (const item of items) {
-        const spec = allEquipmentSpecs.value.find((s) => s.id === item.equipmentSpecId)
-        if (spec) {
-          selectedSpecs.push(spec)
-          newWT.set(getKey(boxId, spec.id), item.workTime)
-          newCT.set(getKey(boxId, spec.id), item.count)
-        }
-      }
-
       equipmentBoxes.value.push({
         id: boxId,
-        companyId,
-        companyToProjectId: contractor?.companyToProjectId ?? null,
-        companyName: first.companyDisplayName,
-        workTypeName: contractor?.workTypeName || '',
-        selectedSpecs,
+        companyId: company.companyId,
+        companyToProjectId: company.companyToProjectId,
+        companyName: company.companyDisplayName,
+        workTypeName: company.workTypeName || '',
+        selectedSpecs: [],
         isLoading: false,
       })
     }
@@ -300,30 +316,22 @@ export function useEquipmentDeployment(
         const key = getKey(box.id, spec.id)
         const count = equipmentCounts.value.get(key) ?? 0
         const workTime = equipmentWorkTimes.value.get(key) ?? 0
-        const specName = `${spec.equipmentTypeName} - ${spec.name}`
-
-        if (count <= 0 && workTime <= 0) {
-          warnings.push(`${specName}: 대수와 시간이 모두 입력되지 않았습니다.`)
-        } else if (count <= 0) {
-          warnings.push(`${specName}: 대수를 입력해주세요.`)
-        } else if (workTime <= 0) {
-          warnings.push(`${specName}: 시간을 입력해주세요.`)
-        } else {
-          entries.push({
-            equipmentSpecId: spec.id,
-            count,
-            workTime,
-            companyToProjectId,
-          })
-        }
+        entries.push({
+          equipmentSpecId: spec.id,
+          count,
+          workTime,
+          companyToProjectId,
+        })
       }
     }
 
+    if (warnings.length > 0) {
+      alert(warnings.join('\n'))
+      return
+    }
+
     if (entries.length === 0) {
-      const message = warnings.length > 0
-        ? `입력된 장비가 없습니다.\n\n${warnings.join('\n')}`
-        : '입력된 장비가 없습니다. 대수와 시간을 모두 입력해주세요.'
-      alert(message)
+      alert('제출할 장비가 없습니다.')
       return
     }
 

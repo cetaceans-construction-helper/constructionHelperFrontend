@@ -5,26 +5,30 @@ import { analyticsClient } from '@/shared/analytics/analyticsClient'
 export function useLocationMaster() {
   const zones = ref<IdNameResponse[]>([])
   const floors = ref<IdNameResponse[]>([])
-  const sections = ref<IdNameResponse[]>([])
-  const usages = ref<IdNameResponse[]>([])
+  // TODO: section/usage 임시 비활성화
+  // const sections = ref<IdNameResponse[]>([])
+  // const usages = ref<IdNameResponse[]>([])
 
   const newZone = ref('')
   const newFloor = ref('')
-  const newSection = ref('')
-  const newUsage = ref('')
+  // TODO: section/usage 임시 비활성화
+  // const newSection = ref('')
+  // const newUsage = ref('')
 
   const isCreating = ref<Record<string, boolean>>({
     zone: false,
     floor: false,
-    section: false,
-    usage: false,
+    // TODO: section/usage 임시 비활성화
+    // section: false,
+    // usage: false,
   })
 
   const isDeleting = ref<Record<string, boolean>>({
     zone: false,
     floor: false,
-    section: false,
-    usage: false,
+    // TODO: section/usage 임시 비활성화
+    // section: false,
+    // usage: false,
   })
 
   // 개별 목록 로드
@@ -44,24 +48,26 @@ export function useLocationMaster() {
     }
   }
 
-  const loadSections = async () => {
-    try {
-      sections.value = await referenceApi.getSectionList()
-    } catch (error) {
-      console.error('Section 목록 로드 실패:', error)
-    }
-  }
+  // TODO: section/usage 임시 비활성화
+  // const loadSections = async () => {
+  //   try {
+  //     sections.value = await referenceApi.getSectionList()
+  //   } catch (error) {
+  //     console.error('Section 목록 로드 실패:', error)
+  //   }
+  // }
 
-  const loadUsages = async () => {
-    try {
-      usages.value = await referenceApi.getUsageList()
-    } catch (error) {
-      console.error('Usage 목록 로드 실패:', error)
-    }
-  }
+  // const loadUsages = async () => {
+  //   try {
+  //     usages.value = await referenceApi.getUsageList()
+  //   } catch (error) {
+  //     console.error('Usage 목록 로드 실패:', error)
+  //   }
+  // }
 
   const loadAll = async () => {
-    await Promise.all([loadZones(), loadFloors(), loadSections(), loadUsages()])
+    // TODO: section/usage 임시 비활성화
+    await Promise.all([loadZones(), loadFloors()])
   }
 
   // 추가
@@ -107,47 +113,46 @@ export function useLocationMaster() {
     }
   }
 
-  const addSection = async () => {
-    if (isCreating.value.section) return
-    const name = newSection.value.trim()
-    if (!name) return
+  // TODO: section/usage 임시 비활성화
+  // const addSection = async () => {
+  //   if (isCreating.value.section) return
+  //   const name = newSection.value.trim()
+  //   if (!name) return
+  //   isCreating.value.section = true
+  //   try {
+  //     await referenceApi.createSection(name)
+  //     newSection.value = ''
+  //     await loadSections()
+  //     analyticsClient.trackAction('admin_master_data', 'create_section', 'success')
+  //   } catch (error: unknown) {
+  //     console.error('Section 추가 실패:', error)
+  //     analyticsClient.trackAction('admin_master_data', 'create_section', 'fail')
+  //     const err = error as { response?: { data?: { message?: string } }; message?: string }
+  //     alert(err.response?.data?.message || err.message)
+  //   } finally {
+  //     isCreating.value.section = false
+  //   }
+  // }
 
-    isCreating.value.section = true
-    try {
-      await referenceApi.createSection(name)
-      newSection.value = ''
-      await loadSections()
-      analyticsClient.trackAction('admin_master_data', 'create_section', 'success')
-    } catch (error: unknown) {
-      console.error('Section 추가 실패:', error)
-      analyticsClient.trackAction('admin_master_data', 'create_section', 'fail')
-      const err = error as { response?: { data?: { message?: string } }; message?: string }
-      alert(err.response?.data?.message || err.message)
-    } finally {
-      isCreating.value.section = false
-    }
-  }
-
-  const addUsage = async () => {
-    if (isCreating.value.usage) return
-    const name = newUsage.value.trim()
-    if (!name) return
-
-    isCreating.value.usage = true
-    try {
-      await referenceApi.createUsage(name)
-      newUsage.value = ''
-      await loadUsages()
-      analyticsClient.trackAction('admin_master_data', 'create_usage', 'success')
-    } catch (error: unknown) {
-      console.error('Usage 추가 실패:', error)
-      analyticsClient.trackAction('admin_master_data', 'create_usage', 'fail')
-      const err = error as { response?: { data?: { message?: string } }; message?: string }
-      alert(err.response?.data?.message || err.message)
-    } finally {
-      isCreating.value.usage = false
-    }
-  }
+  // const addUsage = async () => {
+  //   if (isCreating.value.usage) return
+  //   const name = newUsage.value.trim()
+  //   if (!name) return
+  //   isCreating.value.usage = true
+  //   try {
+  //     await referenceApi.createUsage(name)
+  //     newUsage.value = ''
+  //     await loadUsages()
+  //     analyticsClient.trackAction('admin_master_data', 'create_usage', 'success')
+  //   } catch (error: unknown) {
+  //     console.error('Usage 추가 실패:', error)
+  //     analyticsClient.trackAction('admin_master_data', 'create_usage', 'fail')
+  //     const err = error as { response?: { data?: { message?: string } }; message?: string }
+  //     alert(err.response?.data?.message || err.message)
+  //   } finally {
+  //     isCreating.value.usage = false
+  //   }
+  // }
 
   // 삭제
   const deleteZone = async (id: number) => {
@@ -184,39 +189,40 @@ export function useLocationMaster() {
     }
   }
 
-  const deleteSection = async (id: number) => {
-    if (isDeleting.value.section) return
-    isDeleting.value.section = true
-    try {
-      await referenceApi.deleteSection(id)
-      sections.value = sections.value.filter((s) => s.id !== id)
-      analyticsClient.trackAction('admin_master_data', 'delete_section', 'success')
-    } catch (error: unknown) {
-      console.error('Section 삭제 실패:', error)
-      analyticsClient.trackAction('admin_master_data', 'delete_section', 'fail')
-      const err = error as { response?: { data?: { message?: string } }; message?: string }
-      alert(err.response?.data?.message || err.message)
-    } finally {
-      isDeleting.value.section = false
-    }
-  }
+  // TODO: section/usage 임시 비활성화
+  // const deleteSection = async (id: number) => {
+  //   if (isDeleting.value.section) return
+  //   isDeleting.value.section = true
+  //   try {
+  //     await referenceApi.deleteSection(id)
+  //     sections.value = sections.value.filter((s) => s.id !== id)
+  //     analyticsClient.trackAction('admin_master_data', 'delete_section', 'success')
+  //   } catch (error: unknown) {
+  //     console.error('Section 삭제 실패:', error)
+  //     analyticsClient.trackAction('admin_master_data', 'delete_section', 'fail')
+  //     const err = error as { response?: { data?: { message?: string } }; message?: string }
+  //     alert(err.response?.data?.message || err.message)
+  //   } finally {
+  //     isDeleting.value.section = false
+  //   }
+  // }
 
-  const deleteUsage = async (id: number) => {
-    if (isDeleting.value.usage) return
-    isDeleting.value.usage = true
-    try {
-      await referenceApi.deleteUsage(id)
-      usages.value = usages.value.filter((u) => u.id !== id)
-      analyticsClient.trackAction('admin_master_data', 'delete_usage', 'success')
-    } catch (error: unknown) {
-      console.error('Usage 삭제 실패:', error)
-      analyticsClient.trackAction('admin_master_data', 'delete_usage', 'fail')
-      const err = error as { response?: { data?: { message?: string } }; message?: string }
-      alert(err.response?.data?.message || err.message)
-    } finally {
-      isDeleting.value.usage = false
-    }
-  }
+  // const deleteUsage = async (id: number) => {
+  //   if (isDeleting.value.usage) return
+  //   isDeleting.value.usage = true
+  //   try {
+  //     await referenceApi.deleteUsage(id)
+  //     usages.value = usages.value.filter((u) => u.id !== id)
+  //     analyticsClient.trackAction('admin_master_data', 'delete_usage', 'success')
+  //   } catch (error: unknown) {
+  //     console.error('Usage 삭제 실패:', error)
+  //     analyticsClient.trackAction('admin_master_data', 'delete_usage', 'fail')
+  //     const err = error as { response?: { data?: { message?: string } }; message?: string }
+  //     alert(err.response?.data?.message || err.message)
+  //   } finally {
+  //     isDeleting.value.usage = false
+  //   }
+  // }
 
   // 수정 (이름 변경)
   const updateZoneName = async (id: number, name: string) => {
@@ -249,35 +255,36 @@ export function useLocationMaster() {
     }
   }
 
-  const updateSectionName = async (id: number, name: string) => {
-    try {
-      await referenceApi.updateSection({ id, name })
-      const item = sections.value.find((s) => s.id === id)
-      if (item) item.name = name
-      analyticsClient.trackAction('admin_master_data', 'update_section', 'success')
-    } catch (error: unknown) {
-      console.error('Section 이름 수정 실패:', error)
-      analyticsClient.trackAction('admin_master_data', 'update_section', 'fail')
-      const err = error as { response?: { data?: { message?: string } }; message?: string }
-      alert(err.response?.data?.message || err.message)
-      await loadSections()
-    }
-  }
+  // TODO: section/usage 임시 비활성화
+  // const updateSectionName = async (id: number, name: string) => {
+  //   try {
+  //     await referenceApi.updateSection({ id, name })
+  //     const item = sections.value.find((s) => s.id === id)
+  //     if (item) item.name = name
+  //     analyticsClient.trackAction('admin_master_data', 'update_section', 'success')
+  //   } catch (error: unknown) {
+  //     console.error('Section 이름 수정 실패:', error)
+  //     analyticsClient.trackAction('admin_master_data', 'update_section', 'fail')
+  //     const err = error as { response?: { data?: { message?: string } }; message?: string }
+  //     alert(err.response?.data?.message || err.message)
+  //     await loadSections()
+  //   }
+  // }
 
-  const updateUsageName = async (id: number, name: string) => {
-    try {
-      await referenceApi.updateUsage({ id, name })
-      const item = usages.value.find((u) => u.id === id)
-      if (item) item.name = name
-      analyticsClient.trackAction('admin_master_data', 'update_usage', 'success')
-    } catch (error: unknown) {
-      console.error('Usage 이름 수정 실패:', error)
-      analyticsClient.trackAction('admin_master_data', 'update_usage', 'fail')
-      const err = error as { response?: { data?: { message?: string } }; message?: string }
-      alert(err.response?.data?.message || err.message)
-      await loadUsages()
-    }
-  }
+  // const updateUsageName = async (id: number, name: string) => {
+  //   try {
+  //     await referenceApi.updateUsage({ id, name })
+  //     const item = usages.value.find((u) => u.id === id)
+  //     if (item) item.name = name
+  //     analyticsClient.trackAction('admin_master_data', 'update_usage', 'success')
+  //   } catch (error: unknown) {
+  //     console.error('Usage 이름 수정 실패:', error)
+  //     analyticsClient.trackAction('admin_master_data', 'update_usage', 'fail')
+  //     const err = error as { response?: { data?: { message?: string } }; message?: string }
+  //     alert(err.response?.data?.message || err.message)
+  //     await loadUsages()
+  //   }
+  // }
 
   // 정렬 변경
   const reorderZones = async (ids: number[]) => {
@@ -304,57 +311,64 @@ export function useLocationMaster() {
     }
   }
 
-  const reorderSections = async (ids: number[]) => {
-    try {
-      await referenceApi.updateSection({ ids })
-      await loadSections()
-    } catch (error: unknown) {
-      console.error('Section 정렬 실패:', error)
-      const err = error as { response?: { data?: { message?: string } }; message?: string }
-      alert(err.response?.data?.message || err.message)
-      await loadSections()
-    }
-  }
+  // TODO: section/usage 임시 비활성화
+  // const reorderSections = async (ids: number[]) => {
+  //   try {
+  //     await referenceApi.updateSection({ ids })
+  //     await loadSections()
+  //   } catch (error: unknown) {
+  //     console.error('Section 정렬 실패:', error)
+  //     const err = error as { response?: { data?: { message?: string } }; message?: string }
+  //     alert(err.response?.data?.message || err.message)
+  //     await loadSections()
+  //   }
+  // }
 
-  const reorderUsages = async (ids: number[]) => {
-    try {
-      await referenceApi.updateUsage({ ids })
-      await loadUsages()
-    } catch (error: unknown) {
-      console.error('Usage 정렬 실패:', error)
-      const err = error as { response?: { data?: { message?: string } }; message?: string }
-      alert(err.response?.data?.message || err.message)
-      await loadUsages()
-    }
-  }
+  // const reorderUsages = async (ids: number[]) => {
+  //   try {
+  //     await referenceApi.updateUsage({ ids })
+  //     await loadUsages()
+  //   } catch (error: unknown) {
+  //     console.error('Usage 정렬 실패:', error)
+  //     const err = error as { response?: { data?: { message?: string } }; message?: string }
+  //     alert(err.response?.data?.message || err.message)
+  //     await loadUsages()
+  //   }
+  // }
 
   return {
     zones,
     floors,
-    sections,
-    usages,
+    // TODO: section/usage 임시 비활성화
+    // sections,
+    // usages,
     newZone,
     newFloor,
-    newSection,
-    newUsage,
+    // TODO: section/usage 임시 비활성화
+    // newSection,
+    // newUsage,
     isCreating,
     isDeleting,
     loadAll,
     addZone,
     addFloor,
-    addSection,
-    addUsage,
+    // TODO: section/usage 임시 비활성화
+    // addSection,
+    // addUsage,
     deleteZone,
     deleteFloor,
-    deleteSection,
-    deleteUsage,
+    // TODO: section/usage 임시 비활성화
+    // deleteSection,
+    // deleteUsage,
     updateZoneName,
     updateFloorName,
-    updateSectionName,
-    updateUsageName,
+    // TODO: section/usage 임시 비활성화
+    // updateSectionName,
+    // updateUsageName,
     reorderZones,
     reorderFloors,
-    reorderSections,
-    reorderUsages,
+    // TODO: section/usage 임시 비활성화
+    // reorderSections,
+    // reorderUsages,
   }
 }

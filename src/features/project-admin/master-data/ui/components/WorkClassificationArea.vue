@@ -88,7 +88,7 @@ async function confirmDelete() {
             v-model="newDivisionName"
             placeholder="이름 입력"
             class="h-8 text-sm"
-            @keyup.enter="addDivision"
+            @keydown.enter="(e: KeyboardEvent) => { if (!e.isComposing) addDivision() }"
           />
           <Button
             size="sm"
@@ -119,7 +119,7 @@ async function confirmDelete() {
             placeholder="이름 입력"
             class="h-8 text-sm"
             :disabled="!selectedDivisionId"
-            @keyup.enter="addWorkType"
+            @keydown.enter="(e: KeyboardEvent) => { if (!e.isComposing) addWorkType() }"
           />
           <Button
             size="sm"
@@ -135,9 +135,13 @@ async function confirmDelete() {
           :selected-id="selectedWorkTypeId"
           :disabled="isDeleting"
           :empty-message="selectedDivisionId ? '항목 없음' : '분류를 선택하세요'"
+          unit-editable
+          unit-key="displayName"
+          unit-label="표시이름"
+          :display-suffix="(wt: any) => wt.displayName ? `(${wt.displayName})` : ''"
           @select="selectWorkType"
           @delete="(id, name) => openDeleteDialog(id, name, deleteWorkType)"
-          @update-name="({ id, name }) => updateWorkTypeName(id, name)"
+          @update-name="({ id, name, unit }) => updateWorkTypeName(id, name, unit)"
           @reorder="reorderWorkTypes"
         />
       </div>
@@ -151,7 +155,7 @@ async function confirmDelete() {
             placeholder="이름 입력"
             class="h-8 text-sm"
             :disabled="!selectedWorkTypeId"
-            @keyup.enter="addSubWorkType"
+            @keydown.enter="(e: KeyboardEvent) => { if (!e.isComposing) addSubWorkType() }"
           />
           <Button
             size="sm"
@@ -183,7 +187,7 @@ async function confirmDelete() {
             placeholder="이름 입력"
             class="h-8 text-sm"
             :disabled="!selectedSubWorkTypeId"
-            @keyup.enter="addWorkStep"
+            @keydown.enter="(e: KeyboardEvent) => { if (!e.isComposing) addWorkStep() }"
           />
           <Button
             size="sm"

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted, markRaw } from 'vue'
 import { VueFlow, useVueFlow, type Node, type Edge } from '@vue-flow/core'
 import { Controls } from '@vue-flow/controls'
 import { Button } from '@/shared/ui/button'
@@ -13,32 +13,53 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/shared/ui/alert-dialog'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/shared/ui/dialog'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/shared/ui/select'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/shared/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select'
 import { Checkbox } from '@/shared/ui/checkbox'
-import { workApi, type WorkResponse, type MutationResponse, type UpdateWorkPayload } from '@/shared/network-core/apis/work'
+import {
+  workApi,
+  type WorkResponse,
+  type MutationResponse,
+  type UpdateWorkPayload,
+} from '@/shared/network-core/apis/work'
 import { workPathApi, type PathResponse } from '@/shared/network-core/apis/workPath'
 import { useProjectStore } from '@/app/context/stores/project'
 import { useCalendarStore } from '@/app/context/stores/calendarStore'
-import { useChartConfigStore } from '@/features/schedule/schedule-2d/view-model/chartConfigStore'
-import { worksToNodes, workToNode, computeNodeX, computeNodeWidth, dayIndexToDate } from '@/features/schedule/schedule-2d/use-cases/nodeConfig'
+import {
+  useChartConfigStore,
+  CHART_CONFIG,
+} from '@/features/schedule/schedule-2d/view-model/chartConfigStore'
+import {
+  workToNode,
+  computeNodeX,
+  dayIndexToDate,
+  dateToDayIndex,
+} from '@/features/schedule/schedule-2d/use-cases/nodeConfig'
+import {
+  computeRowLayout,
+  computeWeeklyRowLayout,
+  LEFT_HEADER_WIDTH,
+  type RowLayout,
+  type RefWorkType,
+} from '@/features/schedule/schedule-2d/use-cases/rowLayout'
+import { buildWorkBlocks, workBlockToNode } from '@/features/schedule/schedule-2d/use-cases/workBlockBuilder'
+import { referenceApi } from '@/shared/network-core/apis/reference'
+import WorkNode from './WorkNode.vue'
+import WorkBlockNode from './WorkBlockNode.vue'
+import LeftHeader from './LeftHeader.vue'
+import ReferenceEditTrigger from '@/shared/helper-ui/ReferenceEditTrigger.vue'
+import ReferenceEditDialog from '@/shared/helper-ui/ReferenceEditDialog.vue'
+import { Settings } from 'lucide-vue-next'
 import { appConfig } from '@/app/bootstrap/config'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 // Composables
-import { useDateHeader, ROW_HEIGHT, HEADER_HEIGHT } from '@/features/schedule/schedule-2d/view-model/useDateHeader'
+import {
+  useDateHeader,
+  ROW_HEIGHT,
+  HEADER_HEIGHT,
+  WEEKLY_HEADER_HEIGHT,
+} from '@/features/schedule/schedule-2d/view-model/useDateHeader'
 import { usePathEditor } from '@/features/schedule/schedule-2d/view-model/usePathEditor'
 import { useWorkEditor } from '@/features/schedule/schedule-2d/view-model/useWorkEditor'
 import { useWorkTooltipData } from '@/features/schedule/schedule-2d/view-model/useWorkTooltipData'
@@ -50,21 +71,139 @@ const emit = defineEmits<{
 // VueFlow
 const nodes = ref<Node[]>([])
 const edges = ref<Edge[]>([])
-const { zoomIn, zoomOut, viewport } = useVueFlow()
+const { zoomIn, zoomOut, viewport, setViewport } = useVueFlow()
 
 // 패스 관련 상태
 const paths = ref<PathResponse[]>([])
+
+// workType → 팔레트 인덱스 맵 (nodes와 독립적으로 관리, groupBoxes와 공유)
+const workTypePaletteMap = ref<Map<string, number>>(new Map())
 const isLoadingWorks = ref(false)
+
+// Reference tree (API 순서 보존)
+const refTree = ref<RefWorkType[]>([])
+const cornerDialogOpen = ref(false)
+const zoneDialogOpen = ref(false)
+const floorDialogOpen = ref(false)
+
+function handleCornerDialogClose() {
+  loadRefTree()
+  td.loadReferenceData()
+}
+
+const loadRefTree = async () => {
+  try {
+    // 1라운드: divisions
+    const divisions = await referenceApi.getDivisionList()
+
+    // 2라운드: 모든 division의 workTypes 병렬
+    const workTypesByDiv = await Promise.all(
+      divisions.map((div) => referenceApi.getWorkTypeList(div.id)),
+    )
+
+    // 3라운드: 모든 workType의 subWorkTypes 병렬
+    const allWorkTypes = workTypesByDiv.flat()
+    const subsByWorkType = await Promise.all(
+      allWorkTypes.map((wt) => referenceApi.getSubWorkTypeList(wt.id)),
+    )
+
+    // 순서 유지하며 트리 재구성
+    refTree.value = allWorkTypes.map((wt, idx) => ({
+      name: wt.name,
+      subWorkTypes: subsByWorkType[idx]!.map((s) => ({ id: s.id, name: s.name })),
+    }))
+  } catch (error) {
+    console.error('Reference tree 로드 실패:', error)
+  }
+}
+
+// 행 배치용 ROW_UNIT (nodeHeight + 2 * nodePaddingY)
+const ROW_UNIT = CHART_CONFIG.nodeHeight + 2 * CHART_CONFIG.nodePaddingY
+// 노드를 행 내 수직 중앙에 배치하기 위한 오프셋
+const NODE_OFFSET_Y = CHART_CONFIG.nodePaddingY
+
+// 주단위화면 (Weekly View) — 행 높이·노드 높이 2배, 텍스트 2배
+const WEEKLY_ROW_UNIT = ROW_UNIT * 2
+const WEEKLY_NODE_HEIGHT = CHART_CONFIG.nodeHeight * 2
+const WEEKLY_THRESHOLD = 0.4
+const isWeeklyMode = ref(false)
+const activeHeaderHeight = computed(() => isWeeklyMode.value ? WEEKLY_HEADER_HEIGHT : HEADER_HEIGHT)
+const activeRowUnit = computed(() => isWeeklyMode.value ? WEEKLY_ROW_UNIT : ROW_UNIT)
+
+// 우클릭으로 강조된 행 인덱스
+const highlightedRowIndex = ref<number | null>(null)
+
+// rowLayout computed
+const rowLayout = computed<RowLayout>(() => {
+  const works = nodes.value
+    .filter((n) => n.id.startsWith('work-'))
+    .map((n) => n.data.work as WorkResponse)
+  return computeRowLayout(works, refTree.value.length > 0 ? refTree.value : undefined)
+})
+
+// rowLayout 변경 시 노드 Y 자동 갱신
+watch(rowLayout, (layout) => {
+  nodes.value.forEach((n) => {
+    if (!n.id.startsWith('work-')) return
+    const work = n.data.work as WorkResponse
+    const row = layout.workRowMap.get(work.workId)
+    if (row !== undefined) n.position.y = row * ROW_UNIT + NODE_OFFSET_Y
+  })
+})
+
+// 주단위화면: row layout + work block nodes
+const weeklyRowLayout = computed(() => {
+  if (!isWeeklyMode.value) return null
+  const works = nodes.value
+    .filter((n) => n.id.startsWith('work-'))
+    .map((n) => n.data.work as WorkResponse)
+  return computeWeeklyRowLayout(works, refTree.value.length > 0 ? refTree.value : undefined)
+})
+
+// 주단위 화면용 workType → 팔레트 인덱스 (weeklyRowLayout.sections 순서 = LeftHeader BG_COLORS 순서)
+const weeklyPaletteMap = computed(() => {
+  const map = new Map<string, number>()
+  if (!weeklyRowLayout.value) return map
+  weeklyRowLayout.value.sections.forEach((section, idx) => {
+    map.set(section.workType, idx)
+  })
+  return map
+})
+
+const weeklyNodes = computed(() => {
+  if (!weeklyRowLayout.value) return []
+  const works = nodes.value
+    .filter((n) => n.id.startsWith('work-'))
+    .map((n) => n.data.work as WorkResponse)
+  const blocks = buildWorkBlocks(works, weeklyRowLayout.value)
+  return blocks.map((block) => {
+    const node = workBlockToNode(block, WEEKLY_ROW_UNIT, WEEKLY_NODE_HEIGHT)
+    const wtIdx = weeklyPaletteMap.value.get(block.workType)
+    if (wtIdx !== undefined) {
+      const palette = GROUP_PALETTE[wtIdx % GROUP_PALETTE.length]!
+      node.style = {
+        ...node.style as Record<string, string>,
+        backgroundColor: palette.nodeBg,
+        borderColor: palette.nodeBorder,
+      }
+    }
+    return node
+  })
+})
+
+const activeNodes = computed({
+  get: () => isWeeklyMode.value ? weeklyNodes.value : nodes.value,
+  set: (val) => {
+    if (!isWeeklyMode.value) nodes.value = val
+  },
+})
 
 // 그루핑 박스 표시 상태
 const showWorkTypeGroup = ref(false)
 const showSubWorkTypeGroup = ref(false)
 
-// 그루핑 박스 선택 & 드래그
+// 그루핑 박스 선택
 const selectedGroupIndex = ref<number | null>(null)
-const isDraggingGroup = ref(false)
-const groupDragStartY = ref(0)
-const groupDragOriginalPositions = ref<Map<number, number>>(new Map())
 
 const selectGroup = (index: number, event: MouseEvent) => {
   event.stopPropagation()
@@ -73,23 +212,37 @@ const selectGroup = (index: number, event: MouseEvent) => {
 
 // 화면 좌표 → flow 좌표 변환 후 그룹박스 히트 테스트 (공통 헬퍼)
 const hitTestGroupBox = (event: MouseEvent): number => {
-  if (isInPathMode.value) return -1
+  if (isPathEditMode.value) return -1
   if (!showWorkTypeGroup.value && !showSubWorkTypeGroup.value) return -1
   const container = containerRef.value
   if (!container) return -1
   const rect = container.getBoundingClientRect()
-  const flowX = (event.clientX - rect.left - viewport.value.x) / viewport.value.zoom
-  const flowY = (event.clientY - rect.top - viewport.value.y) / viewport.value.zoom
+  const flowX =
+    (event.clientX - rect.left - LEFT_HEADER_WIDTH - viewport.value.x) / viewport.value.zoom
+  const flowY = (event.clientY - rect.top - activeHeaderHeight.value - viewport.value.y) / viewport.value.zoom
   return groupBoxes.value.findIndex((box) => {
-    const visible = (box.level === 'workType' && showWorkTypeGroup.value) || (box.level === 'subWorkType' && showSubWorkTypeGroup.value)
-    return visible && flowX >= box.x && flowX <= box.x + box.width && flowY >= box.y && flowY <= box.y + box.height
+    const visible =
+      (box.level === 'workType' && showWorkTypeGroup.value) ||
+      (box.level === 'subWorkType' && showSubWorkTypeGroup.value)
+    return (
+      visible &&
+      flowX >= box.x &&
+      flowX <= box.x + box.width &&
+      flowY >= box.y &&
+      flowY <= box.y + box.height
+    )
   })
 }
 
-const getGroupLabelOffset = (box: { x: number; y: number; width: number; height: number }): { top: string; left: string } => {
+const getGroupLabelOffset = (box: {
+  x: number
+  y: number
+  width: number
+  height: number
+}): { top: string; left: string } => {
   const zoom = viewport.value.zoom
   const overlayLeft = box.x * zoom + viewport.value.x
-  const overlayTop = (box.y - HEADER_HEIGHT / zoom) * zoom + viewport.value.y + HEADER_HEIGHT
+  const overlayTop = box.y * zoom + viewport.value.y
   const overlayWidth = box.width * zoom
   const overlayHeight = box.height * zoom
 
@@ -99,8 +252,8 @@ const getGroupLabelOffset = (box: { x: number; y: number; width: number; height:
   }
 
   let labelTop = 2
-  if (overlayTop < HEADER_HEIGHT) {
-    labelTop = Math.max(2, HEADER_HEIGHT - overlayTop + 2)
+  if (overlayTop < 0) {
+    labelTop = Math.max(2, -overlayTop + 2)
   }
 
   // 라벨이 박스 밖으로 넘어가지 않도록 clamp
@@ -110,78 +263,11 @@ const getGroupLabelOffset = (box: { x: number; y: number; width: number; height:
   return { top: `${labelTop}px`, left: `${labelLeft}px` }
 }
 
-const startGroupDrag = (index: number, event: MouseEvent) => {
+// 그룹 드래그 비활성화 (Y축이 rowLayout 기반이므로)
+const startGroupDrag = (_index: number, event: MouseEvent) => {
   event.preventDefault()
   event.stopPropagation()
-  if (selectedGroupIndex.value !== index) {
-    selectedGroupIndex.value = index
-  }
-
-  const box = groupBoxes.value[index]
-  if (!box) return
-
-  isDraggingGroup.value = true
-  groupDragStartY.value = event.clientY
-
-  // 그룹에 속한 노드들의 원래 Y 저장
-  const origPositions = new Map<number, number>()
-  const workNodes = nodes.value.filter(n => n.id.startsWith('work-'))
-  workNodes.forEach(n => {
-    const work = n.data.work as WorkResponse
-    const groupKey = box.level === 'workType'
-      ? (work.workType || '미분류')
-      : (work.subWorkType || '미분류')
-    if (groupKey === box.label) {
-      origPositions.set(work.workId, n.position.y)
-    }
-  })
-  groupDragOriginalPositions.value = origPositions
-
-  const cfg = chartConfigStore.config
-  const rowUnit = cfg.nodeHeight + 2 * cfg.nodePaddingY
-
-  const onMouseMove = (e: MouseEvent) => {
-    const deltaScreen = e.clientY - groupDragStartY.value
-    const deltaFlow = deltaScreen / viewport.value.zoom
-    const snappedDelta = Math.round(deltaFlow / rowUnit) * rowUnit
-    if (snappedDelta === 0 && Math.abs(deltaFlow) < rowUnit / 2) return
-
-    origPositions.forEach((origY, workId) => {
-      const node = nodes.value.find(n => n.id === `work-${workId}`)
-      if (node) node.position.y = origY + snappedDelta
-    })
-  }
-
-  const onMouseUp = async () => {
-    window.removeEventListener('mousemove', onMouseMove)
-    window.removeEventListener('mouseup', onMouseUp)
-    isDraggingGroup.value = false
-
-    // 변경된 노드들 API 저장
-    const updates: Promise<void>[] = []
-    origPositions.forEach((origY, workId) => {
-      const node = nodes.value.find(n => n.id === `work-${workId}`)
-      if (!node) return
-      const snappedY = Math.floor(node.position.y / rowUnit) * rowUnit
-      node.position.y = snappedY
-      const work = node.data.work as WorkResponse
-      if (snappedY === origY) return
-      updates.push(
-        workApi.updateWork(work.workId, {
-          positionY: snappedY,
-        }).then(() => {
-          node.data.work = { ...work, positionY: snappedY }
-        }).catch((err: unknown) => {
-          console.error('그룹 이동 저장 실패:', err)
-          node.position.y = origY
-        })
-      )
-    })
-    await Promise.all(updates)
-  }
-
-  window.addEventListener('mousemove', onMouseMove)
-  window.addEventListener('mouseup', onMouseUp)
+  selectedGroupIndex.value = _index
 }
 
 // 삭제 팝업 상태
@@ -198,9 +284,10 @@ const executeOptimize = async () => {
   isOptimizing.value = true
   const action = optimizeTarget.value === 'current' ? 'optimize_current_path' : 'optimize_all_paths'
   try {
-    const mutation = optimizeTarget.value === 'current'
-      ? await workPathApi.optimizePath(selectedPathId.value!)
-      : await workPathApi.optimizePaths()
+    const mutation =
+      optimizeTarget.value === 'current'
+        ? await workPathApi.optimizePath(selectedPathId.value!)
+        : await workPathApi.optimizePaths()
     applyMutation(mutation)
     showOptimizeDialog.value = false
     showPathDialog.value = false
@@ -218,8 +305,8 @@ const executeOptimize = async () => {
 // 말풍선 상태 - flow 좌표 저장
 const tooltip = ref<{
   visible: boolean
-  nodeX: number      // flow 좌표 (노드 중앙 X)
-  nodeY: number      // flow 좌표 (노드 상단 Y)
+  nodeX: number // flow 좌표 (노드 중앙 X)
+  nodeY: number // flow 좌표 (노드 상단 Y)
   workId: number | null
   workName: string
   startDate: string
@@ -235,7 +322,7 @@ const tooltip = ref<{
   startDate: '',
   workLeadTime: 0,
   completionDate: '',
-  isWorkingOnHoliday: true
+  isWorkingOnHoliday: true,
 })
 
 // 선택된 노드의 선행작업 목록 (모든 패스에서)
@@ -243,10 +330,10 @@ const tooltipPredecessors = computed(() => {
   const wId = tooltip.value.workId
   if (!wId) return []
 
-  return paths.value.flatMap(p => {
-    const predecessorEdges = p.edges.filter(e => e.targetWorkId === wId)
-    return predecessorEdges.map(e => {
-      const node = nodes.value.find(n => n.id === `work-${e.sourceWorkId}`)
+  return paths.value.flatMap((p) => {
+    const predecessorEdges = p.edges.filter((e) => e.targetWorkId === wId)
+    return predecessorEdges.map((e) => {
+      const node = nodes.value.find((n) => n.id === `work-${e.sourceWorkId}`)
       const work = node?.data.work as WorkResponse | undefined
       return {
         pathId: p.workPathId,
@@ -255,11 +342,88 @@ const tooltipPredecessors = computed(() => {
         workId: e.sourceWorkId,
         workName: work?.workName || `Work ${e.sourceWorkId}`,
         lagDays: e.lagDays ?? 0,
-        isFollowing: e.lagDays !== undefined && e.lagDays !== null
+        isFollowing: e.lagDays !== undefined && e.lagDays !== null,
       }
     })
   })
 })
+
+/** 노드 스타일을 단일 CSS 변수 --node-border 기반으로 빌드 */
+function buildNodeStyle(
+  work: WorkResponse,
+  computedWidth: number,
+  computedHeight: number,
+  palette: (typeof GROUP_PALETTE)[number] | undefined,
+  highlight?: { color: string },
+): { style: Record<string, string>; class: string | undefined } {
+  const borderColor = highlight?.color ?? palette?.nodeBorder ?? '#d1d5db'
+  const isHoliday = !work.isWorkingOnHoliday
+
+  const style: Record<string, string> = {
+    width: `${computedWidth}px`,
+    height: `${computedHeight}px`,
+    overflow: 'visible',
+    whiteSpace: 'nowrap',
+    backgroundColor: palette?.nodeBg ?? '#ffffff',
+  }
+
+  // holiday(점선) 노드: gradient에서 색상을 CSS 변수로 참조해야 하므로 --node-border 사용
+  // solid(실선) 노드: inline border 직접 설정 (CSS cascade 의존 제거)
+  if (isHoliday) {
+    style['--node-border'] = borderColor
+  } else {
+    style.border = `1px solid ${borderColor}`
+  }
+
+  if (highlight) {
+    style.boxShadow = `0 0 8px ${highlight.color}50`
+  }
+  return {
+    style,
+    class: isHoliday ? 'holiday-node' : undefined,
+  }
+}
+
+/** workToNode + 스타일 적용을 한 번에 처리 */
+function styledWorkToNode(work: WorkResponse, yOverride?: number): Node {
+  const node = workToNode(work, yOverride)
+  const wtIdx = workTypePaletteMap.value.get(work.workType || '미분류')
+  const palette = wtIdx !== undefined ? GROUP_PALETTE[wtIdx % GROUP_PALETTE.length]! : undefined
+  const result = buildNodeStyle(
+    work,
+    node.data.computedWidth as number,
+    node.data.computedHeight as number,
+    palette,
+  )
+  node.style = result.style
+  node.class = result.class
+  return node
+}
+
+/** 날짜 겹침 + Y 위치를 판단하여 엣지 연결 Handle을 결정 */
+function getEdgeHandles(
+  sourceWorkId: number,
+  targetWorkId: number,
+): { sourceHandle: string; targetHandle: string } {
+  const sourceNode = nodes.value.find((n) => n.id === `work-${sourceWorkId}`)
+  const targetNode = nodes.value.find((n) => n.id === `work-${targetWorkId}`)
+  if (!sourceNode || !targetNode)
+    return { sourceHandle: 'source-right', targetHandle: 'target-left' }
+
+  const sourceEnd = dateToDayIndex((sourceNode.data.work as WorkResponse).completionDate)
+  const targetStart = dateToDayIndex((targetNode.data.work as WorkResponse).startDate)
+  const overlap = targetStart <= sourceEnd
+
+  if (!overlap) {
+    return { sourceHandle: 'source-right', targetHandle: 'target-left' }
+  }
+
+  // 수직 연결: source가 target보다 아래에 있으면 위로 올라감
+  const sourceBelow = sourceNode.position.y > targetNode.position.y
+  return sourceBelow
+    ? { sourceHandle: 'source-top', targetHandle: 'target-bottom' }
+    : { sourceHandle: 'source-bottom', targetHandle: 'target-top' }
+}
 
 // 그루핑 박스
 interface GroupBox {
@@ -274,17 +438,62 @@ interface GroupBox {
 }
 
 const GROUP_PALETTE = [
-  { bg: 'rgba(59, 130, 246, 0.06)', border: 'rgba(59, 130, 246, 0.25)', subBg: 'rgba(59, 130, 246, 0.08)', subBorder: 'rgba(59, 130, 246, 0.35)' },
-  { bg: 'rgba(16, 185, 129, 0.06)', border: 'rgba(16, 185, 129, 0.25)', subBg: 'rgba(16, 185, 129, 0.08)', subBorder: 'rgba(16, 185, 129, 0.35)' },
-  { bg: 'rgba(245, 158, 11, 0.06)', border: 'rgba(245, 158, 11, 0.25)', subBg: 'rgba(245, 158, 11, 0.08)', subBorder: 'rgba(245, 158, 11, 0.35)' },
-  { bg: 'rgba(168, 85, 247, 0.06)', border: 'rgba(168, 85, 247, 0.25)', subBg: 'rgba(168, 85, 247, 0.08)', subBorder: 'rgba(168, 85, 247, 0.35)' },
-  { bg: 'rgba(236, 72, 153, 0.06)', border: 'rgba(236, 72, 153, 0.25)', subBg: 'rgba(236, 72, 153, 0.08)', subBorder: 'rgba(236, 72, 153, 0.35)' },
-  { bg: 'rgba(6, 182, 212, 0.06)', border: 'rgba(6, 182, 212, 0.25)', subBg: 'rgba(6, 182, 212, 0.08)', subBorder: 'rgba(6, 182, 212, 0.35)' },
+  {
+    bg: 'rgba(59, 130, 246, 0.06)',
+    border: 'rgba(59, 130, 246, 0.25)',
+    subBg: 'rgba(59, 130, 246, 0.08)',
+    subBorder: 'rgba(59, 130, 246, 0.35)',
+    nodeBg: '#e8f0fe',
+    nodeBorder: 'rgba(59, 130, 246, 0.7)',
+  },
+  {
+    bg: 'rgba(16, 185, 129, 0.06)',
+    border: 'rgba(16, 185, 129, 0.25)',
+    subBg: 'rgba(16, 185, 129, 0.08)',
+    subBorder: 'rgba(16, 185, 129, 0.35)',
+    nodeBg: '#e2f5ec',
+    nodeBorder: 'rgba(16, 185, 129, 0.7)',
+  },
+  {
+    bg: 'rgba(245, 158, 11, 0.06)',
+    border: 'rgba(245, 158, 11, 0.25)',
+    subBg: 'rgba(245, 158, 11, 0.08)',
+    subBorder: 'rgba(245, 158, 11, 0.35)',
+    nodeBg: '#fdf5dc',
+    nodeBorder: 'rgba(245, 158, 11, 0.7)',
+  },
+  {
+    bg: 'rgba(168, 85, 247, 0.06)',
+    border: 'rgba(168, 85, 247, 0.25)',
+    subBg: 'rgba(168, 85, 247, 0.08)',
+    subBorder: 'rgba(168, 85, 247, 0.35)',
+    nodeBg: '#f0edfe',
+    nodeBorder: 'rgba(168, 85, 247, 0.7)',
+  },
+  {
+    bg: 'rgba(236, 72, 153, 0.06)',
+    border: 'rgba(236, 72, 153, 0.25)',
+    subBg: 'rgba(236, 72, 153, 0.08)',
+    subBorder: 'rgba(236, 72, 153, 0.35)',
+    nodeBg: '#fceef6',
+    nodeBorder: 'rgba(236, 72, 153, 0.7)',
+  },
+  {
+    bg: 'rgba(6, 182, 212, 0.06)',
+    border: 'rgba(6, 182, 212, 0.25)',
+    subBg: 'rgba(6, 182, 212, 0.08)',
+    subBorder: 'rgba(6, 182, 212, 0.35)',
+    nodeBg: '#e4f8fb',
+    nodeBorder: 'rgba(6, 182, 212, 0.7)',
+  },
 ]
 
 function calcBBox(nodeList: Node[]) {
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-  nodeList.forEach(n => {
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity
+  nodeList.forEach((n) => {
     const w = (n.data.computedWidth as number) || 0
     const h = (n.data.computedHeight as number) || 0
     minX = Math.min(minX, n.position.x)
@@ -296,27 +505,27 @@ function calcBBox(nodeList: Node[]) {
 }
 
 const groupBoxes = computed<GroupBox[]>(() => {
-  const workNodes = nodes.value.filter(n => n.id.startsWith('work-'))
+  const workNodes = nodes.value.filter((n) => n.id.startsWith('work-'))
   if (workNodes.length === 0) return []
 
   const boxes: GroupBox[] = []
 
   // workType별 그룹핑
   const byWorkType = new Map<string, Node[]>()
-  workNodes.forEach(n => {
+  workNodes.forEach((n) => {
     const work = n.data.work as WorkResponse
     const key = work.workType || '미분류'
     if (!byWorkType.has(key)) byWorkType.set(key, [])
     byWorkType.get(key)!.push(n)
   })
 
-  let typeIdx = 0
   byWorkType.forEach((typeNodes, workType) => {
+    const typeIdx = workTypePaletteMap.value.get(workType) ?? 0
     const palette = GROUP_PALETTE[typeIdx % GROUP_PALETTE.length]!
 
     // subWorkType별 분류
     const bySubType = new Map<string, Node[]>()
-    typeNodes.forEach(n => {
+    typeNodes.forEach((n) => {
       const work = n.data.work as WorkResponse
       const key = work.subWorkType || '미분류'
       if (!bySubType.has(key)) bySubType.set(key, [])
@@ -327,10 +536,14 @@ const groupBoxes = computed<GroupBox[]>(() => {
     const wtPadding = 15
     const { minX, minY, maxX, maxY } = calcBBox(typeNodes)
     boxes.push({
-      level: 'workType', label: workType,
-      x: minX - wtPadding, y: minY - wtPadding,
-      width: maxX - minX + wtPadding * 2, height: maxY - minY + wtPadding * 2,
-      fillColor: palette.bg, borderColor: palette.border,
+      level: 'workType',
+      label: workType,
+      x: minX - wtPadding,
+      y: minY - wtPadding,
+      width: maxX - minX + wtPadding * 2,
+      height: maxY - minY + wtPadding * 2,
+      fillColor: palette.bg,
+      borderColor: palette.border,
     })
 
     // subWorkType 박스들
@@ -338,14 +551,16 @@ const groupBoxes = computed<GroupBox[]>(() => {
     bySubType.forEach((subNodes, subType) => {
       const sb = calcBBox(subNodes)
       boxes.push({
-        level: 'subWorkType', label: subType,
-        x: sb.minX - subPadding, y: sb.minY - subPadding,
-        width: sb.maxX - sb.minX + subPadding * 2, height: sb.maxY - sb.minY + subPadding * 2,
-        fillColor: palette.subBg, borderColor: palette.subBorder,
+        level: 'subWorkType',
+        label: subType,
+        x: sb.minX - subPadding,
+        y: sb.minY - subPadding,
+        width: sb.maxX - sb.minX + subPadding * 2,
+        height: sb.maxY - sb.minY + subPadding * 2,
+        fillColor: palette.subBg,
+        borderColor: palette.subBorder,
       })
     })
-
-    typeIdx++
   })
 
   return boxes
@@ -367,78 +582,104 @@ const loadCalendarData = async () => {
 const calendarData = computed(() => calendarStore.calendarData)
 
 // lagDays 수정
-const updateEdgeOverlap = async (pathId: number, sourceWorkId: number, targetWorkId: number, days: number | null) => {
-  const path = paths.value.find(p => p.workPathId === pathId)
-  if (!path) return
-  const updatedEdges = path.edges.map(e =>
-    e.sourceWorkId === sourceWorkId && e.targetWorkId === targetWorkId
-      ? { ...e, lagDays: days }
-      : e
-  )
-  try {
-    const mutation = await workPathApi.updateWorkPath(pathId, { edges: updatedEdges })
-    applyMutation(mutation)
-    tooltip.value.visible = false
-    analyticsClient.trackAction('schedule_2d', 'update_path', 'success')
-  } catch (error: unknown) {
-    console.error('lagDays 수정 실패:', error)
-    analyticsClient.trackAction('schedule_2d', 'update_path', 'fail')
-    const err = error as { response?: { data?: { message?: string } }; message?: string }
-    alert(err.response?.data?.message || err.message)
-  }
+const updateEdgeOverlap = async (
+  pathId: number,
+  _sourceWorkId: number,
+  targetWorkId: number,
+  days: number | null,
+) => {
+  await updateLagDays(pathId, targetWorkId, days)
+  tooltip.value.visible = false
 }
 
 // lagDays 로컬 업데이트 (API 호출 없이 computed 재계산용)
-const updateEdgeOverlapLocal = (pathId: number, sourceWorkId: number, targetWorkId: number, days: number | null) => {
-  const path = paths.value.find(p => p.workPathId === pathId)
+const updateEdgeOverlapLocal = (
+  pathId: number,
+  sourceWorkId: number,
+  targetWorkId: number,
+  days: number | null,
+) => {
+  const path = paths.value.find((p) => p.workPathId === pathId)
   if (!path) return
-  const idx = path.edges.findIndex(e => e.sourceWorkId === sourceWorkId && e.targetWorkId === targetWorkId)
+  const idx = path.edges.findIndex(
+    (e) => e.sourceWorkId === sourceWorkId && e.targetWorkId === targetWorkId,
+  )
   if (idx === -1) return
   path.edges[idx] = { ...path.edges[idx]!, lagDays: days }
   paths.value = [...paths.value]
+
+  // 엣지의 isFollowing 동기화
+  const edgeId = `edge-${pathId}-${sourceWorkId}-${targetWorkId}`
+  const edgeIdx = edges.value.findIndex((e) => e.id === edgeId)
+  if (edgeIdx !== -1) {
+    const e = edges.value[edgeIdx]!
+    edges.value[edgeIdx] = {
+      ...e,
+      data: { ...e.data, isFollowing: days !== undefined && days !== null },
+    }
+    edges.value = [...edges.value]
+  }
 }
 
 // 작업 및 패스 데이터 로드
 const loadWorkData = async () => {
   isLoadingWorks.value = true
   try {
-    const [works, pathList] = await Promise.all([
-      workApi.getWorkList(),
-      workPathApi.getPathList()
-    ])
-    nodes.value = worksToNodes(works)
+    const [works, pathList] = await Promise.all([workApi.getWorkList(), workPathApi.getPathList()])
+
+    const layout = computeRowLayout(works, refTree.value.length > 0 ? refTree.value : undefined)
+
+    // workType → 팔레트 인덱스 맵 구축 (rowLayout.sections 순서 = LeftHeader 순서)
+    const paletteMap = new Map<string, number>()
+    layout.sections.forEach((section, idx) => {
+      paletteMap.set(section.workType, idx)
+    })
+    workTypePaletteMap.value = paletteMap
+    nodes.value = works.map((w) => {
+      const y = (layout.workRowMap.get(w.workId) ?? 0) * ROW_UNIT + NODE_OFFSET_Y
+      return styledWorkToNode(w, y)
+    })
     paths.value = pathList
 
     // 같은 source-target 쌍을 가진 엣지들에 offset 적용
     const edgePairCount = new Map<string, number>()
 
-    edges.value = pathList.flatMap(path =>
-      path.edges.map(edge => {
+    edges.value = pathList.flatMap((path) =>
+      path.edges.map((edge) => {
         const pairKey = `${edge.sourceWorkId}-${edge.targetWorkId}`
         const currentCount = edgePairCount.get(pairKey) || 0
         edgePairCount.set(pairKey, currentCount + 1)
 
         // offset 계산: 0, 3, -3, 6, -6, ... (X, Y 동일)
         const offsetIndex = currentCount
-        const offset = offsetIndex === 0 ? 0 : (offsetIndex % 2 === 1 ? 1 : -1) * Math.ceil(offsetIndex / 2) * 3
+        const offset =
+          offsetIndex === 0 ? 0 : (offsetIndex % 2 === 1 ? 1 : -1) * Math.ceil(offsetIndex / 2) * 3
 
+        const handles = getEdgeHandles(edge.sourceWorkId, edge.targetWorkId)
         return {
           id: `edge-${path.workPathId}-${edge.sourceWorkId}-${edge.targetWorkId}`,
           source: `work-${edge.sourceWorkId}`,
           target: `work-${edge.targetWorkId}`,
+          sourceHandle: handles.sourceHandle,
+          targetHandle: handles.targetHandle,
           type: 'smoothstep',
           pathOptions: { borderRadius: 20, offset: 15 },
           style: { stroke: path.workPathColor },
-          data: { pathId: path.workPathId, pathName: path.workPathName, offset }
+          data: {
+            pathId: path.workPathId,
+            pathName: path.workPathName,
+            offset,
+            isFollowing: edge.lagDays !== undefined && edge.lagDays !== null,
+          },
         }
-      })
+      }),
     )
 
     emit('works-loaded', works)
 
     // 말풍선이 열려있으면 갱신된 노드 데이터로 동기화
     if (tooltip.value.visible && tooltip.value.workId) {
-      const updatedNode = nodes.value.find(n => n.id === `work-${tooltip.value.workId}`)
+      const updatedNode = nodes.value.find((n) => n.id === `work-${tooltip.value.workId}`)
       const updatedWork = updatedNode?.data.work as WorkResponse | undefined
       if (updatedNode && updatedWork) {
         tooltip.value.workName = updatedWork.workName
@@ -446,7 +687,8 @@ const loadWorkData = async () => {
         tooltip.value.workLeadTime = updatedWork.workLeadTime
         tooltip.value.completionDate = updatedWork.completionDate
         tooltip.value.isWorkingOnHoliday = updatedWork.isWorkingOnHoliday
-        tooltip.value.nodeX = updatedNode.position.x + (updatedNode.data.computedWidth as number) / 2
+        tooltip.value.nodeX =
+          updatedNode.position.x + (updatedNode.data.computedWidth as number) / 2
         tooltip.value.nodeY = updatedNode.position.y - 8
       } else {
         tooltip.value.visible = false
@@ -461,14 +703,21 @@ const loadWorkData = async () => {
 
 // MutationResponse를 받아 로컬 nodes, edges, paths를 부분 갱신
 const applyMutation = (mutation: MutationResponse) => {
-  // 1) updatedWorks 반영 → 기존 노드 업데이트 (position.y 유지)
+  // 1) updatedWorks 반영 → 기존 노드 업데이트 (Y는 rowLayout 기반 재계산)
   if (mutation.updatedWorks.length > 0) {
-    const updateMap = new Map(mutation.updatedWorks.map(w => [w.workId, w]))
-    nodes.value = nodes.value.map(n => {
+    const updateMap = new Map(mutation.updatedWorks.map((w) => [w.workId, w]))
+    nodes.value = nodes.value.map((n) => {
       const work = updateMap.get((n.data.work as WorkResponse).workId)
       if (!work) return n
-      const updated = workToNode(work)
+      const updated = styledWorkToNode(work)
       return { ...updated, position: { ...updated.position, y: n.position.y } }
+    })
+    // rowLayout 기반으로 Y 재배치
+    const layout = rowLayout.value
+    nodes.value.forEach((n) => {
+      const work = n.data.work as WorkResponse
+      const row = layout.workRowMap.get(work.workId)
+      if (row !== undefined) n.position.y = row * ROW_UNIT + NODE_OFFSET_Y
     })
     // 말풍선 동기화
     if (tooltip.value.visible && tooltip.value.workId) {
@@ -479,47 +728,61 @@ const applyMutation = (mutation: MutationResponse) => {
         tooltip.value.workLeadTime = w.workLeadTime
         tooltip.value.completionDate = w.completionDate
         tooltip.value.isWorkingOnHoliday = w.isWorkingOnHoliday
-        const node = nodes.value.find(n => n.id === `work-${w.workId}`)
+        const node = nodes.value.find((n) => n.id === `work-${w.workId}`)
         if (node) {
           tooltip.value.nodeX = node.position.x + (node.data.computedWidth as number) / 2
           tooltip.value.nodeY = node.position.y - 8
         }
       }
     }
-    emit('works-loaded', nodes.value.map(n => n.data.work as WorkResponse))
+    emit(
+      'works-loaded',
+      nodes.value.map((n) => n.data.work as WorkResponse),
+    )
   }
 
   // 2) updatedWorkPaths 반영 → 해당 path의 edges 재생성
   if (mutation.updatedWorkPaths.length > 0) {
-    const updatedPathIds = new Set(mutation.updatedWorkPaths.map(p => p.workPathId))
+    const updatedPathIds = new Set(mutation.updatedWorkPaths.map((p) => p.workPathId))
     // paths 배열 갱신 (기존 path를 새 데이터로 교체)
-    const pathMap = new Map(mutation.updatedWorkPaths.map(p => [p.workPathId, p]))
-    paths.value = paths.value.map(p => pathMap.get(p.workPathId) ?? p)
+    const pathMap = new Map(mutation.updatedWorkPaths.map((p) => [p.workPathId, p]))
+    paths.value = paths.value.map((p) => pathMap.get(p.workPathId) ?? p)
     // 해당 path의 기존 엣지 제거 후 새로 생성
-    edges.value = edges.value.filter(e => !updatedPathIds.has(e.data?.pathId))
+    edges.value = edges.value.filter((e) => !updatedPathIds.has(e.data?.pathId))
     // 새 엣지 추가 (offset 계산 포함)
     const edgePairCount = new Map<string, number>()
     // 기존 엣지에서 pairCount 집계
-    edges.value.forEach(e => {
+    edges.value.forEach((e) => {
       const key = `${e.source}-${e.target}`
       edgePairCount.set(key, (edgePairCount.get(key) || 0) + 1)
     })
-    const newEdges = mutation.updatedWorkPaths.flatMap(path =>
-      path.edges.map(edge => {
+    const newEdges = mutation.updatedWorkPaths.flatMap((path) =>
+      path.edges.map((edge) => {
         const pairKey = `work-${edge.sourceWorkId}-work-${edge.targetWorkId}`
         const currentCount = edgePairCount.get(pairKey) || 0
         edgePairCount.set(pairKey, currentCount + 1)
-        const offset = currentCount === 0 ? 0 : (currentCount % 2 === 1 ? 1 : -1) * Math.ceil(currentCount / 2) * 3
+        const offset =
+          currentCount === 0
+            ? 0
+            : (currentCount % 2 === 1 ? 1 : -1) * Math.ceil(currentCount / 2) * 3
+        const handles = getEdgeHandles(edge.sourceWorkId, edge.targetWorkId)
         return {
           id: `edge-${path.workPathId}-${edge.sourceWorkId}-${edge.targetWorkId}`,
           source: `work-${edge.sourceWorkId}`,
           target: `work-${edge.targetWorkId}`,
+          sourceHandle: handles.sourceHandle,
+          targetHandle: handles.targetHandle,
           type: 'smoothstep',
           pathOptions: { borderRadius: 20, offset: 15 },
           style: { stroke: path.workPathColor },
-          data: { pathId: path.workPathId, pathName: path.workPathName, offset }
+          data: {
+            pathId: path.workPathId,
+            pathName: path.workPathName,
+            offset,
+            isFollowing: edge.lagDays !== undefined && edge.lagDays !== null,
+          },
         }
-      })
+      }),
     )
     edges.value = [...edges.value, ...newEdges]
   }
@@ -538,12 +801,17 @@ const executeDelete = async () => {
     if (deleteType.value === 'work' && selectedWorkId.value) {
       const mutation = await workApi.deleteWork(selectedWorkId.value)
       const deletedNodeId = `work-${selectedWorkId.value}`
-      edges.value = edges.value.filter((e) => e.source !== deletedNodeId && e.target !== deletedNodeId)
+      edges.value = edges.value.filter(
+        (e) => e.source !== deletedNodeId && e.target !== deletedNodeId,
+      )
       nodes.value = nodes.value.filter((n) => n.id !== deletedNodeId)
       applyMutation(mutation)
       clearWorkSelection()
       tooltip.value.visible = false
-      emit('works-loaded', nodes.value.map((n) => n.data.work as WorkResponse))
+      emit(
+        'works-loaded',
+        nodes.value.map((n) => n.data.work as WorkResponse),
+      )
       analyticsClient.trackAction('schedule_2d', 'delete_work', 'success')
     } else if (deleteType.value === 'path' && selectedPathId.value) {
       await workPathApi.deleteWorkPath(selectedPathId.value)
@@ -551,6 +819,7 @@ const executeDelete = async () => {
       edges.value = edges.value.filter((e) => e.data?.pathId !== deletedPathId)
       paths.value = paths.value.filter((p) => p.workPathId !== deletedPathId)
       cancelPathEdit()
+      showPathDialog.value = false
       analyticsClient.trackAction('schedule_2d', 'delete_path', 'success')
     }
     showDeleteDialog.value = false
@@ -583,7 +852,7 @@ const {
   deactivatedIndices,
   todayInProject,
   setupResizeObserver,
-  cleanupResizeObserver
+  cleanupResizeObserver,
 } = useDateHeader(viewport, calendarData)
 
 const {
@@ -599,67 +868,58 @@ const {
   onConnect,
   removeNodeFromPath,
   savePathEdges,
-} = usePathEditor(nodes, edges, paths, applyMutation)
+  updatePath,
+  updateLagDays,
+} = usePathEditor(nodes, edges, paths, applyMutation, getEdgeHandles)
 
-// 패스 모드 플래그 (패스 선택 없이도 모드 전환 가능)
-const pathMode = ref(false)
-const isInPathMode = computed(() => pathMode.value || isPathEditMode.value)
+// 패스 연결 모드 상태 (watch보다 먼저 선언 필요)
+const connectingFrom = ref<{
+  workId: number
+  mode: 'new' | 'add'
+  pathId?: number
+} | null>(null)
 
-// pathMode 해제 시 패스 선택도 해제
-watch(pathMode, (val) => {
-  if (!val && isPathEditMode.value) {
-    cancelPathEdit()
-    tooltip.value.visible = false
-  }
-})
-
-// 패스 편집 모드에서 노드 하이라이트
+// 패스 편집 모드 또는 연결 모드에서 노드 하이라이트
 watch(
-  [isInPathMode, selectedPathColor, pathNodeIds],
-  ([editMode, pathColor, nodeIds]) => {
-    nodes.value = nodes.value.map(node => {
-      const workId = parseInt(node.id.replace('work-', ''))
+  [isPathEditMode, selectedPathColor, pathNodeIds, connectingFrom],
+  ([editMode, pathColor, nodeIds, connecting]) => {
+    nodes.value = nodes.value.map((node) => {
       const work = node.data.work as WorkResponse
-
-      // 기본 스타일 (휴일 휴무 여부 반영)
-      const baseStyle: Record<string, string> = {
-        width: `${node.data.computedWidth}px`,
-        height: `${node.data.computedHeight}px`,
-        overflow: 'visible',
-        whiteSpace: 'nowrap'
-      }
-
-      // 휴일 휴무인 작업은 옅은 회색 배경
-      if (!work.isWorkingOnHoliday) {
-        baseStyle.backgroundColor = '#f3f4f6'
-        baseStyle.borderColor = '#d1d5db'
-      }
-
+      const workId = parseInt(node.id.replace('work-', ''))
+      const wtIdx = workTypePaletteMap.value.get(work.workType || '미분류')
+      const palette = wtIdx !== undefined ? GROUP_PALETTE[wtIdx % GROUP_PALETTE.length]! : undefined
+      // 패스 편집 모드 하이라이트
+      let highlight: { color: string } | undefined
       if (editMode && pathColor && nodeIds.has(workId)) {
-        return {
-          ...node,
-          style: {
-            ...baseStyle,
-            border: `2px solid ${pathColor}`,
-            boxShadow: `0 0 8px ${pathColor}50`
-          }
-        }
+        highlight = { color: pathColor }
       }
-
-      return {
-        ...node,
-        style: baseStyle
+      // 연결 모드 source 노드 하이라이트
+      if (connecting && connecting.workId === workId) {
+        const color =
+          connecting.mode === 'add' && connecting.pathId
+            ? paths.value.find((p) => p.workPathId === connecting.pathId)?.workPathColor ||
+              '#3b82f6'
+            : '#3b82f6'
+        highlight = { color }
       }
+      const result = buildNodeStyle(
+        work,
+        node.data.computedWidth as number,
+        node.data.computedHeight as number,
+        palette,
+        highlight,
+      )
+      return { ...node, style: result.style, class: result.class }
     })
   },
-  { deep: true }
+  { deep: true },
 )
 
 const {
   selectedWorkId,
   workEditForm,
   clearSelection: clearWorkSelection,
-  selectWork
+  selectWork,
 } = useWorkEditor(nodes, applyMutation)
 
 // 작업 생성/수정 다이얼로그
@@ -682,25 +942,57 @@ watch(selectedPathId, (pathId) => {
   }
 })
 
-// 패스 변경 저장
+function handleDeleteFromPath(workId: number) {
+  removeNodeFromPath(workId)
+  savePathEdges()
+}
+
+function handleWorkTypeGroupToggle(checked: boolean | 'indeterminate') {
+  showWorkTypeGroup.value = !!checked
+  if (checked) showSubWorkTypeGroup.value = false
+}
+
+function handleSubWorkTypeGroupToggle(checked: boolean | 'indeterminate') {
+  showSubWorkTypeGroup.value = !!checked
+  if (checked) showWorkTypeGroup.value = false
+}
+
+function handleSavePathAndClose() {
+  savePathChanges()
+  showPathDialog.value = false
+}
+
+// 패스 변경 저장 (변경된 필드만 전송)
 const savePathChanges = async () => {
   if (!selectedPathId.value) return
+  const path = paths.value.find((p) => p.workPathId === selectedPathId.value)
+  if (!path) return
+
+  const payload: import('@/shared/network-core/apis/workPath').UpdateWorkPathPayload = {}
+  if (editPathName.value !== (path.workPathName ?? '')) payload.workPathName = editPathName.value
+  if (editPathColor.value !== path.workPathColor) payload.workPathColor = editPathColor.value
+  if (editPathCritical.value !== path.critical) payload.critical = editPathCritical.value
+
+  const newEdges = editingPathEdges.value.map(({ sourceWorkId, targetWorkId }) => ({
+    sourceWorkId,
+    targetWorkId,
+  }))
+  const origEdges = path.edges.map(({ sourceWorkId, targetWorkId }) => ({
+    sourceWorkId,
+    targetWorkId,
+  }))
+  const edgesChanged = JSON.stringify(newEdges) !== JSON.stringify(origEdges)
+  if (edgesChanged) payload.edges = newEdges
+
+  if (Object.keys(payload).length === 0) {
+    cancelPathEdit()
+    return
+  }
+
   isSavingPath.value = true
   try {
-    const mutation = await workPathApi.updateWorkPath(selectedPathId.value, {
-      workPathName: editPathName.value,
-      workPathColor: editPathColor.value,
-      critical: editPathCritical.value,
-      edges: editingPathEdges.value,
-    })
-    applyMutation(mutation)
+    await updatePath(selectedPathId.value, payload)
     cancelPathEdit()
-    analyticsClient.trackAction('schedule_2d', 'update_path', 'success')
-  } catch (error: unknown) {
-    console.error('패스 수정 실패:', error)
-    analyticsClient.trackAction('schedule_2d', 'update_path', 'fail')
-    const err = error as { response?: { data?: { message?: string } }; message?: string }
-    alert(err.response?.data?.message || err.message)
   } finally {
     isSavingPath.value = false
   }
@@ -717,34 +1009,86 @@ const resizing = ref<{
   origNodeWidth: number
 } | null>(null)
 
-// 선택된 노드의 양쪽 핸들 위치 computed (모서리 중앙)
+// hover된 노드 추적 (지연 클리어로 노드→핸들 이동 시 DOM 소멸 방지)
+const hoveredNodeId = ref<string | null>(null)
+let hoverClearTimer: ReturnType<typeof setTimeout> | null = null
+
+const setHoveredNode = (nodeId: string) => {
+  if (hoverClearTimer) {
+    clearTimeout(hoverClearTimer)
+    hoverClearTimer = null
+  }
+  hoveredNodeId.value = nodeId
+}
+
+const cancelHoverClear = () => {
+  if (hoverClearTimer) {
+    clearTimeout(hoverClearTimer)
+    hoverClearTimer = null
+  }
+}
+
+const scheduleHoverClear = () => {
+  cancelHoverClear()
+  hoverClearTimer = setTimeout(() => {
+    hoveredNodeId.value = null
+    hoverClearTimer = null
+  }, 100)
+}
+
+// hover 또는 선택된 노드의 양쪽 핸들 위치 computed (모서리 중앙)
 const resizeHandles = computed(() => {
-  if (!selectedWorkId.value) return null
-  const node = nodes.value.find(n => n.id === `work-${selectedWorkId.value}`)
+  const targetId =
+    hoveredNodeId.value ?? (selectedWorkId.value ? `work-${selectedWorkId.value}` : null)
+  if (!targetId) return null
+  const node = nodes.value.find((n) => n.id === targetId)
   if (!node) return null
   const w = node.data.computedWidth as number
   const h = node.data.computedHeight as number
   return {
     left: { x: node.position.x, y: node.position.y + h / 2 },
-    right: { x: node.position.x + w, y: node.position.y + h / 2 }
+    right: { x: node.position.x + w, y: node.position.y + h / 2 },
+    halfH: h / 2,
   }
 })
 
-// 노드 클릭 핸들러 - 작업 선택 + 말풍선 표시
+// 노드 클릭 핸들러 - 패스 연결 모드 또는 작업 선택 + 말풍선 표시
 const onNodeClick = (event: { node: Node; event: MouseEvent | TouchEvent }) => {
   const work = event.node.data.work as WorkResponse | undefined
   if (!work) return
 
+  // 패스 연결 모드
+  if (connectingFrom.value) {
+    if (work.workId === connectingFrom.value.workId) return
+
+    if (connectingFrom.value.mode === 'new') {
+      handleConnect({
+        source: `work-${connectingFrom.value.workId}`,
+        target: event.node.id,
+      })
+    } else {
+      // 기존 패스에 추가
+      selectPath(connectingFrom.value.pathId!)
+      const result = onConnect({
+        source: `work-${connectingFrom.value.workId}`,
+        target: event.node.id,
+      })
+      if (!result && isPathEditMode.value) savePathEdges()
+    }
+    connectingFrom.value = null
+    return
+  }
+
   // 같은 노드 클릭 시 선택 해제
   if (tooltip.value.visible && tooltip.value.workId === work.workId) {
-    if (!isInPathMode.value) clearWorkSelection()
+    if (!isPathEditMode.value) clearWorkSelection()
     tooltip.value.visible = false
     tooltip.value.workId = null
     return
   }
 
-  // 노드 선택 (패스 모드가 아닐 때만)
-  if (!isInPathMode.value) selectWork(work.workId)
+  // 노드 선택 (패스 편집 중이 아닐 때만)
+  if (!isPathEditMode.value) selectWork(work.workId)
 
   // 말풍선 표시
   tooltip.value = {
@@ -756,7 +1100,7 @@ const onNodeClick = (event: { node: Node; event: MouseEvent | TouchEvent }) => {
     startDate: work.startDate,
     workLeadTime: work.workLeadTime,
     completionDate: work.completionDate,
-    isWorkingOnHoliday: work.isWorkingOnHoliday
+    isWorkingOnHoliday: work.isWorkingOnHoliday,
   }
 }
 
@@ -766,47 +1110,57 @@ const formatLocalDate = (date: Date): string => {
 }
 
 // 말풍선에서 작업 즉시 업데이트 (startDate, workLeadTime, isWorkingOnHoliday)
-const updateTooltipWork = async (patch: { startDate?: string, workLeadTime?: number, isWorkingOnHoliday?: boolean }) => {
+const updateTooltipWork = async (patch: {
+  startDate?: string
+  workLeadTime?: number
+  isWorkingOnHoliday?: boolean
+}) => {
   if (!tooltip.value.workId) return
 
   const prev = {
     startDate: tooltip.value.startDate,
     workLeadTime: tooltip.value.workLeadTime,
-    isWorkingOnHoliday: tooltip.value.isWorkingOnHoliday
+    isWorkingOnHoliday: tooltip.value.isWorkingOnHoliday,
   }
 
   // 낙관적 반영
   if (patch.startDate !== undefined) tooltip.value.startDate = patch.startDate
   if (patch.workLeadTime !== undefined) tooltip.value.workLeadTime = patch.workLeadTime
-  if (patch.isWorkingOnHoliday !== undefined) tooltip.value.isWorkingOnHoliday = patch.isWorkingOnHoliday
+  if (patch.isWorkingOnHoliday !== undefined)
+    tooltip.value.isWorkingOnHoliday = patch.isWorkingOnHoliday
 
   try {
     const mutation = await workApi.updateWork(tooltip.value.workId, patch)
     workEditForm.value.startDate = tooltip.value.startDate
     workEditForm.value.workLeadTime = tooltip.value.workLeadTime
     workEditForm.value.isWorkingOnHoliday = tooltip.value.isWorkingOnHoliday
-    
+
     // 대상 노드 명시적 갱신 (applyMutation이 처리 못할 경우 대비)
-    const directWork = mutation.updatedWorks.find(w => w.workId === tooltip.value.workId)
+    const directWork = mutation.updatedWorks.find((w) => w.workId === tooltip.value.workId)
     if (directWork) {
-      const updated = workToNode(directWork)
-      nodes.value = nodes.value.map(n =>
+      const updated = styledWorkToNode(directWork)
+      const row = rowLayout.value.workRowMap.get(directWork.workId)
+      const y = row !== undefined ? row * ROW_UNIT + NODE_OFFSET_Y : NODE_OFFSET_Y
+      nodes.value = nodes.value.map((n) =>
         n.id === `work-${directWork.workId}`
-          ? { ...updated, position: { ...updated.position, y: n.position.y } }
-          : n
+          ? { ...updated, position: { ...updated.position, y } }
+          : n,
       )
     }
 
     // cascade 및 path 갱신
     const cascadeMutation = {
-      updatedWorks: mutation.updatedWorks.filter(w => w.workId !== tooltip.value.workId),
+      updatedWorks: mutation.updatedWorks.filter((w) => w.workId !== tooltip.value.workId),
       updatedWorkPaths: mutation.updatedWorkPaths,
     }
     if (cascadeMutation.updatedWorks.length > 0 || cascadeMutation.updatedWorkPaths.length > 0) {
       applyMutation(cascadeMutation)
     }
 
-    emit('works-loaded', nodes.value.map(n => n.data.work as WorkResponse))
+    emit(
+      'works-loaded',
+      nodes.value.map((n) => n.data.work as WorkResponse),
+    )
     analyticsClient.trackAction('schedule_2d', 'update_work', 'success')
   } catch (error: unknown) {
     console.error('작업 수정 실패:', error)
@@ -822,6 +1176,75 @@ const updateTooltipWork = async (patch: { startDate?: string, workLeadTime?: num
 
 // 패스 편집 다이얼로그
 const showPathDialog = ref(false)
+
+// 컨텍스트 메뉴 상태
+const contextMenu = ref<{
+  visible: boolean
+  x: number
+  y: number
+  type: 'pane' | 'node'
+  flowX?: number
+  flowY?: number
+  work?: WorkResponse
+  nodeId?: string
+} | null>(null)
+
+// 연결 중 마우스 위치 (flow 좌표)
+const connectingMousePos = ref<{ x: number; y: number } | null>(null)
+
+const onConnectingMouseMove = (e: MouseEvent) => {
+  const container = containerRef.value
+  if (!container) return
+  const rect = container.getBoundingClientRect()
+  connectingMousePos.value = {
+    x: (e.clientX - rect.left - LEFT_HEADER_WIDTH - viewport.value.x) / viewport.value.zoom,
+    y: (e.clientY - rect.top - activeHeaderHeight.value - viewport.value.y) / viewport.value.zoom,
+  }
+}
+
+watch(connectingFrom, (val) => {
+  if (val) {
+    document.addEventListener('mousemove', onConnectingMouseMove)
+  } else {
+    document.removeEventListener('mousemove', onConnectingMouseMove)
+    connectingMousePos.value = null
+  }
+})
+
+// 연결 중인 베지어 곡선 좌표 (source 노드 우측 중앙 → 커서)
+const connectingLine = computed(() => {
+  if (!connectingFrom.value || !connectingMousePos.value) return null
+  const node = nodes.value.find((n) => n.id === `work-${connectingFrom.value!.workId}`)
+  if (!node) return null
+  const w = node.data.computedWidth as number
+  const h = node.data.computedHeight as number
+  const x1 = node.position.x + w
+  const y1 = node.position.y + h / 2
+  const x2 = connectingMousePos.value.x
+  const y2 = connectingMousePos.value.y
+  // 수평 오프셋으로 부드러운 커브 생성
+  const dx = Math.abs(x2 - x1) * 0.5
+  return {
+    x1,
+    y1,
+    x2,
+    y2,
+    cx1: x1 + dx,
+    cy1: y1,
+    cx2: x2 - dx,
+    cy2: y2,
+  }
+})
+
+// 연결 중인 source 노드의 패스 색상
+const connectingColor = computed(() => {
+  if (!connectingFrom.value) return '#3b82f6'
+  if (connectingFrom.value.mode === 'add' && connectingFrom.value.pathId) {
+    const path = paths.value.find((p) => p.workPathId === connectingFrom.value!.pathId)
+    return path?.workPathColor || '#3b82f6'
+  }
+  return '#3b82f6'
+})
 
 // 노드 연결 핸들러 (패스 미선택 시 새 패스 생성)
 const handleConnect = async (params: { source: string; target: string }) => {
@@ -840,23 +1263,32 @@ const handleConnect = async (params: { source: string; target: string }) => {
     paths.value = [...paths.value, newPath]
     // 엣지 생성 (offset 계산)
     const edgePairCount = new Map<string, number>()
-    edges.value.forEach(e => {
+    edges.value.forEach((e) => {
       const key = `${e.source}-${e.target}`
       edgePairCount.set(key, (edgePairCount.get(key) || 0) + 1)
     })
-    const newEdges = newPath.edges.map(edge => {
+    const newEdges = newPath.edges.map((edge) => {
       const pairKey = `work-${edge.sourceWorkId}-work-${edge.targetWorkId}`
       const currentCount = edgePairCount.get(pairKey) || 0
       edgePairCount.set(pairKey, currentCount + 1)
-      const offset = currentCount === 0 ? 0 : (currentCount % 2 === 1 ? 1 : -1) * Math.ceil(currentCount / 2) * 3
+      const offset =
+        currentCount === 0 ? 0 : (currentCount % 2 === 1 ? 1 : -1) * Math.ceil(currentCount / 2) * 3
+      const handles = getEdgeHandles(edge.sourceWorkId, edge.targetWorkId)
       return {
         id: `edge-${newPath.workPathId}-${edge.sourceWorkId}-${edge.targetWorkId}`,
         source: `work-${edge.sourceWorkId}`,
         target: `work-${edge.targetWorkId}`,
+        sourceHandle: handles.sourceHandle,
+        targetHandle: handles.targetHandle,
         type: 'smoothstep',
         pathOptions: { borderRadius: 20, offset: 15 },
         style: { stroke: newPath.workPathColor },
-        data: { pathId: newPath.workPathId, pathName: newPath.workPathName, offset }
+        data: {
+          pathId: newPath.workPathId,
+          pathName: newPath.workPathName,
+          offset,
+          isFollowing: edge.lagDays !== undefined && edge.lagDays !== null,
+        },
       }
     })
     edges.value = [...edges.value, ...newEdges]
@@ -872,30 +1304,53 @@ const handleConnect = async (params: { source: string; target: string }) => {
   }
 }
 
-// 엣지 클릭 시 하이라이트 (패스모드에서만 동작)
+// 엣지 클릭 시 하이라이트 (겹친 패스 순환 선택)
 const onEdgeClick = (event: { edge: Edge }) => {
-  if (!isInPathMode.value) return
   const pathId = event.edge.data?.pathId as number | undefined
   if (!pathId) return
-  selectPath(pathId)
+
+  // 같은 source-target 쌍의 패스 ID 수집
+  const pairPathIds = [
+    ...new Set(
+      edges.value
+        .filter(
+          (e) => e.source === event.edge.source && e.target === event.edge.target && e.data?.pathId,
+        )
+        .map((e) => e.data!.pathId as number),
+    ),
+  ]
+
+  if (
+    pairPathIds.length > 1 &&
+    selectedPathId.value &&
+    pairPathIds.includes(selectedPathId.value)
+  ) {
+    const idx = pairPathIds.indexOf(selectedPathId.value)
+    selectPath(pairPathIds[(idx + 1) % pairPathIds.length]!)
+  } else {
+    selectPath(pathId)
+  }
+
   clearWorkSelection()
   tooltip.value.visible = false
 }
 
-// 엣지 더블클릭 시 다이얼로그 표시 (패스모드에서만 동작)
-const onEdgeDoubleClick = (event: { edge: Edge }) => {
-  if (!isInPathMode.value) return
-  const pathId = event.edge.data?.pathId as number | undefined
-  if (!pathId) return
-  selectPath(pathId)
-  showPathDialog.value = true
-}
-
-// 노드 더블클릭 → 상세 편집 다이얼로그
-const onNodeDoubleClick = (event: { node: Node }) => {
+// 노드 우클릭 → 컨텍스트 메뉴
+const onNodeContextMenu = (event: { node: Node; event: MouseEvent | TouchEvent }) => {
+  event.event.preventDefault()
+  if (isWeeklyMode.value) return
   const work = event.node.data.work as WorkResponse | undefined
-  if (!work || isInPathMode.value) return
-  td.openDialog(work)
+  if (!work) return
+
+  const mouseEvent = event.event as MouseEvent
+  contextMenu.value = {
+    visible: true,
+    x: mouseEvent.clientX,
+    y: mouseEvent.clientY,
+    type: 'node',
+    work,
+    nodeId: event.node.id,
+  }
 }
 
 // 다이얼로그 제출 → 생성 or 수정
@@ -906,14 +1361,9 @@ const handleWorkEditSubmit = async () => {
     if (!result) return
 
     const response = result.updatedWorks[0]!
-    const newNode = workToNode(response)
-    newNode.position.y = td.createPositionY
+    const newNode = styledWorkToNode(response)
     nodes.value = [...nodes.value, newNode]
-
-    // Y 위치 백그라운드 저장
-    workApi.updateWork(response.workId, {
-      positionY: td.createPositionY,
-    })
+    // rowLayout will recompute and place the node at the correct Y
 
     // 선택 + 말풍선 표시
     selectWork(response.workId)
@@ -934,27 +1384,31 @@ const handleWorkEditSubmit = async () => {
     const result = await td.submitEdit()
     if (!result) return
 
-    const response = result.updatedWorks.find(w => w.workId === editingId)!
-    const updatedNode = workToNode(response)
+    const response = result.updatedWorks.find((w) => w.workId === editingId)!
+    const updatedNode = styledWorkToNode(response)
     nodes.value = nodes.value.map((n) => {
       if (n.id !== `work-${response.workId}`) return n
-      return {
-        ...updatedNode,
-        position: { ...updatedNode.position, y: n.position.y },
-      }
+      return { ...updatedNode, position: { ...updatedNode.position, y: n.position.y } }
     })
 
     // cascade 영향 받은 다른 Work도 반영
-    const otherUpdates = result.updatedWorks.filter(w => w.workId !== response.workId)
+    const otherUpdates = result.updatedWorks.filter((w) => w.workId !== response.workId)
     if (otherUpdates.length > 0) {
-      const otherMap = new Map(otherUpdates.map(w => [w.workId, w]))
-      nodes.value = nodes.value.map(n => {
+      const otherMap = new Map(otherUpdates.map((w) => [w.workId, w]))
+      nodes.value = nodes.value.map((n) => {
         const w = otherMap.get((n.data.work as WorkResponse).workId)
         if (!w) return n
-        const updated = workToNode(w)
+        const updated = styledWorkToNode(w)
         return { ...updated, position: { ...updated.position, y: n.position.y } }
       })
     }
+    // rowLayout 기반 Y 재배치
+    const layout = rowLayout.value
+    nodes.value.forEach((n) => {
+      const work = n.data.work as WorkResponse
+      const row = layout.workRowMap.get(work.workId)
+      if (row !== undefined) n.position.y = row * ROW_UNIT + NODE_OFFSET_Y
+    })
 
     // updatedWorkPaths도 반영
     if (result.updatedWorkPaths.length > 0) {
@@ -976,16 +1430,25 @@ const handleWorkEditSubmit = async () => {
     }
   }
 
-  emit('works-loaded', nodes.value.map((n) => n.data.work as WorkResponse))
+  emit(
+    'works-loaded',
+    nodes.value.map((n) => n.data.work as WorkResponse),
+  )
 }
 
 // 빈 영역 클릭 시 — 그룹박스 내부면 그룹 선택, 아니면 선택 해제
 const onPaneClick = (event: MouseEvent) => {
+  contextMenu.value = null
+  highlightedRowIndex.value = null
+  if (connectingFrom.value) {
+    connectingFrom.value = null
+    return
+  }
   tooltip.value.visible = false
   if (isPathEditMode.value) {
     cancelPathEdit()
   }
-  if (!isInPathMode.value) {
+  if (!isPathEditMode.value) {
     clearWorkSelection()
   }
 
@@ -1003,12 +1466,18 @@ const onContainerMouseDown = (event: MouseEvent) => {
   if (event.button !== 0) return
   const target = event.target as HTMLElement
   // 노드·컨트롤·말풍선·토글 위 mousedown은 해당 요소가 처리
-  if (target.closest('.vue-flow__node') || target.closest('.vue-flow__panel') || target.closest('[data-tooltip-balloon]') || target.closest('[data-group-toggle]')) return
+  if (
+    target.closest('.vue-flow__node') ||
+    target.closest('.vue-flow__panel') ||
+    target.closest('[data-tooltip-balloon]') ||
+    target.closest('[data-group-toggle]')
+  )
+    return
   // 헤더 영역 mousedown은 무시
   const container = containerRef.value
   if (!container) return
   const rect = container.getBoundingClientRect()
-  if (event.clientY - rect.top < HEADER_HEIGHT) return
+  if (event.clientY - rect.top < activeHeaderHeight.value) return
 
   const hitIndex = hitTestGroupBox(event)
   if (hitIndex >= 0) {
@@ -1016,41 +1485,127 @@ const onContainerMouseDown = (event: MouseEvent) => {
   }
 }
 
-// 컨테이너 더블클릭 → 노드·그룹박스 위가 아니면 빠른 생성
-const onContainerDblClick = (event: MouseEvent) => {
-  // 노드 위 더블클릭은 onNodeDoubleClick이 처리, 말풍선/그룹토글 위 더블클릭은 무시
+// 컨테이너 우클릭 → 배경 컨텍스트 메뉴 (작업 생성) — 주단위화면에서 비활성
+const onContainerContextMenu = (event: MouseEvent) => {
+  if (isWeeklyMode.value) { event.preventDefault(); return }
+  // 노드/엣지 위에서 발생한 건 무시 (노드 우클릭은 별도 처리)
   const target = event.target as HTMLElement
-  if (target.closest('.vue-flow__node') || target.closest('[data-tooltip-balloon]') || target.closest('[data-group-toggle]')) return
-  // 그룹박스 내부 더블클릭 → 작업 생성 방지
-  if (hitTestGroupBox(event) >= 0) return
-  handlePaneDblClick(event)
-}
+  if (target.closest('.vue-flow__node') || target.closest('.vue-flow__edge')) return
 
-// 빈 영역 더블클릭 → 생성 다이얼로그 열기
-const handlePaneDblClick = (event: MouseEvent) => {
-  if (isInPathMode.value) return
+  event.preventDefault()
 
   const container = containerRef.value
   if (!container) return
-
-  // 스크린 좌표 → flow 좌표 변환
   const rect = container.getBoundingClientRect()
-  const flowX = (event.clientX - rect.left - viewport.value.x) / viewport.value.zoom
-  const flowY = (event.clientY - rect.top - viewport.value.y) / viewport.value.zoom
+  const flowX =
+    (event.clientX - rect.left - LEFT_HEADER_WIDTH - viewport.value.x) / viewport.value.zoom
+  const flowY = (event.clientY - rect.top - activeHeaderHeight.value - viewport.value.y) / viewport.value.zoom
 
-  // flowX → dayIndex → startDate
+  // 우클릭한 행 강조
+  const rowIndex = Math.floor(flowY / ROW_UNIT)
+  if (rowIndex >= 0 && rowIndex < rowLayout.value.totalRows) {
+    highlightedRowIndex.value = rowIndex
+  } else {
+    highlightedRowIndex.value = null
+  }
+
+  contextMenu.value = {
+    visible: true,
+    x: event.clientX,
+    y: event.clientY,
+    type: 'pane',
+    flowX,
+    flowY,
+  }
+}
+
+// 컨텍스트 메뉴에서 선택된 노드가 속한 패스만 표시
+const contextMenuNodePaths = computed(() => {
+  if (!contextMenu.value?.work) return []
+  const workId = contextMenu.value.work.workId
+  return paths.value.filter((p) =>
+    p.edges.some((e) => e.sourceWorkId === workId || e.targetWorkId === workId),
+  )
+})
+
+// 컨텍스트 메뉴 액션: 작업 생성
+const handleContextMenuCreate = () => {
+  if (!contextMenu.value || contextMenu.value.type !== 'pane') return
+  const { flowX, flowY } = contextMenu.value
+  contextMenu.value = null
+  if (flowX === undefined || flowY === undefined) return
+  if (isPathEditMode.value) return
+
+  const resolved = resolveSubWorkTypeFromY(flowY)
+  if (!resolved) return
+
   const dayIndex = Math.floor(flowX / appConfig.chart.pixelPerDay)
   const startDate = dayIndexToDate(dayIndex)
 
-  // Y 그리드 스냅
   const cfg = chartConfigStore.config
   const rowUnit = cfg.nodeHeight + 2 * cfg.nodePaddingY
   const snappedY = Math.floor(flowY / rowUnit) * rowUnit
 
-  td.openCreateDialog(startDate, snappedY)
+  td.openCreateDialog(startDate, snappedY, resolved.subWorkTypeId, resolved.subWorkTypeName)
 }
 
-// 노드 드래그 종료 시 위치 저장 (X/Y 변경분을 하나의 API 호출로 전송)
+// 컨텍스트 메뉴 액션: 작업 수정
+const handleContextMenuEdit = () => {
+  if (!contextMenu.value?.work) return
+  const work = contextMenu.value.work
+  contextMenu.value = null
+  td.openDialog(work)
+}
+
+// 컨텍스트 메뉴 액션: 신규 패스 생성
+const handleContextMenuNewPath = () => {
+  if (!contextMenu.value?.work) return
+  const workId = contextMenu.value.work.workId
+  contextMenu.value = null
+  connectingFrom.value = { workId, mode: 'new' }
+}
+
+// 컨텍스트 메뉴 액션: 기존 패스에 작업 추가
+const handleContextMenuAddToPath = (pathId: number) => {
+  if (!contextMenu.value?.work) return
+  const workId = contextMenu.value.work.workId
+  contextMenu.value = null
+  connectingFrom.value = { workId, mode: 'add', pathId }
+}
+
+// 컨텍스트 메뉴 액션: 패스 편집 다이얼로그 열기
+const handleContextMenuEditPath = (pathId: number) => {
+  contextMenu.value = null
+  selectPath(pathId)
+  showPathDialog.value = true
+}
+
+// 컨텍스트 메뉴 액션: 작업 삭제
+const handleContextMenuDelete = () => {
+  if (!contextMenu.value?.work) return
+  const work = contextMenu.value.work
+  contextMenu.value = null
+  selectWork(work.workId)
+  openDeleteDialog('work')
+}
+
+// flowY → rowLayout에서 subWorkType 찾기
+const resolveSubWorkTypeFromY = (
+  flowY: number,
+): { subWorkTypeId: number; subWorkTypeName: string } | null => {
+  const rowIndex = Math.floor(flowY / ROW_UNIT)
+  const layout = rowLayout.value
+  for (const section of layout.sections) {
+    for (const sub of section.subSections) {
+      if (rowIndex >= sub.startRowIndex && rowIndex < sub.startRowIndex + sub.subRowCount) {
+        return { subWorkTypeId: sub.subWorkTypeId, subWorkTypeName: sub.subWorkType }
+      }
+    }
+  }
+  return null
+}
+
+// 노드 드래그 종료 시 X축 변경만 저장 (Y는 rowLayout 기반)
 const onNodeDragStop = async (event: { node: Node }) => {
   const work = event.node.data.work as WorkResponse | undefined
   if (!work) return
@@ -1068,14 +1623,8 @@ const onNodeDragStop = async (event: { node: Node }) => {
     newStartDate = formatLocalDate(base)
   }
 
-  // Y축 변경 계산
-  const rowUnit = cfg.nodeHeight + 2 * cfg.nodePaddingY
-  const snappedY = Math.floor(event.node.position.y / rowUnit) * rowUnit
-  event.node.position.y = snappedY
-  const yChanged = snappedY !== work.positionY
-
   // 변경 없으면 원위치 복구 후 종료
-  if (daysDelta === 0 && !yChanged) {
+  if (daysDelta === 0) {
     event.node.position.x = originalX
     return
   }
@@ -1089,10 +1638,9 @@ const onNodeDragStop = async (event: { node: Node }) => {
     event.node.position.x = originalX
   }
 
-  // payload 구성: 변경된 필드만 포함
+  // payload 구성: X축만
   const payload: UpdateWorkPayload = {}
   if (newStartDate) payload.startDate = newStartDate
-  if (yChanged) payload.positionY = snappedY
 
   try {
     const mutation = await workApi.updateWork(work.workId, payload)
@@ -1100,9 +1648,6 @@ const onNodeDragStop = async (event: { node: Node }) => {
     // 선택된 작업 폼 동기화
     if (newStartDate && selectedWorkId.value === work.workId) {
       workEditForm.value.startDate = newStartDate
-    }
-    if (yChanged) {
-      event.node.data.work = { ...work, positionY: snappedY }
     }
     applyMutation(mutation)
     analyticsClient.trackAction('schedule_2d', 'update_work', 'success')
@@ -1115,16 +1660,21 @@ const onNodeDragStop = async (event: { node: Node }) => {
     const origX = computeNodeX(work.startDate)
     event.node.position.x = origX
     event.node.data.originalX = origX
-    event.node.position.y = work.positionY
   }
 }
 
 // 리사이즈 드래그 시작
-const onResizeStart = (side: 'left' | 'right', e: MouseEvent) => {
-  const node = nodes.value.find(n => n.id === `work-${selectedWorkId.value}`)
+const onResizeStart = (side: 'left' | 'right', e: PointerEvent | MouseEvent) => {
+  const targetId =
+    hoveredNodeId.value ?? (selectedWorkId.value ? `work-${selectedWorkId.value}` : null)
+  if (!targetId) return
+  const node = nodes.value.find((n) => n.id === targetId)
   const work = node?.data.work as WorkResponse
   if (!node || !work) return
   e.stopPropagation()
+  e.preventDefault()
+  // 리사이즈 중 노드 드래그 방지
+  node.draggable = false
   resizing.value = {
     side,
     workId: work.workId,
@@ -1132,14 +1682,14 @@ const onResizeStart = (side: 'left' | 'right', e: MouseEvent) => {
     origStartDate: work.startDate,
     origLeadTime: work.workLeadTime,
     origNodeX: node.position.x,
-    origNodeWidth: node.data.computedWidth as number
+    origNodeWidth: node.data.computedWidth as number,
   }
-  document.addEventListener('mousemove', onResizeMove)
-  document.addEventListener('mouseup', onResizeEnd)
+  document.addEventListener('pointermove', onResizeMove)
+  document.addEventListener('pointerup', onResizeEnd)
 }
 
 // 리사이즈 드래그 중 (날짜 단위 실시간 스냅)
-const onResizeMove = (e: MouseEvent) => {
+const onResizeMove = (e: PointerEvent | MouseEvent) => {
   if (!resizing.value) return
   const r = resizing.value
   const cfg = chartConfigStore.config
@@ -1147,21 +1697,19 @@ const onResizeMove = (e: MouseEvent) => {
   const flowDelta = pixelDelta / viewport.value.zoom
   const daysDelta = Math.round(flowDelta / cfg.pixelPerDay)
 
-  const node = nodes.value.find(n => n.id === `work-${r.workId}`)
+  const node = nodes.value.find((n) => n.id === `work-${r.workId}`)
   if (!node) return
 
   if (r.side === 'left') {
     const clampedDays = Math.min(daysDelta, r.origLeadTime - 1)
-    const newLeadTime = r.origLeadTime - clampedDays
     const newX = r.origNodeX + clampedDays * cfg.pixelPerDay
-    const newWidth = computeNodeWidth(newLeadTime)
+    const newWidth = r.origNodeWidth - clampedDays * cfg.pixelPerDay
     node.position.x = newX
     node.style = { ...node.style, width: `${newWidth}px` }
     node.data.computedWidth = newWidth
   } else {
     const clampedDays = Math.max(daysDelta, -(r.origLeadTime - 1))
-    const newLeadTime = r.origLeadTime + clampedDays
-    const newWidth = computeNodeWidth(newLeadTime)
+    const newWidth = r.origNodeWidth + clampedDays * cfg.pixelPerDay
     node.style = { ...node.style, width: `${newWidth}px` }
     node.data.computedWidth = newWidth
   }
@@ -1169,15 +1717,17 @@ const onResizeMove = (e: MouseEvent) => {
 
 // 리사이즈 드래그 종료
 const onResizeEnd = async () => {
-  document.removeEventListener('mousemove', onResizeMove)
-  document.removeEventListener('mouseup', onResizeEnd)
+  document.removeEventListener('pointermove', onResizeMove)
+  document.removeEventListener('pointerup', onResizeEnd)
   if (!resizing.value) return
 
   const r = resizing.value
   const cfg = chartConfigStore.config
-  const node = nodes.value.find(n => n.id === `work-${r.workId}`)
+  const node = nodes.value.find((n) => n.id === `work-${r.workId}`)
   resizing.value = null
   if (!node) return
+  // 리사이즈 종료 → 드래그 다시 활성화
+  node.draggable = true
 
   let newStartDate = r.origStartDate
   let newLeadTime = r.origLeadTime
@@ -1227,21 +1777,28 @@ const onResizeEnd = async () => {
   }
 }
 
-// 노드 드래그 핸들러 (X축 날짜 스냅 + Y축 그리드 스냅 동시 적용)
+// 노드 드래그 핸들러 (X축 날짜 스냅, Y축 잠금)
 const onNodeDrag = (event: { node: Node }) => {
-  // 리사이즈 중이면 노드 드래그 차단
+  // 리사이즈 중이면 드래그 차단
   if (resizing.value) {
     event.node.position.x = event.node.data.originalX as number
-    event.node.position.y = (event.node.data.work as WorkResponse).positionY
+    const work = event.node.data.work as WorkResponse
+    const row = rowLayout.value.workRowMap.get(work.workId)
+    event.node.position.y = (row ?? 0) * ROW_UNIT + NODE_OFFSET_Y
     return
   }
 
   const originalX = event.node.data.originalX
   const work = event.node.data.work as WorkResponse | undefined
 
-  // 패스관리모드: 모든 노드 이동 차단
-  if (isInPathMode.value) {
-    if (work) event.node.position.y = work.positionY
+  // Y축 잠금: 항상 layout 기반 위치로 복원
+  if (work) {
+    const row = rowLayout.value.workRowMap.get(work.workId)
+    if (row !== undefined) event.node.position.y = row * ROW_UNIT + NODE_OFFSET_Y
+  }
+
+  // 패스 편집 중: X 이동도 차단
+  if (isPathEditMode.value) {
     if (originalX !== undefined) event.node.position.x = originalX
     return
   }
@@ -1254,60 +1811,84 @@ const onNodeDrag = (event: { node: Node }) => {
     event.node.position.x = (originalX as number) + daysDelta * cfg.pixelPerDay
   }
 
-  // Y축: 행 그리드 스냅
-  const rowUnit = cfg.nodeHeight + 2 * cfg.nodePaddingY
-  event.node.position.y = Math.floor(event.node.position.y / rowUnit) * rowUnit
-
   // 드래그 중인 노드에 말풍선이 열려있으면 위치 갱신
   if (work && tooltip.value.visible && tooltip.value.workId === work.workId) {
     tooltip.value.nodeX = event.node.position.x + (event.node.data.computedWidth as number) / 2
-    tooltip.value.nodeY = event.node.position.y - 8  // 삼각형 높이만큼 위로
+    tooltip.value.nodeY = event.node.position.y - 8
   }
 }
+
+const ZOOM_MIN = 0.25
+const ZOOM_MAX = 2
+const ZOOM_FACTOR = 0.04
 
 const handleVueFlowWheel = (e: WheelEvent) => {
   e.preventDefault()
-  if (e.deltaY < 0) {
-    zoomIn()
-  } else {
-    zoomOut()
+
+  const zoomingOut = e.deltaY > 0
+  const oldZoom = viewport.value.zoom
+
+  // 화면 변경지점에서 첫 스크롤은 확대값 변경 없이 모드만 전환
+  // 부동소수점 오차 허용 (0.04 단위 계산 시 정확히 0.4에 안 떨어질 수 있음)
+  const EPS = 0.005
+  if (zoomingOut && !isWeeklyMode.value && oldZoom <= WEEKLY_THRESHOLD + EPS) {
+    analyticsClient.trackLayoutChangeByScroll('daily', 'weekly')
+    isWeeklyMode.value = true
+    return
+  }
+  if (!zoomingOut && isWeeklyMode.value && oldZoom >= WEEKLY_THRESHOLD - EPS) {
+    analyticsClient.trackLayoutChangeByScroll('weekly', 'daily')
+    isWeeklyMode.value = false
+    return
+  }
+
+  const newZoom = Math.min(
+    ZOOM_MAX,
+    Math.max(ZOOM_MIN, oldZoom + (zoomingOut ? -ZOOM_FACTOR : ZOOM_FACTOR)),
+  )
+  if (newZoom === oldZoom) return
+
+  // 마우스 커서 위치를 VueFlow wrapper 기준으로 계산
+  const container = containerRef.value
+  if (!container) return
+  const rect = container.getBoundingClientRect()
+  const mouseX = e.clientX - rect.left - LEFT_HEADER_WIDTH
+  const mouseY = e.clientY - rect.top - activeHeaderHeight.value
+
+  // 커서 아래의 flow 좌표가 줌 후에도 동일 화면 위치에 유지되도록 viewport 보정
+  const newX = mouseX - (mouseX - viewport.value.x) * (newZoom / oldZoom)
+  const newY = mouseY - (mouseY - viewport.value.y) * (newZoom / oldZoom)
+
+  setViewport({ x: newX, y: newY, zoom: newZoom })
+}
+
+// ESC 키 처리
+const onKeydown = (e: KeyboardEvent) => {
+  if (e.key === 'Escape') {
+    contextMenu.value = null
+    connectingFrom.value = null
   }
 }
 
-// 키보드 단축키: 1=작업관리모드, 2=패스관리모드
-const onKeyDown = (e: KeyboardEvent) => {
-  // input, select, textarea 등에서는 무시
-  const tag = (e.target as HTMLElement).tagName
-  if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return
-
-  if (e.key === '1') {
-    // 작업관리모드
-    if (isInPathMode.value) {
-      pathMode.value = false
-      cancelPathEdit()
-      tooltip.value.visible = false
-    }
-  } else if (e.key === '2') {
-    // 패스관리모드
-    if (!isInPathMode.value) {
-      pathMode.value = true
-      clearWorkSelection()
-      tooltip.value.visible = false
-    }
-  }
+// 어디든 클릭 시 컨텍스트 메뉴 닫기
+const onDocumentClick = () => {
+  contextMenu.value = null
 }
 
 onMounted(async () => {
-  await loadCalendarData()
+  window.addEventListener('keydown', onKeydown)
+  document.addEventListener('click', onDocumentClick)
+  await Promise.all([loadCalendarData(), loadRefTree(), td.loadReferenceData()])
   loadWorkData()
-  td.loadReferenceData()
   setupResizeObserver()
-  window.addEventListener('keydown', onKeyDown)
 })
 
 onUnmounted(() => {
+  if (hoverClearTimer) clearTimeout(hoverClearTimer)
+  window.removeEventListener('keydown', onKeydown)
+  document.removeEventListener('click', onDocumentClick)
+  document.removeEventListener('mousemove', onConnectingMouseMove)
   cleanupResizeObserver()
-  window.removeEventListener('keydown', onKeyDown)
 })
 </script>
 
@@ -1319,17 +1900,74 @@ onUnmounted(() => {
       class="relative h-full min-w-0 border border-border rounded-lg overflow-hidden"
       @wheel="handleVueFlowWheel"
       @mousedown.capture="onContainerMouseDown"
-      @dblclick="onContainerDblClick"
+      @contextmenu="onContainerContextMenu"
     >
-      <!-- 5단 날짜 헤더 바 -->
+      <!-- 코너 셀 -->
       <div
-        class="absolute top-0 left-0 right-0 bg-muted/80 border-b border-border z-20 overflow-hidden"
-        :style="{ height: `${HEADER_HEIGHT}px` }"
+        class="absolute z-30 bg-muted border-b border-r border-border flex flex-col items-center justify-center text-xs font-medium"
+        :style="{ width: `${LEFT_HEADER_WIDTH}px`, height: `${activeHeaderHeight}px` }"
       >
-        <div
-          class="absolute w-full h-full"
-          :style="{ transform: `translateX(${viewport.x}px)` }"
-        >
+        <!-- 일단위화면: 공종/세부공종 -->
+        <template v-if="!isWeeklyMode">
+          <span>공종 / 세부공종</span>
+          <button
+            class="mt-1 flex items-center gap-0.5 px-2 py-0.5 rounded text-[13px] text-muted-foreground hover:bg-background hover:text-foreground transition-colors"
+            @click="cornerDialogOpen = true"
+          >
+            <Settings class="w-3 h-3" />
+            공종 편집
+          </button>
+        </template>
+        <!-- 주단위화면: 공종/구역/층 -->
+        <template v-else>
+          <span>공종 / 구역 / 층</span>
+          <div class="mt-0.5 flex items-center gap-1">
+            <button
+              class="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] text-muted-foreground hover:bg-background hover:text-foreground transition-colors"
+              @click="cornerDialogOpen = true"
+            >
+              <Settings class="w-3 h-3" />
+              공종
+            </button>
+            <button
+              class="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] text-muted-foreground hover:bg-background hover:text-foreground transition-colors"
+              @click="zoneDialogOpen = true"
+            >
+              <Settings class="w-3 h-3" />
+              구역
+            </button>
+            <button
+              class="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] text-muted-foreground hover:bg-background hover:text-foreground transition-colors"
+              @click="floorDialogOpen = true"
+            >
+              <Settings class="w-3 h-3" />
+              층
+            </button>
+          </div>
+        </template>
+      </div>
+      <ReferenceEditDialog
+        v-model:open="cornerDialogOpen"
+        type="work-classification"
+        @close="handleCornerDialogClose"
+      />
+      <ReferenceEditDialog
+        v-model:open="zoneDialogOpen"
+        type="zone"
+        @close="handleCornerDialogClose"
+      />
+      <ReferenceEditDialog
+        v-model:open="floorDialogOpen"
+        type="floor"
+        @close="handleCornerDialogClose"
+      />
+
+      <!-- 날짜 헤더 바 -->
+      <div
+        class="absolute top-0 right-0 bg-muted/80 border-b border-border z-20 overflow-hidden"
+        :style="{ left: `${LEFT_HEADER_WIDTH}px`, height: `${activeHeaderHeight}px` }"
+      >
+        <div class="absolute w-full h-full" :style="{ transform: `translateX(${viewport.x}px)` }">
           <!-- Row 1: 년 -->
           <div
             v-for="cell in yearCells"
@@ -1339,7 +1977,7 @@ onUnmounted(() => {
               left: `${cell.startIndex * DAY_WIDTH * viewport.zoom}px`,
               width: `${cell.span * DAY_WIDTH * viewport.zoom}px`,
               height: `${ROW_HEIGHT}px`,
-              top: '0px'
+              top: '0px',
             }"
           >
             {{ cell.label }}
@@ -1354,7 +1992,7 @@ onUnmounted(() => {
               left: `${cell.startIndex * DAY_WIDTH * viewport.zoom}px`,
               width: `${cell.span * DAY_WIDTH * viewport.zoom}px`,
               height: `${ROW_HEIGHT}px`,
-              top: `${ROW_HEIGHT}px`
+              top: `${ROW_HEIGHT}px`,
             }"
           >
             {{ cell.label }}
@@ -1369,20 +2007,21 @@ onUnmounted(() => {
               left: `${cell.startIndex * DAY_WIDTH * viewport.zoom}px`,
               width: `${cell.span * DAY_WIDTH * viewport.zoom}px`,
               height: `${ROW_HEIGHT}px`,
-              top: `${ROW_HEIGHT * 2}px`
+              top: `${ROW_HEIGHT * 2}px`,
             }"
           >
             {{ cell.label }}
           </div>
 
-          <!-- Row 4: 날짜 (일자만) -->
+          <!-- Row 4~5: 날짜/요일 — 주단위화면에서 숨김 -->
+          <template v-if="!isWeeklyMode">
           <div
             v-for="dateInfo in visibleDates"
             :key="`date-${dateInfo.dayIndex}`"
             class="absolute flex items-center justify-center text-xs border-r border-b border-border/50"
             :class="{
               'font-medium': dateInfo.isToday,
-              'text-red-600': dateInfo.isHoliday && !dateInfo.isDeactivated
+              'text-red-600': dateInfo.isHoliday && !dateInfo.isDeactivated,
             }"
             :style="{
               left: `${dateInfo.dayIndex * DAY_WIDTH * viewport.zoom}px`,
@@ -1395,7 +2034,7 @@ onUnmounted(() => {
                   ? 'rgba(107, 114, 128, 0.5)'
                   : dateInfo.isHoliday
                     ? 'rgba(239, 68, 68, 0.3)'
-                    : '#ffffff'
+                    : '#ffffff',
             }"
           >
             {{ dateInfo.dayOfMonth }}
@@ -1408,7 +2047,7 @@ onUnmounted(() => {
             class="absolute flex items-center justify-center text-[10px] border-r border-border/50"
             :class="{
               'font-medium': dateInfo.isToday,
-              'text-red-600': dateInfo.isHoliday && !dateInfo.isDeactivated
+              'text-red-600': dateInfo.isHoliday && !dateInfo.isDeactivated,
             }"
             :style="{
               left: `${dateInfo.dayIndex * DAY_WIDTH * viewport.zoom}px`,
@@ -1421,362 +2060,647 @@ onUnmounted(() => {
                   ? 'rgba(107, 114, 128, 0.5)'
                   : dateInfo.isHoliday
                     ? 'rgba(239, 68, 68, 0.3)'
-                    : '#ffffff'
+                    : '#ffffff',
             }"
           >
             {{ dateInfo.dayName }}
           </div>
+          </template>
         </div>
       </div>
 
-      <VueFlow
-        v-model:nodes="nodes"
-        :edges="styledEdges"
-        class="w-full h-full"
-        :class="{ 'path-mode': isInPathMode }"
-        :style="{ paddingTop: `${HEADER_HEIGHT}px` }"
-        fit-view-on-init
-        :min-zoom="0.5"
-        :zoom-on-scroll="false"
-        :zoom-on-double-click="false"
-        :disable-keyboard-a11y="true"
-        @node-click="onNodeClick"
-        @node-double-click="onNodeDoubleClick"
-        @node-drag="onNodeDrag"
-        @node-drag-stop="onNodeDragStop"
-        @pane-click="onPaneClick"
-        @edge-click="onEdgeClick"
-        @edge-double-click="onEdgeDoubleClick"
-        @connect="handleConnect"
+      <!-- 왼쪽 헤더 -->
+      <LeftHeader
+        :row-layout="rowLayout"
+        :weekly-row-layout="weeklyRowLayout"
+        :weekly-mode="isWeeklyMode"
+        :viewport-y="viewport.y"
+        :zoom="viewport.zoom"
+        :header-height="activeHeaderHeight"
+      />
+
+      <!-- VueFlow wrapper: 헤더/좌측 패널 아래 영역에만 배치 (좌표계 정렬) -->
+      <div
+        class="absolute right-0 bottom-0"
+        :style="{ top: `${activeHeaderHeight}px`, left: `${LEFT_HEADER_WIDTH}px` }"
       >
-        <!-- 세로 줄 패턴 (40px 간격) - 프로젝트 기간 내에서만 -->
-        <svg
-          style="position: absolute; width: 100%; height: 100%; pointer-events: none; z-index: 0;"
-        >
-          <defs>
-            <pattern id="vertical-lines" x="0" y="0" width="40" height="100" patternUnits="userSpaceOnUse">
-              <rect x="0" y="0" width="0.2" height="100" fill="#999" />
-            </pattern>
-          </defs>
-          <g :transform="`translate(${viewport.x}, ${viewport.y}) scale(${viewport.zoom})`">
-            <!-- 비활성일 배경 (회색 50%) -->
-            <rect
-              v-for="dayIndex in deactivatedIndices"
-              :key="`deactivated-bg-${dayIndex}`"
-              :x="dayIndex * DAY_WIDTH"
-              y="-50000"
-              :width="DAY_WIDTH"
-              height="100000"
-              fill="rgba(107, 114, 128, 0.2)"
-            />
-            <!-- 휴일 배경 (붉은색 30%) -->
-            <rect
-              v-for="dayIndex in holidayIndices"
-              :key="`holiday-bg-${dayIndex}`"
-              :x="dayIndex * DAY_WIDTH"
-              y="-50000"
-              :width="DAY_WIDTH"
-              height="100000"
-              fill="rgba(239, 68, 68, 0.1)"
-            />
-            <!-- 오늘 배경 (파란색 30%) -->
-            <rect
-              v-if="todayInProject !== null"
-              :x="todayInProject * DAY_WIDTH"
-              y="-50000"
-              :width="DAY_WIDTH"
-              height="100000"
-              fill="rgba(59, 130, 246, 0.3)"
-            />
-            <!-- 세로선 그리드 -->
-            <rect
-              :x="projectGridBounds.startX"
-              y="-50000"
-              :width="projectGridBounds.width"
-              height="100000"
-              fill="url(#vertical-lines)"
-            />
-            <!-- 그루핑 박스 (SVG 비인터랙티브 배경만) -->
-            <g v-if="!isInPathMode">
-              <template v-if="showWorkTypeGroup">
-                <template v-for="(box, i) in groupBoxes" :key="`group-wt-svg-${i}`">
-                  <rect
-                    v-if="box.level === 'workType'"
-                    :x="box.x" :y="box.y - HEADER_HEIGHT / viewport.zoom" :width="box.width" :height="box.height"
-                    :fill="box.fillColor" :stroke="box.borderColor"
-                    stroke-width="1" rx="6" ry="6"
-                  />
-                </template>
-              </template>
-              <template v-if="showSubWorkTypeGroup">
-                <template v-for="(box, i) in groupBoxes" :key="`group-swt-svg-${i}`">
-                  <rect
-                    v-if="box.level === 'subWorkType'"
-                    :x="box.x" :y="box.y - HEADER_HEIGHT / viewport.zoom" :width="box.width" :height="box.height"
-                    :fill="box.fillColor" :stroke="box.borderColor"
-                    stroke-width="1" rx="4" ry="4" stroke-dasharray="4 2"
-                  />
-                </template>
-              </template>
-            </g>
-            <!-- 휴일명/비활성일 사유 세로 텍스트 -->
-            <template v-for="dateInfo in allProjectDates" :key="`reason-${dateInfo.dayIndex}`">
-              <text
-                v-if="dateInfo.holidayName || dateInfo.deactivatedReason"
-                :x="dateInfo.dayIndex * DAY_WIDTH + DAY_WIDTH / 2"
-                y="0"
-                fill="currentColor"
-                :fill-opacity="0.3"
-                font-size="11"
-                text-anchor="middle"
-                dominant-baseline="middle"
-                style="writing-mode: tb; glyph-orientation-vertical: 0;"
-              >
-                {{ dateInfo.deactivatedReason || dateInfo.holidayName }}
-              </text>
-            </template>
-          </g>
-        </svg>
-
-        <!-- 그루핑 박스 인터랙티브 오버레이 (viewport z:4 위에 배치, pointer-events 전략으로 노드 클릭 투과) -->
-        <template v-if="!isInPathMode">
-          <template v-for="(box, i) in groupBoxes" :key="`group-overlay-${i}`">
-            <div
-              v-if="(box.level === 'workType' && showWorkTypeGroup) || (box.level === 'subWorkType' && showSubWorkTypeGroup)"
-              class="absolute z-[5]"
-              :style="{
-                left: `${box.x * viewport.zoom + viewport.x}px`,
-                top: `${(box.y - HEADER_HEIGHT / viewport.zoom) * viewport.zoom + viewport.y + HEADER_HEIGHT}px`,
-                width: `${box.width * viewport.zoom}px`,
-                height: `${box.height * viewport.zoom}px`,
-                pointerEvents: 'none',
-                borderRadius: box.level === 'workType' ? '6px' : '4px',
-              }"
-            >
-              <!-- 테두리 8px 영역 (상/하/좌/우) — 여기서만 드래그 캡처 -->
-              <div class="absolute top-0 left-0 right-0 h-[8px]" style="pointer-events: auto; cursor: grab"
-                @mousedown.stop="startGroupDrag(i, $event)" @click.stop="selectGroup(i, $event)" @dblclick.stop />
-              <div class="absolute bottom-0 left-0 right-0 h-[8px]" style="pointer-events: auto; cursor: grab"
-                @mousedown.stop="startGroupDrag(i, $event)" @click.stop="selectGroup(i, $event)" @dblclick.stop />
-              <div class="absolute top-0 bottom-0 left-0 w-[8px]" style="pointer-events: auto; cursor: grab"
-                @mousedown.stop="startGroupDrag(i, $event)" @click.stop="selectGroup(i, $event)" @dblclick.stop />
-              <div class="absolute top-0 bottom-0 right-0 w-[8px]" style="pointer-events: auto; cursor: grab"
-                @mousedown.stop="startGroupDrag(i, $event)" @click.stop="selectGroup(i, $event)" @dblclick.stop />
-              <!-- 라벨 -->
-              <span
-                class="absolute text-[11px] font-semibold px-1 select-none"
-                style="pointer-events: auto; cursor: grab"
-                :style="{ color: box.borderColor, ...getGroupLabelOffset(box) }"
-                @mousedown.stop="startGroupDrag(i, $event)"
-                @click.stop="selectGroup(i, $event)"
-                @dblclick.stop
-              >{{ box.label }}</span>
-              <!-- 선택 border (pointer-events: none) -->
-              <div
-                v-if="selectedGroupIndex === i"
-                class="absolute inset-0"
-                :style="{ pointerEvents: 'none', border: `2px solid ${box.borderColor}`, borderRadius: box.level === 'workType' ? '6px' : '4px' }"
-              />
-            </div>
-          </template>
-        </template>
-
-        <!-- 말풍선 - VueFlow 내부에 배치, 뷰포트 반응형 바인딩 -->
-        <div
-          v-if="tooltip.visible"
-          data-tooltip-balloon
-          class="absolute z-10"
-          :style="{
-            left: `${tooltip.nodeX * viewport.zoom + viewport.x}px`,
-            top: `${tooltip.nodeY * viewport.zoom + viewport.y}px`,
-            transform: `translateX(-50%) translateY(-100%) scale(${viewport.zoom})`,
-            transformOrigin: 'bottom center'
+        <VueFlow
+          v-model:nodes="activeNodes"
+          :edges="isWeeklyMode ? [] : styledEdges"
+          :node-types="{ work: markRaw(WorkNode), workblock: markRaw(WorkBlockNode) }"
+          class="w-full h-full"
+          :class="{
+            'connecting-mode': !!connectingFrom,
           }"
+          fit-view-on-init
+          :min-zoom="0.01"
+          :zoom-on-scroll="false"
+          :zoom-on-pinch="false"
+          :zoom-on-double-click="false"
+          :disable-keyboard-a11y="true"
+          :nodes-connectable="false"
+          @node-click="onNodeClick"
+          @node-context-menu="onNodeContextMenu"
+          @node-mouse-enter="setHoveredNode($event.node.id)"
+          @node-mouse-leave="scheduleHoverClear"
+          @node-drag="onNodeDrag"
+          @node-drag-stop="onNodeDragStop"
+          @pane-click="onPaneClick"
+          @edge-click="onEdgeClick"
         >
-          <div class="px-3 py-2 text-sm bg-popover border border-border rounded-lg shadow-lg space-y-2">
-            <div class="absolute left-1/2 -bottom-2 -translate-x-1/2 border-l-8 border-r-8 border-t-8 border-transparent border-t-border"></div>
-            <div class="absolute left-1/2 -bottom-[7px] -translate-x-1/2 border-l-[7px] border-r-[7px] border-t-[7px] border-transparent border-t-popover"></div>
-
-            <!-- ID / 작업이름 -->
-            <p class="text-xs font-medium">
-              <span class="text-muted-foreground">{{ tooltip.workId }}.</span> {{ tooltip.workName }}
-            </p>
-
-            <!-- 시작일 (읽기전용) -->
-            <p class="text-[11px] text-muted-foreground">시작일: <span class="font-medium text-foreground">{{ tooltip.startDate }}</span></p>
-
-            <!-- 작업기간 (읽기전용) -->
-            <p class="text-[11px] text-muted-foreground">작업기간: <span class="font-medium text-foreground">{{ tooltip.workLeadTime }}일</span></p>
-
-            <!-- 완료일 (읽기전용) -->
-            <p class="text-[11px] text-muted-foreground">완료일: <span class="font-medium text-foreground">{{ tooltip.completionDate }}</span></p>
-
-            <!-- 선행작업 목록 -->
-            <div v-if="tooltipPredecessors.length > 0" class="space-y-1.5 pt-1 border-t border-border">
-              <div v-for="(pred, idx) in tooltipPredecessors" :key="`${pred.pathId}-${pred.workId}`" class="space-y-0.5">
-                <p class="text-[11px] text-muted-foreground">
-                  선행작업{{ idx + 1 }}:
-                  <span class="inline-block w-2 h-2 rounded-full mr-1 align-middle" :style="{ backgroundColor: pred.pathColor }"></span>
-                  <span class="font-medium text-foreground">{{ pred.workId }}. {{ pred.workName }}</span>
-                </p>
-                <div class="flex items-center gap-1">
-                  <Checkbox
-                    :model-value="pred.isFollowing"
-                    class="h-3.5 w-3.5"
-                    @update:model-value="updateEdgeOverlapLocal(pred.pathId, pred.workId, tooltip.workId!, $event ? 0 : null)"
-                  />
-                  <label class="text-[11px] text-muted-foreground">따라가기</label>
-                  <template v-if="pred.isFollowing">
-                    <input
-                      type="number"
-                      :value="pred.lagDays"
-                      class="w-12 h-5 text-[11px] text-center rounded border border-border bg-background"
-                      @change="updateEdgeOverlapLocal(pred.pathId, pred.workId, tooltip.workId!, Number(($event.target as HTMLInputElement).value))"
+          <!-- 세로 줄 패턴 - 프로젝트 기간 내에서만 -->
+          <svg
+            style="position: absolute; width: 100%; height: 100%; pointer-events: none; z-index: 0"
+          >
+            <defs>
+              <pattern
+                id="vertical-lines"
+                x="0"
+                y="0"
+                :width="DAY_WIDTH"
+                height="100"
+                patternUnits="userSpaceOnUse"
+              >
+                <rect x="0" y="0" width="0.2" height="100" fill="#999" />
+              </pattern>
+            </defs>
+            <g :transform="`translate(${viewport.x}, ${viewport.y}) scale(${viewport.zoom})`">
+              <!-- 비활성일 배경 (회색) — 주단위화면에서 숨김 -->
+              <template v-if="!isWeeklyMode">
+                <rect
+                  v-for="dayIndex in deactivatedIndices"
+                  :key="`deactivated-bg-${dayIndex}`"
+                  :x="dayIndex * DAY_WIDTH"
+                  y="-50000"
+                  :width="DAY_WIDTH"
+                  height="100000"
+                  fill="rgba(107, 114, 128, 0.2)"
+                />
+              </template>
+              <!-- 휴일 배경 (붉은색) — 주단위화면에서 숨김 -->
+              <template v-if="!isWeeklyMode">
+                <rect
+                  v-for="dayIndex in holidayIndices"
+                  :key="`holiday-bg-${dayIndex}`"
+                  :x="dayIndex * DAY_WIDTH"
+                  y="-50000"
+                  :width="DAY_WIDTH"
+                  height="100000"
+                  fill="rgba(239, 68, 68, 0.1)"
+                />
+              </template>
+              <!-- 오늘 배경 (파란색) -->
+              <rect
+                v-if="todayInProject !== null"
+                :x="todayInProject * DAY_WIDTH"
+                y="-50000"
+                :width="DAY_WIDTH"
+                height="100000"
+                fill="rgba(59, 130, 246, 0.3)"
+              />
+              <!-- 세로선 그리드: 일별(기본) / 주별(주단위화면) -->
+              <template v-if="isWeeklyMode">
+                <line
+                  v-for="cell in weekCells"
+                  :key="`week-vline-${cell.startIndex}`"
+                  :x1="cell.startIndex * DAY_WIDTH"
+                  y1="-50000"
+                  :x2="cell.startIndex * DAY_WIDTH"
+                  y2="50000"
+                  stroke="#888"
+                  stroke-opacity="0.7"
+                  stroke-width="2"
+                />
+              </template>
+              <rect
+                v-else
+                :x="projectGridBounds.startX"
+                y="-50000"
+                :width="projectGridBounds.width"
+                height="100000"
+                fill="url(#vertical-lines)"
+              />
+              <!-- 우클릭 행 강조 -->
+              <rect
+                v-if="highlightedRowIndex !== null"
+                x="-50000"
+                :y="highlightedRowIndex * activeRowUnit"
+                width="100000"
+                :height="activeRowUnit"
+                fill="rgba(255, 255, 0, 0.15)"
+              />
+              <!-- 가로 구분선 (행 경계) -->
+              <line
+                v-for="ri in (isWeeklyMode ? (weeklyRowLayout?.totalRows ?? 0) : rowLayout.totalRows) + 1"
+                :key="`hline-${ri}`"
+                x1="-50000"
+                :y1="(ri - 1) * activeRowUnit"
+                x2="50000"
+                :y2="(ri - 1) * activeRowUnit"
+                :stroke="isWeeklyMode ? '#aaa' : '#d1d5db'"
+                :stroke-opacity="isWeeklyMode ? 0.8 : 0.4"
+                :stroke-width="isWeeklyMode ? 1 : 1"
+              />
+              <!-- 그루핑 박스 (SVG 비인터랙티브 배경만) -->
+              <g v-if="!isPathEditMode">
+                <template v-if="showWorkTypeGroup">
+                  <template v-for="(box, i) in groupBoxes" :key="`group-wt-svg-${i}`">
+                    <rect
+                      v-if="box.level === 'workType'"
+                      :x="box.x"
+                      :y="box.y"
+                      :width="box.width"
+                      :height="box.height"
+                      :fill="box.fillColor"
+                      :stroke="box.borderColor"
+                      stroke-width="1"
+                      rx="6"
+                      ry="6"
                     />
-                    <span class="text-[11px] text-muted-foreground">일</span>
-                    <span class="text-[11px] font-medium" :class="pred.lagDays < 0 ? 'text-blue-500' : pred.lagDays > 0 ? 'text-orange-500' : 'text-muted-foreground'">
-                      {{ pred.lagDays < 0 ? `${Math.abs(pred.lagDays)}일 겹치기` : pred.lagDays === 0 ? '다음날' : `${pred.lagDays}일 벌리기` }}
-                    </span>
                   </template>
-                  <button
-                    type="button"
-                    class="ml-auto px-1.5 py-0.5 text-[10px] font-medium rounded border border-primary/30 text-primary hover:bg-primary/10 transition-colors"
-                    @click="updateEdgeOverlap(pred.pathId, pred.workId, tooltip.workId!, pred.isFollowing ? pred.lagDays : null)"
-                  >
-                    저장
-                  </button>
+                </template>
+                <template v-if="showSubWorkTypeGroup">
+                  <template v-for="(box, i) in groupBoxes" :key="`group-swt-svg-${i}`">
+                    <rect
+                      v-if="box.level === 'subWorkType'"
+                      :x="box.x"
+                      :y="box.y"
+                      :width="box.width"
+                      :height="box.height"
+                      :fill="box.fillColor"
+                      :stroke="box.borderColor"
+                      stroke-width="1"
+                      rx="4"
+                      ry="4"
+                      stroke-dasharray="4 2"
+                    />
+                  </template>
+                </template>
+              </g>
+              <!-- 휴일명/비활성일 사유 세로 텍스트 — 주단위화면에서 숨김 -->
+              <template v-if="!isWeeklyMode">
+              <template v-for="dateInfo in allProjectDates" :key="`reason-${dateInfo.dayIndex}`">
+                <text
+                  v-if="dateInfo.holidayName || dateInfo.deactivatedReason"
+                  :x="dateInfo.dayIndex * DAY_WIDTH + DAY_WIDTH / 2"
+                  y="0"
+                  fill="currentColor"
+                  :fill-opacity="0.3"
+                  font-size="11"
+                  text-anchor="middle"
+                  dominant-baseline="middle"
+                  style="writing-mode: tb; glyph-orientation-vertical: 0"
+                >
+                  {{ dateInfo.deactivatedReason || dateInfo.holidayName }}
+                </text>
+              </template>
+              </template>
+
+              <!-- 패스 연결 중인 베지어 곡선 (source → 커서) -->
+              <path
+                v-if="connectingLine"
+                :d="`M ${connectingLine.x1} ${connectingLine.y1} C ${connectingLine.cx1} ${connectingLine.cy1}, ${connectingLine.cx2} ${connectingLine.cy2}, ${connectingLine.x2} ${connectingLine.y2}`"
+                :stroke="connectingColor"
+                stroke-width="2"
+                stroke-dasharray="8 4"
+                fill="none"
+              />
+              <!-- 연결 중 source 노드 강조 원 -->
+              <circle
+                v-if="connectingLine"
+                :cx="connectingLine.x1"
+                :cy="connectingLine.y1"
+                r="4"
+                :fill="connectingColor"
+              />
+            </g>
+          </svg>
+
+          <!-- 그루핑 박스 인터랙티브 오버레이 (viewport z:4 위에 배치, pointer-events 전략으로 노드 클릭 투과) -->
+          <template v-if="!isPathEditMode">
+            <template v-for="(box, i) in groupBoxes" :key="`group-overlay-${i}`">
+              <div
+                v-if="
+                  (box.level === 'workType' && showWorkTypeGroup) ||
+                  (box.level === 'subWorkType' && showSubWorkTypeGroup)
+                "
+                class="absolute z-[5]"
+                :style="{
+                  left: `${box.x * viewport.zoom + viewport.x}px`,
+                  top: `${box.y * viewport.zoom + viewport.y}px`,
+                  width: `${box.width * viewport.zoom}px`,
+                  height: `${box.height * viewport.zoom}px`,
+                  pointerEvents: 'none',
+                  borderRadius: box.level === 'workType' ? '6px' : '4px',
+                }"
+              >
+                <!-- 테두리 8px 영역 (상/하/좌/우) — 여기서만 드래그 캡처 -->
+                <div
+                  class="absolute top-0 left-0 right-0 h-[8px]"
+                  style="pointer-events: auto; cursor: grab"
+                  @mousedown.stop="startGroupDrag(i, $event)"
+                  @click.stop="selectGroup(i, $event)"
+                  @dblclick.stop
+                />
+                <div
+                  class="absolute bottom-0 left-0 right-0 h-[8px]"
+                  style="pointer-events: auto; cursor: grab"
+                  @mousedown.stop="startGroupDrag(i, $event)"
+                  @click.stop="selectGroup(i, $event)"
+                  @dblclick.stop
+                />
+                <div
+                  class="absolute top-0 bottom-0 left-0 w-[8px]"
+                  style="pointer-events: auto; cursor: grab"
+                  @mousedown.stop="startGroupDrag(i, $event)"
+                  @click.stop="selectGroup(i, $event)"
+                  @dblclick.stop
+                />
+                <div
+                  class="absolute top-0 bottom-0 right-0 w-[8px]"
+                  style="pointer-events: auto; cursor: grab"
+                  @mousedown.stop="startGroupDrag(i, $event)"
+                  @click.stop="selectGroup(i, $event)"
+                  @dblclick.stop
+                />
+                <!-- 라벨 -->
+                <span
+                  class="absolute text-[11px] font-semibold px-1 select-none"
+                  style="pointer-events: auto; cursor: grab"
+                  :style="{ color: box.borderColor, ...getGroupLabelOffset(box) }"
+                  @mousedown.stop="startGroupDrag(i, $event)"
+                  @click.stop="selectGroup(i, $event)"
+                  @dblclick.stop
+                  >{{ box.label }}</span
+                >
+                <!-- 선택 border (pointer-events: none) -->
+                <div
+                  v-if="selectedGroupIndex === i"
+                  class="absolute inset-0"
+                  :style="{
+                    pointerEvents: 'none',
+                    border: `2px solid ${box.borderColor}`,
+                    borderRadius: box.level === 'workType' ? '6px' : '4px',
+                  }"
+                />
+              </div>
+            </template>
+          </template>
+
+          <!-- 말풍선 - VueFlow 내부에 배치, 뷰포트 반응형 바인딩 -->
+          <div
+            v-if="tooltip.visible"
+            data-tooltip-balloon
+            class="absolute z-10"
+            :style="{
+              left: `${tooltip.nodeX * viewport.zoom + viewport.x}px`,
+              top: `${tooltip.nodeY * viewport.zoom + viewport.y}px`,
+              transform: `translateX(-50%) translateY(-100%) scale(${viewport.zoom})`,
+              transformOrigin: 'bottom center',
+            }"
+          >
+            <div
+              class="px-3 py-2 text-sm bg-popover border border-border rounded-lg shadow-lg space-y-2"
+            >
+              <!-- ID / 작업이름 -->
+              <p class="text-xs font-medium">
+                <span class="text-muted-foreground">{{ tooltip.workId }}.</span>
+                {{ tooltip.workName }}
+              </p>
+
+              <!-- 시작일 (읽기전용) -->
+              <p class="text-[11px] text-muted-foreground">
+                시작일: <span class="font-medium text-foreground">{{ tooltip.startDate }}</span>
+              </p>
+
+              <!-- 작업기간 (읽기전용) -->
+              <p class="text-[11px] text-muted-foreground">
+                작업기간:
+                <span class="font-medium text-foreground">{{ tooltip.workLeadTime }}일</span>
+              </p>
+
+              <!-- 완료일 (읽기전용) -->
+              <p class="text-[11px] text-muted-foreground">
+                완료일:
+                <span class="font-medium text-foreground">{{ tooltip.completionDate }}</span>
+              </p>
+
+              <!-- 선행작업 목록 -->
+              <div
+                v-if="tooltipPredecessors.length > 0"
+                class="space-y-1.5 pt-1 border-t border-border"
+              >
+                <div
+                  v-for="(pred, idx) in tooltipPredecessors"
+                  :key="`${pred.pathId}-${pred.workId}`"
+                  class="space-y-0.5"
+                >
+                  <p class="text-[11px] text-muted-foreground">
+                    선행작업{{ idx + 1 }}:
+                    <span
+                      class="inline-block w-2 h-2 rounded-full mr-1 align-middle"
+                      :style="{ backgroundColor: pred.pathColor }"
+                    ></span>
+                    <span class="font-medium text-foreground"
+                      >{{ pred.workId }}. {{ pred.workName }}</span
+                    >
+                  </p>
+                  <div class="flex items-center gap-1">
+                    <Checkbox
+                      :model-value="pred.isFollowing"
+                      class="h-3.5 w-3.5"
+                      @update:model-value="
+                        updateEdgeOverlap(
+                          pred.pathId,
+                          pred.workId,
+                          tooltip.workId!,
+                          $event ? 0 : null,
+                        )
+                      "
+                    />
+                    <label class="text-[11px] text-muted-foreground">따라가기</label>
+                    <template v-if="pred.isFollowing">
+                      <button
+                        type="button"
+                        class="flex items-center justify-center w-5 h-5 text-[11px] font-medium rounded border border-border bg-background hover:bg-muted transition-colors"
+                        @click="
+                          updateEdgeOverlapLocal(
+                            pred.pathId,
+                            pred.workId,
+                            tooltip.workId!,
+                            pred.lagDays - 1,
+                          )
+                        "
+                      >
+                        −
+                      </button>
+                      <span class="h-5 text-[11px] text-center leading-5 select-none"
+                        >{{ pred.lagDays }}일</span
+                      >
+                      <button
+                        type="button"
+                        class="flex items-center justify-center w-5 h-5 text-[11px] font-medium rounded border border-border bg-background hover:bg-muted transition-colors"
+                        @click="
+                          updateEdgeOverlapLocal(
+                            pred.pathId,
+                            pred.workId,
+                            tooltip.workId!,
+                            pred.lagDays + 1,
+                          )
+                        "
+                      >
+                        +
+                      </button>
+                      <span class="text-[11px] text-muted-foreground">→</span>
+                      <span
+                        class="text-[11px] font-medium"
+                        :class="
+                          pred.lagDays < 0
+                            ? 'text-blue-500'
+                            : pred.lagDays > 0
+                              ? 'text-orange-500'
+                              : 'text-muted-foreground'
+                        "
+                      >
+                        {{
+                          pred.lagDays < 0
+                            ? `${Math.abs(pred.lagDays)}일 겹치기`
+                            : pred.lagDays === 0
+                              ? '다음날'
+                              : `${pred.lagDays}일 벌리기`
+                        }}
+                      </span>
+                    </template>
+                    <button
+                      type="button"
+                      class="ml-auto px-1.5 py-0.5 text-[10px] font-medium rounded border border-primary/30 text-primary hover:bg-primary/10 transition-colors"
+                      @click="
+                        updateEdgeOverlap(
+                          pred.pathId,
+                          pred.workId,
+                          tooltip.workId!,
+                          pred.isFollowing ? pred.lagDays : null,
+                        )
+                      "
+                    >
+                      저장
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <!-- 휴일 작업 여부 -->
-            <div class="flex rounded-md border border-border overflow-hidden">
-              <button
-                type="button"
-                class="flex-1 py-1 text-xs font-medium transition-colors"
-                :class="tooltip.isWorkingOnHoliday ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted'"
-                @click="updateTooltipWork({ isWorkingOnHoliday: true })"
-              >
-                휴일 작업
-              </button>
-              <button
-                type="button"
-                class="flex-1 py-1 text-xs font-medium transition-colors border-l border-border"
-                :class="!tooltip.isWorkingOnHoliday ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted'"
-                @click="updateTooltipWork({ isWorkingOnHoliday: false })"
-              >
-                휴일 휴무
-              </button>
+              <!-- 휴일 작업 여부 -->
+              <div class="flex rounded-md border border-border overflow-hidden">
+                <button
+                  type="button"
+                  class="flex-1 py-1 text-xs font-medium transition-colors"
+                  :class="
+                    tooltip.isWorkingOnHoliday
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-background hover:bg-muted'
+                  "
+                  @click="updateTooltipWork({ isWorkingOnHoliday: true })"
+                >
+                  휴일 작업
+                </button>
+                <button
+                  type="button"
+                  class="flex-1 py-1 text-xs font-medium transition-colors border-l border-border"
+                  :class="
+                    !tooltip.isWorkingOnHoliday
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-background hover:bg-muted'
+                  "
+                  @click="updateTooltipWork({ isWorkingOnHoliday: false })"
+                >
+                  휴일 휴무
+                </button>
+              </div>
             </div>
+            <!-- 삼각형 화살표 (콘텐츠 밖 flow 배치 → translateY(-100%)에 높이 반영) -->
+            <div class="flex justify-center">
+              <div class="relative">
+                <div
+                  class="border-l-8 border-r-8 border-t-8 border-transparent border-t-border"
+                ></div>
+                <div
+                  class="absolute top-0 left-1/2 -translate-x-1/2 border-l-[7px] border-r-[7px] border-t-[7px] border-transparent border-t-popover"
+                ></div>
+              </div>
+            </div>
+          </div>
 
-            <!-- 삭제 -->
+          <!-- 패스 편집 모드: 삭제 버튼들 -->
+          <template v-if="isPathEditMode">
             <button
-              type="button"
-              class="w-full py-1 text-xs font-medium text-destructive hover:bg-destructive/10 rounded border border-destructive/30 transition-colors"
-              @click="openDeleteDialog('work')"
+              v-for="btn in deleteButtonNodes"
+              :key="`delete-${btn.workId}`"
+              class="absolute z-20 w-5 h-5 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white rounded-full shadow-md transition-colors cursor-pointer"
+              :style="{
+                left: `${btn.x * viewport.zoom + viewport.x}px`,
+                top: `${btn.y * viewport.zoom + viewport.y}px`,
+                transform: `translate(-50%, -50%) scale(${Math.min(viewport.zoom, 1)})`,
+              }"
+              @click="handleDeleteFromPath(btn.workId)"
             >
-              삭제
+              <span class="text-xs font-bold">×</span>
             </button>
+          </template>
+
+          <Controls position="bottom-right" />
+        </VueFlow>
+      </div>
+
+      <!-- 리사이즈 핸들 (VueFlow 바깥, 컨테이너 직속 — 노드 드래그 이벤트 간섭 방지) -->
+      <template v-if="resizeHandles && !connectingFrom">
+        <!-- 왼쪽 모서리 ◀▶ — scale 중심: 노드 왼쪽 모서리 중앙 -->
+        <div
+          class="absolute z-40 cursor-col-resize flex items-center justify-center"
+          style="pointer-events: auto; background: transparent"
+          :style="{
+            left: `${LEFT_HEADER_WIDTH + resizeHandles.left.x * viewport.zoom + viewport.x}px`,
+            top: `${activeHeaderHeight + resizeHandles.left.y * viewport.zoom + viewport.y}px`,
+            width: '16px',
+            height: `${resizeHandles.halfH * 2}px`,
+            transform: `translate(-50%, -50%) scale(${viewport.zoom})`,
+            transformOrigin: 'center center',
+          }"
+          @pointerdown.stop.prevent="onResizeStart('left', $event)"
+          @mouseenter="cancelHoverClear"
+          @mouseleave="scheduleHoverClear"
+        >
+          <div style="display: flex; align-items: center; gap: 5px">
+            <div
+              style="width: 0; height: 0; border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-right: 6px solid #1f2937"
+            />
+            <div
+              style="width: 0; height: 0; border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-left: 6px solid #1f2937"
+            />
           </div>
         </div>
+        <!-- 오른쪽 모서리 ◀▶ — scale 중심: 노드 오른쪽 모서리 중앙 -->
+        <div
+          class="absolute z-40 cursor-col-resize flex items-center justify-center"
+          style="pointer-events: auto; background: transparent"
+          :style="{
+            left: `${LEFT_HEADER_WIDTH + resizeHandles.right.x * viewport.zoom + viewport.x}px`,
+            top: `${activeHeaderHeight + resizeHandles.right.y * viewport.zoom + viewport.y}px`,
+            width: '16px',
+            height: `${resizeHandles.halfH * 2}px`,
+            transform: `translate(-50%, -50%) scale(${viewport.zoom})`,
+            transformOrigin: 'center center',
+          }"
+          @pointerdown.stop.prevent="onResizeStart('right', $event)"
+          @mouseenter="cancelHoverClear"
+          @mouseleave="scheduleHoverClear"
+        >
+          <div style="display: flex; align-items: center; gap: 5px">
+            <div
+              style="width: 0; height: 0; border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-right: 6px solid #1f2937"
+            />
+            <div
+              style="width: 0; height: 0; border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-left: 6px solid #1f2937"
+            />
+          </div>
+        </div>
+      </template>
 
-        <!-- 리사이즈 핸들 (모서리 기준 ◀ ▶ 각각 띄움, 노드 비율 고정) -->
-        <template v-if="resizeHandles && !isInPathMode">
-          <!-- 왼쪽 모서리: ◀ (바깥쪽) -->
-          <div
-            class="absolute z-20 cursor-col-resize"
-            :style="{
-              left: `${(resizeHandles.left.x - 3) * viewport.zoom + viewport.x}px`,
-              top: `${resizeHandles.left.y * viewport.zoom + viewport.y}px`,
-              transform: 'translate(-100%, -50%)'
-            }"
-            @mousedown.stop="onResizeStart('left', $event)"
-          >
-            <div :style="{
-              borderTop: `${5 * viewport.zoom}px solid transparent`,
-              borderBottom: `${5 * viewport.zoom}px solid transparent`,
-              borderRight: `${5 * viewport.zoom}px solid black`
-            }" />
-          </div>
-          <!-- 왼쪽 모서리: ▶ (안쪽) -->
-          <div
-            class="absolute z-20 cursor-col-resize"
-            :style="{
-              left: `${(resizeHandles.left.x + 3) * viewport.zoom + viewport.x}px`,
-              top: `${resizeHandles.left.y * viewport.zoom + viewport.y}px`,
-              transform: 'translateY(-50%)'
-            }"
-            @mousedown.stop="onResizeStart('left', $event)"
-          >
-            <div :style="{
-              borderTop: `${5 * viewport.zoom}px solid transparent`,
-              borderBottom: `${5 * viewport.zoom}px solid transparent`,
-              borderLeft: `${5 * viewport.zoom}px solid black`
-            }" />
-          </div>
-          <!-- 오른쪽 모서리: ◀ (안쪽) -->
-          <div
-            class="absolute z-20 cursor-col-resize"
-            :style="{
-              left: `${(resizeHandles.right.x - 3) * viewport.zoom + viewport.x}px`,
-              top: `${resizeHandles.right.y * viewport.zoom + viewport.y}px`,
-              transform: 'translate(-100%, -50%)'
-            }"
-            @mousedown.stop="onResizeStart('right', $event)"
-          >
-            <div :style="{
-              borderTop: `${5 * viewport.zoom}px solid transparent`,
-              borderBottom: `${5 * viewport.zoom}px solid transparent`,
-              borderRight: `${5 * viewport.zoom}px solid black`
-            }" />
-          </div>
-          <!-- 오른쪽 모서리: ▶ (바깥쪽) -->
-          <div
-            class="absolute z-20 cursor-col-resize"
-            :style="{
-              left: `${(resizeHandles.right.x + 3) * viewport.zoom + viewport.x}px`,
-              top: `${resizeHandles.right.y * viewport.zoom + viewport.y}px`,
-              transform: 'translateY(-50%)'
-            }"
-            @mousedown.stop="onResizeStart('right', $event)"
-          >
-            <div :style="{
-              borderTop: `${5 * viewport.zoom}px solid transparent`,
-              borderBottom: `${5 * viewport.zoom}px solid transparent`,
-              borderLeft: `${5 * viewport.zoom}px solid black`
-            }" />
-          </div>
-        </template>
+      <!-- 패스 연결 모드 안내 -->
+      <div
+        v-if="connectingFrom"
+        class="absolute top-2 left-1/2 -translate-x-1/2 z-40 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg shadow-lg"
+      >
+        연결할 작업을 클릭하세요 (ESC: 취소)
+      </div>
 
-        <!-- 패스 편집 모드: 삭제 버튼들 -->
-        <template v-if="isPathEditMode">
-          <button
-            v-for="btn in deleteButtonNodes"
-            :key="`delete-${btn.workId}`"
-            class="absolute z-20 w-5 h-5 flex items-center justify-center
-                   bg-red-500 hover:bg-red-600 text-white rounded-full
-                   shadow-md transition-colors cursor-pointer"
-            :style="{
-              left: `${btn.x * viewport.zoom + viewport.x}px`,
-              top: `${btn.y * viewport.zoom + viewport.y}px`,
-              transform: `translate(-50%, -50%) scale(${Math.min(viewport.zoom, 1)})`
-            }"
-            @click="removeNodeFromPath(btn.workId); savePathEdges()"
-          >
-            <span class="text-xs font-bold">×</span>
-          </button>
-        </template>
+      <!-- 컨텍스트 메뉴 -->
+      <Teleport to="body">
+        <div
+          v-if="contextMenu?.visible"
+          class="fixed z-[9999] min-w-[160px] py-1 bg-popover border border-border rounded-lg shadow-xl"
+          :style="{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }"
+          @click.stop
+        >
+          <!-- 배경 메뉴 -->
+          <template v-if="contextMenu.type === 'pane'">
+            <button
+              type="button"
+              class="w-full px-3 py-1.5 text-left text-sm hover:bg-muted transition-colors"
+              @click="handleContextMenuCreate"
+            >
+              작업 생성
+            </button>
+          </template>
 
-        <Controls position="bottom-right" />
-      </VueFlow>
+          <!-- 노드 메뉴 -->
+          <template v-if="contextMenu.type === 'node'">
+            <button
+              type="button"
+              class="w-full px-3 py-1.5 text-left text-sm hover:bg-muted transition-colors"
+              @click="handleContextMenuEdit"
+            >
+              작업 수정
+            </button>
+            <button
+              type="button"
+              class="w-full px-3 py-1.5 text-left text-sm hover:bg-muted transition-colors"
+              @click="handleContextMenuNewPath"
+            >
+              신규 패스 생성
+            </button>
+            <template v-if="contextMenuNodePaths.length > 0">
+              <div class="my-1 border-t border-border" />
+              <button
+                v-for="path in contextMenuNodePaths"
+                :key="`add-${path.workPathId}`"
+                type="button"
+                class="w-full px-3 py-1.5 text-left text-sm hover:bg-muted transition-colors flex items-center gap-2"
+                @click="handleContextMenuAddToPath(path.workPathId)"
+              >
+                <span
+                  class="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
+                  :style="{ backgroundColor: path.workPathColor }"
+                />
+                패스에 작업 추가
+              </button>
+              <div class="my-1 border-t border-border" />
+              <button
+                v-for="path in contextMenuNodePaths"
+                :key="`edit-${path.workPathId}`"
+                type="button"
+                class="w-full px-3 py-1.5 text-left text-sm hover:bg-muted transition-colors flex items-center gap-2"
+                @click="handleContextMenuEditPath(path.workPathId)"
+              >
+                <span
+                  class="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
+                  :style="{ backgroundColor: path.workPathColor }"
+                />
+                패스 편집
+              </button>
+            </template>
+            <div class="my-1 border-t border-border" />
+            <button
+              type="button"
+              class="w-full px-3 py-1.5 text-left text-sm text-destructive hover:bg-destructive/10 transition-colors"
+              @click="handleContextMenuDelete"
+            >
+              작업 삭제
+            </button>
+          </template>
+        </div>
+      </Teleport>
 
       <!-- 그루핑 박스 토글 (우측 하단) -->
-      <div v-if="!isInPathMode" data-group-toggle class="absolute bottom-4 right-4 z-30 flex flex-col gap-1 bg-background/80 backdrop-blur-sm rounded-md border border-border px-2 py-1.5">
+      <div
+        v-if="!isPathEditMode"
+        data-group-toggle
+        class="absolute bottom-4 right-4 z-30 flex flex-col gap-1 bg-background/80 backdrop-blur-sm rounded-md border border-border px-2 py-1.5"
+      >
         <label class="flex items-center gap-1.5 cursor-pointer">
           <Checkbox
             :model-value="showWorkTypeGroup"
             class="h-3.5 w-3.5"
-            @update:model-value="showWorkTypeGroup = !!$event; if ($event) showSubWorkTypeGroup = false"
+            @update:model-value="handleWorkTypeGroupToggle"
           />
           <span class="text-[11px] text-muted-foreground">공종 그룹</span>
         </label>
@@ -1784,43 +2708,12 @@ onUnmounted(() => {
           <Checkbox
             :model-value="showSubWorkTypeGroup"
             class="h-3.5 w-3.5"
-            @update:model-value="showSubWorkTypeGroup = !!$event; if ($event) showWorkTypeGroup = false"
+            @update:model-value="handleSubWorkTypeGroupToggle"
           />
           <span class="text-[11px] text-muted-foreground">세부공종 그룹</span>
         </label>
       </div>
-
-      <!-- 모드 인디케이터 (좌측 하단) -->
-      <div class="absolute bottom-4 left-4 z-30 flex items-center gap-3">
-        <button
-          class="flex items-center gap-2 px-4 py-2.5 rounded-md text-sm font-medium border transition-colors"
-          :class="!isInPathMode
-            ? 'bg-primary text-primary-foreground border-primary'
-            : 'bg-background text-muted-foreground border-border hover:bg-muted'"
-          @click="pathMode = false; cancelPathEdit(); tooltip.visible = false"
-        >
-          <kbd class="px-1.5 py-0.5 rounded border text-xs font-mono"
-            :class="!isInPathMode ? 'border-primary-foreground/30' : 'border-border'"
-          >1</kbd>
-          작업관리
-        </button>
-        <button
-          class="flex items-center gap-2 px-4 py-2.5 rounded-md text-sm font-medium border transition-colors"
-          :class="isInPathMode
-            ? 'bg-primary text-primary-foreground border-primary'
-            : 'bg-background text-muted-foreground border-border hover:bg-muted'"
-          @click="pathMode = true; clearWorkSelection(); tooltip.visible = false"
-        >
-          <kbd class="px-1.5 py-0.5 rounded border text-xs font-mono"
-            :class="isInPathMode ? 'border-primary-foreground/30' : 'border-border'"
-          >2</kbd>
-          패스관리
-        </button>
-      </div>
-
-
     </div>
-
   </div>
 
   <!-- 패스 편집 다이얼로그 (중앙) -->
@@ -1861,7 +2754,11 @@ onUnmounted(() => {
           <button
             type="button"
             class="flex-1 py-1.5 text-xs font-medium transition-colors"
-            :class="editPathCritical ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted'"
+            :class="
+              editPathCritical
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-background hover:bg-muted'
+            "
             @click="editPathCritical = true"
           >
             주공정
@@ -1869,7 +2766,11 @@ onUnmounted(() => {
           <button
             type="button"
             class="flex-1 py-1.5 text-xs font-medium transition-colors border-l border-border"
-            :class="!editPathCritical ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted'"
+            :class="
+              !editPathCritical
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-background hover:bg-muted'
+            "
             @click="editPathCritical = false"
           >
             일반
@@ -1878,12 +2779,7 @@ onUnmounted(() => {
       </div>
 
       <DialogFooter class="flex-col gap-1.5 sm:flex-col">
-        <Button
-          size="sm"
-          class="w-full"
-          :disabled="isSavingPath"
-          @click="savePathChanges(); showPathDialog = false"
-        >
+        <Button size="sm" class="w-full" :disabled="isSavingPath" @click="handleSavePathAndClose">
           {{ isSavingPath ? '저장 중...' : '저장' }}
         </Button>
         <button
@@ -1893,7 +2789,7 @@ onUnmounted(() => {
         >
           삭제
         </button>
-        <button
+        <!-- <button
           type="button"
           class="w-full py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950 rounded border border-blue-300 dark:border-blue-700 transition-colors"
           @click="optimizeTarget = 'current'; showOptimizeDialog = true"
@@ -1906,7 +2802,7 @@ onUnmounted(() => {
           @click="optimizeTarget = 'all'; showOptimizeDialog = true"
         >
           전체 패스 최적화
-        </button>
+        </button> -->
       </DialogFooter>
     </DialogContent>
   </Dialog>
@@ -1916,9 +2812,7 @@ onUnmounted(() => {
     <AlertDialogContent>
       <AlertDialogHeader>
         <AlertDialogTitle>삭제 확인</AlertDialogTitle>
-        <AlertDialogDescription>
-          정말 삭제하시겠습니까?
-        </AlertDialogDescription>
+        <AlertDialogDescription> 정말 삭제하시겠습니까? </AlertDialogDescription>
       </AlertDialogHeader>
       <AlertDialogFooter>
         <AlertDialogCancel :disabled="isDeleting">취소</AlertDialogCancel>
@@ -1935,9 +2829,11 @@ onUnmounted(() => {
       <AlertDialogHeader>
         <AlertDialogTitle>경로 최적화</AlertDialogTitle>
         <AlertDialogDescription>
-          {{ optimizeTarget === 'current'
-            ? '현재 패스에 포함된 작업을 선행작업 완료일 기준으로 최대한 앞으로 당깁니다.'
-            : '모든 패스의 작업을 선행작업 완료일 기준으로 최대한 앞으로 당깁니다.' }}
+          {{
+            optimizeTarget === 'current'
+              ? '현재 패스에 포함된 작업을 선행작업 완료일 기준으로 최대한 앞으로 당깁니다.'
+              : '모든 패스의 작업을 선행작업 완료일 기준으로 최대한 앞으로 당깁니다.'
+          }}
           <br />
           정말 최적화를 진행하시겠습니까?
         </AlertDialogDescription>
@@ -1979,27 +2875,50 @@ onUnmounted(() => {
                 class="h-8 w-8 flex items-center justify-center rounded-md border border-border text-sm font-bold hover:bg-muted transition-colors"
                 :disabled="td.editWorkLeadTime <= 1"
                 @click="td.editWorkLeadTime = Math.max(1, td.editWorkLeadTime - 1)"
-              >−</button>
-              <span class="h-8 flex-1 flex items-center justify-center text-sm font-medium rounded-md border border-border bg-background">{{ td.editWorkLeadTime }}일</span>
+              >
+                −
+              </button>
+              <span
+                class="h-8 flex-1 flex items-center justify-center text-sm font-medium rounded-md border border-border bg-background"
+                >{{ td.editWorkLeadTime }}일</span
+              >
               <button
                 type="button"
                 class="h-8 w-8 flex items-center justify-center rounded-md border border-border text-sm font-bold hover:bg-muted transition-colors"
                 @click="td.editWorkLeadTime = td.editWorkLeadTime + 1"
-              >+</button>
+              >
+                +
+              </button>
             </div>
           </div>
-
         </template>
 
-        <!-- 공종 (Division → WorkType → SubWorkType) -->
-        <div class="space-y-1.5">
-          <label class="text-sm font-medium">공종</label>
-          <Select :model-value="td.editDivisionId" @update:model-value="td.handleTooltipDivisionChange($event)">
+        <!-- 공종 (생성 모드: 더블클릭 위치에서 자동 결정, 수정 모드: 3계층 선택) -->
+        <div v-if="td.isCreateMode" class="space-y-1.5">
+          <div class="flex items-center gap-1">
+            <label class="text-sm font-medium">세부공종</label>
+            <ReferenceEditTrigger type="work-classification" @refresh="td.loadReferenceData" />
+          </div>
+          <div class="h-8 flex items-center text-sm rounded-md border border-border bg-muted px-3">
+            {{ td.createSubWorkTypeName }}
+          </div>
+        </div>
+        <div v-else class="space-y-1.5">
+          <div class="flex items-center gap-1">
+            <label class="text-sm font-medium">공종</label>
+            <ReferenceEditTrigger type="work-classification" @refresh="td.loadReferenceData" />
+          </div>
+          <Select
+            :model-value="td.editDivisionId"
+            @update:model-value="td.handleTooltipDivisionChange($event)"
+          >
             <SelectTrigger class="h-8 text-sm">
               <SelectValue placeholder="분류 선택" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem v-for="d in td.divisions" :key="d.id" :value="String(d.id)">{{ d.name }}</SelectItem>
+              <SelectItem v-for="d in td.divisions" :key="d.id" :value="String(d.id)">{{
+                d.name
+              }}</SelectItem>
             </SelectContent>
           </Select>
           <Select
@@ -2011,7 +2930,9 @@ onUnmounted(() => {
               <SelectValue :placeholder="td.isLoadingTooltipWorkTypes ? '로딩...' : '공종 선택'" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem v-for="w in td.tooltipWorkTypes" :key="w.id" :value="String(w.id)">{{ w.name }}</SelectItem>
+              <SelectItem v-for="w in td.tooltipWorkTypes" :key="w.id" :value="String(w.id)">{{
+                w.name
+              }}</SelectItem>
             </SelectContent>
           </Select>
           <Select
@@ -2020,10 +2941,14 @@ onUnmounted(() => {
             @update:model-value="td.handleTooltipSubWorkTypeChange($event)"
           >
             <SelectTrigger class="h-8 text-sm">
-              <SelectValue :placeholder="td.isLoadingTooltipSubWorkTypes ? '로딩...' : '세부공종 선택'" />
+              <SelectValue
+                :placeholder="td.isLoadingTooltipSubWorkTypes ? '로딩...' : '세부공종 선택'"
+              />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem v-for="s in td.tooltipSubWorkTypes" :key="s.id" :value="String(s.id)">{{ s.name }}</SelectItem>
+              <SelectItem v-for="s in td.tooltipSubWorkTypes" :key="s.id" :value="String(s.id)">{{
+                s.name
+              }}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -2033,9 +2958,16 @@ onUnmounted(() => {
           <label class="text-sm font-medium">위치</label>
           <div class="grid grid-cols-2 gap-3">
             <div v-if="td.zones.length" class="space-y-1">
-              <span class="text-xs text-muted-foreground">구역</span>
+              <div class="flex items-center gap-1">
+                <span class="text-xs text-muted-foreground">구역</span>
+                <ReferenceEditTrigger type="zone" @refresh="td.loadReferenceData" />
+              </div>
               <div class="flex flex-wrap gap-x-3 gap-y-1">
-                <label v-for="z in td.zones" :key="z.id" class="flex items-center gap-1.5 text-sm cursor-pointer">
+                <label
+                  v-for="z in td.zones"
+                  :key="z.id"
+                  class="flex items-center gap-1.5 text-sm cursor-pointer"
+                >
                   <Checkbox
                     :model-value="td.editZoneIds.includes(z.id)"
                     class="h-4 w-4"
@@ -2046,9 +2978,16 @@ onUnmounted(() => {
               </div>
             </div>
             <div v-if="td.floors.length" class="space-y-1">
-              <span class="text-xs text-muted-foreground">층</span>
+              <div class="flex items-center gap-1">
+                <span class="text-xs text-muted-foreground">층</span>
+                <ReferenceEditTrigger type="floor" @refresh="td.loadReferenceData" />
+              </div>
               <div class="flex flex-wrap gap-x-3 gap-y-1">
-                <label v-for="f in td.floors" :key="f.id" class="flex items-center gap-1.5 text-sm cursor-pointer">
+                <label
+                  v-for="f in td.floors"
+                  :key="f.id"
+                  class="flex items-center gap-1.5 text-sm cursor-pointer"
+                >
                   <Checkbox
                     :model-value="td.editFloorIds.includes(f.id)"
                     class="h-4 w-4"
@@ -2058,10 +2997,15 @@ onUnmounted(() => {
                 </label>
               </div>
             </div>
-            <div v-if="td.sections.length" class="space-y-1">
+            <!-- TODO: section/usage 임시 비활성화 -->
+            <!-- <div v-if="td.sections.length" class="space-y-1">
               <span class="text-xs text-muted-foreground">구간</span>
               <div class="flex flex-wrap gap-x-3 gap-y-1">
-                <label v-for="s in td.sections" :key="s.id" class="flex items-center gap-1.5 text-sm cursor-pointer">
+                <label
+                  v-for="s in td.sections"
+                  :key="s.id"
+                  class="flex items-center gap-1.5 text-sm cursor-pointer"
+                >
                   <Checkbox
                     :model-value="td.editSectionIds.includes(s.id)"
                     class="h-4 w-4"
@@ -2074,7 +3018,11 @@ onUnmounted(() => {
             <div v-if="td.usages.length" class="space-y-1">
               <span class="text-xs text-muted-foreground">용도</span>
               <div class="flex flex-wrap gap-x-3 gap-y-1">
-                <label v-for="u in td.usages" :key="u.id" class="flex items-center gap-1.5 text-sm cursor-pointer">
+                <label
+                  v-for="u in td.usages"
+                  :key="u.id"
+                  class="flex items-center gap-1.5 text-sm cursor-pointer"
+                >
                   <Checkbox
                     :model-value="td.editUsageIds.includes(u.id)"
                     class="h-4 w-4"
@@ -2083,15 +3031,25 @@ onUnmounted(() => {
                   {{ u.name }}
                 </label>
               </div>
-            </div>
+            </div> -->
           </div>
         </div>
 
         <!-- 부재 타입 -->
-        <div v-if="td.componentTypes.length" class="space-y-1.5">
-          <label class="text-sm font-medium">부재</label>
+        <div class="space-y-1.5">
+          <div class="flex items-center gap-1">
+            <label class="text-sm font-medium">부재</label>
+            <ReferenceEditTrigger type="component" @refresh="td.loadReferenceData" />
+          </div>
+          <div v-if="!td.componentTypes.length" class="text-sm text-muted-foreground">
+            등록된 부재 타입 없음
+          </div>
           <div class="flex flex-wrap gap-x-4 gap-y-1.5">
-            <label v-for="ct in td.componentTypes" :key="ct.id" class="flex items-center gap-1.5 text-sm cursor-pointer">
+            <label
+              v-for="ct in td.componentTypes"
+              :key="ct.id"
+              class="flex items-center gap-1.5 text-sm cursor-pointer"
+            >
               <Checkbox
                 :model-value="td.editComponentTypeIds.includes(ct.id)"
                 class="h-4 w-4"
@@ -2124,28 +3082,82 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* 기본적으로 연결 핸들 숨김 */
+/* 엣지 핸들 숨김 (위치 계산용으로 렌더링은 유지) */
 :deep(.vue-flow__handle) {
-  opacity: 0;
-  pointer-events: none;
-  transition: all 0.2s ease;
+  opacity: 0 !important;
+  width: 1px !important;
+  height: 1px !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  pointer-events: none !important;
 }
 
-/* 패스 관리 모드에서만 핸들 표시 및 크기 증가 */
-.path-mode :deep(.vue-flow__handle) {
-  opacity: 1;
-  pointer-events: auto;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background-color: #1f2937;
-  border: 1px solid white;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+/* 패스 연결 모드: 커서 변경 */
+.connecting-mode :deep(.vue-flow__pane) {
+  cursor: crosshair;
+}
+.connecting-mode :deep(.vue-flow__node) {
+  cursor: crosshair;
 }
 
-.path-mode :deep(.vue-flow__handle:hover) {
-  width: 12px;
-  height: 12px;
-  background-color: #111827;
+/* 커스텀 노드 테두리 — 단일 CSS 변수 --node-border로 제어 */
+:deep(.vue-flow__node-work) {
+  border-radius: 3px;
+  overflow: visible;
+}
+
+:deep(.vue-flow__node-work.selected) {
+  box-shadow: 0 0 0 0.5px var(--vf-box-shadow, #1a192b);
+}
+
+/* 휴일 미작업 노드: 점선 테두리 (12px 선 + 12px 간격) — --node-border 사용 */
+:deep(.vue-flow__node-work.holiday-node) {
+  border: none !important;
+  background-image:
+    repeating-linear-gradient(
+      to right,
+      var(--node-border, #d1d5db) 0,
+      var(--node-border, #d1d5db) 12px,
+      transparent 12px,
+      transparent 24px
+    ),
+    repeating-linear-gradient(
+      to right,
+      var(--node-border, #d1d5db) 0,
+      var(--node-border, #d1d5db) 12px,
+      transparent 12px,
+      transparent 24px
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      var(--node-border, #d1d5db) 0,
+      var(--node-border, #d1d5db) 12px,
+      transparent 12px,
+      transparent 24px
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      var(--node-border, #d1d5db) 0,
+      var(--node-border, #d1d5db) 12px,
+      transparent 12px,
+      transparent 24px
+    );
+  background-size:
+    100% 1.5px,
+    100% 1.5px,
+    1.5px 100%,
+    1.5px 100%;
+  background-position:
+    0 0,
+    0 100%,
+    0 0,
+    100% 0;
+  background-repeat: no-repeat;
+}
+
+/* 엣지(패스)가 노드 위에 렌더링되도록: SVG 컨테이너를 노드 위로 */
+:deep(.vue-flow__edges) {
+  z-index: 1000 !important;
+  position: absolute;
 }
 </style>

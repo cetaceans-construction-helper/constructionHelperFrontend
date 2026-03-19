@@ -73,13 +73,13 @@ async function confirmDelete() {
             v-model="newMaterialTypeName"
             placeholder="이름 입력"
             class="h-8 text-sm flex-1"
-            @keyup.enter="addMaterialType"
+            @keydown.enter="(e: KeyboardEvent) => { if (!e.isComposing) addMaterialType() }"
           />
           <Input
             v-model="newMaterialTypeUnit"
             placeholder="단위"
             class="h-8 text-sm w-20"
-            @keyup.enter="addMaterialType"
+            @keydown.enter="(e: KeyboardEvent) => { if (!e.isComposing) addMaterialType() }"
           />
           <Button
             size="sm"
@@ -112,7 +112,7 @@ async function confirmDelete() {
             placeholder="이름 입력"
             class="h-8 text-sm"
             :disabled="!selectedMaterialTypeId"
-            @keyup.enter="addMaterialSpec"
+            @keydown.enter="(e: KeyboardEvent) => { if (!e.isComposing) addMaterialSpec() }"
           />
           <Button
             size="sm"

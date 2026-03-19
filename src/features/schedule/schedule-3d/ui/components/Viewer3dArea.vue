@@ -230,7 +230,7 @@ const groupedDailyWorks = computed<GroupedWorks>(() => {
 </script>
 
 <template>
-  <div class="flex gap-4 h-full">
+  <div class="viewer3d-layout">
     <!-- 3D 뷰어 영역 -->
     <div class="relative flex-1 min-w-0">
       <div class="border border-border rounded-lg overflow-hidden w-full h-full">
@@ -411,7 +411,7 @@ const groupedDailyWorks = computed<GroupedWorks>(() => {
       </DialogContent>
     </Dialog>
 
-    <!-- 우측 탭 박스 -->
+    <!-- 탭 박스 -->
     <SideTabBox
       :tabs="[
         { value: 'daily', label: '작업 일보' },
@@ -513,8 +513,9 @@ const groupedDailyWorks = computed<GroupedWorks>(() => {
                       <div class="flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-muted-foreground mt-1">
                         <span v-if="work.zoneNames?.length">{{ work.zoneNames.join(', ') }}</span>
                         <span v-if="work.floorNames?.length">{{ work.floorNames.join(', ') }}</span>
-                        <span v-if="work.sectionNames?.length">{{ work.sectionNames.join(', ') }}</span>
-                        <span v-if="work.usageNames?.length">{{ work.usageNames.join(', ') }}</span>
+                        <!-- TODO: section/usage 임시 비활성화 -->
+                        <!-- <span v-if="work.sectionNames?.length">{{ work.sectionNames.join(', ') }}</span>
+                        <span v-if="work.usageNames?.length">{{ work.usageNames.join(', ') }}</span> -->
                       </div>
                       <p class="text-xs text-muted-foreground mt-0.5">
                         {{ work.startDate }} ~ {{ work.completionDate }}
@@ -609,3 +610,21 @@ const groupedDailyWorks = computed<GroupedWorks>(() => {
     </SideTabBox>
   </div>
 </template>
+
+<style scoped>
+.viewer3d-layout {
+  display: flex;
+  gap: 1rem;
+  height: 100%;
+}
+
+@media (max-aspect-ratio: 1/1) {
+  .viewer3d-layout {
+    flex-direction: column;
+  }
+
+  .viewer3d-layout :deep(.w-\[30rem\]) {
+    width: 100%;
+  }
+}
+</style>

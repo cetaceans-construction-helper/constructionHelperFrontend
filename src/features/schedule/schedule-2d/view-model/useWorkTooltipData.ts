@@ -9,6 +9,13 @@ import { workApi, type WorkResponse, type UpdateWorkPayload, type CreateWorkPayl
 import { appConfig } from '@/app/bootstrap/config'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
+function arraysEqual(a: number[], b: number[]): boolean {
+  if (a.length !== b.length) return false
+  const sa = [...a].sort()
+  const sb = [...b].sort()
+  return sa.every((v, i) => v === sb[i])
+}
+
 export function useWorkTooltipData() {
   // 참조 데이터 (한 번 로드)
   const divisions = ref<IdNameResponse[]>([])
@@ -16,9 +23,13 @@ export function useWorkTooltipData() {
   const tooltipSubWorkTypes = ref<SubWorkTypeResponse[]>([])
   const zones = ref<IdNameResponse[]>([])
   const floors = ref<IdNameResponse[]>([])
-  const sections = ref<IdNameResponse[]>([])
-  const usages = ref<IdNameResponse[]>([])
+  // TODO: section/usage 임시 비활성화
+  // const sections = ref<IdNameResponse[]>([])
+  // const usages = ref<IdNameResponse[]>([])
   const componentTypes = ref<IdNameResponse[]>([])
+
+  // 원본 데이터 (변경 비교용)
+  const originalWork = ref<WorkResponse | null>(null)
 
   // 다이얼로그 상태
   const showDialog = ref(false)
@@ -33,8 +44,9 @@ export function useWorkTooltipData() {
   const editSubWorkTypeId = ref('')
   const editZoneIds = ref<number[]>([])
   const editFloorIds = ref<number[]>([])
-  const editSectionIds = ref<number[]>([])
-  const editUsageIds = ref<number[]>([])
+  // TODO: section/usage 임시 비활성화
+  // const editSectionIds = ref<number[]>([])
+  // const editUsageIds = ref<number[]>([])
   const editComponentTypeIds = ref<number[]>([])
   const editAnnotation = ref('')
   const editStartDate = ref('')
@@ -48,19 +60,20 @@ export function useWorkTooltipData() {
   // 참조 데이터 전체 로드
   const loadReferenceData = async () => {
     try {
-      const [divList, zoneList, floorList, sectionList, usageList, ctList] = await Promise.all([
+      // TODO: section/usage 임시 비활성화
+      const [divList, zoneList, floorList, /* sectionList, usageList, */ ctList] = await Promise.all([
         referenceApi.getDivisionList(),
         referenceApi.getZoneList(),
         referenceApi.getFloorList(),
-        referenceApi.getSectionList(),
-        referenceApi.getUsageList(),
+        // referenceApi.getSectionList(),
+        // referenceApi.getUsageList(),
         referenceApi.getComponentTypeList(),
       ])
       divisions.value = divList
       zones.value = zoneList
       floors.value = floorList
-      sections.value = sectionList
-      usages.value = usageList
+      // sections.value = sectionList
+      // usages.value = usageList
       componentTypes.value = ctList
     } catch (error) {
       console.error('참조 데이터 로드 실패:', error)
@@ -70,6 +83,7 @@ export function useWorkTooltipData() {
   // 다이얼로그 열기
   const openDialog = async (work: WorkResponse) => {
     editingWorkId.value = work.workId
+    isCreateMode.value = false
     await initFromWork(work)
     showDialog.value = true
   }
@@ -79,23 +93,31 @@ export function useWorkTooltipData() {
     showDialog.value = false
     editingWorkId.value = null
     isCreateMode.value = false
+    originalWork.value = null
   }
 
-  // 생성 모드로 다이얼로그 열기 (빈 폼)
-  const openCreateDialog = (startDate: string, positionY: number) => {
+  // 생성용 세부공종 표시 이름
+  const createSubWorkTypeName = ref('')
+
+  // 생성 모드로 다이얼로그 열기 (더블클릭 위치에서 subWorkTypeId 결정)
+  const openCreateDialog = (startDate: string, positionY: number, subWorkTypeId: number, subWorkTypeName: string) => {
     isCreateMode.value = true
     editingWorkId.value = null
     createStartDate.value = startDate
     createPositionY.value = positionY
 
+    // subWorkTypeId는 좌표에서 결정됨
+    editSubWorkTypeId.value = String(subWorkTypeId)
+    createSubWorkTypeName.value = subWorkTypeName
+
     // 폼 초기화
     editDivisionId.value = ''
     editWorkTypeId.value = ''
-    editSubWorkTypeId.value = ''
     editZoneIds.value = []
     editFloorIds.value = []
-    editSectionIds.value = []
-    editUsageIds.value = []
+    // TODO: section/usage 임시 비활성화
+    // editSectionIds.value = []
+    // editUsageIds.value = []
     editComponentTypeIds.value = []
     editAnnotation.value = ''
     tooltipWorkTypes.value = []
@@ -106,6 +128,7 @@ export function useWorkTooltipData() {
 
   // WorkResponse로부터 편집 상태 초기화 (ID 필드 직접 사용)
   const initFromWork = async (work: WorkResponse) => {
+    originalWork.value = work
     // Division 이름으로 ID 찾기 (division은 ID가 응답에 없으므로 이름 매칭)
     const div = divisions.value.find((d) => d.name === work.division)
     editDivisionId.value = div ? String(div.id) : ''
@@ -142,8 +165,9 @@ export function useWorkTooltipData() {
     // 위치 ID 배열 사용
     editZoneIds.value = work.zoneIds ?? []
     editFloorIds.value = work.floorIds ?? []
-    editSectionIds.value = work.sectionIds ?? []
-    editUsageIds.value = work.usageIds ?? []
+    // TODO: section/usage 임시 비활성화
+    // editSectionIds.value = work.sectionIds ?? []
+    // editUsageIds.value = work.usageIds ?? []
 
     // 부재 타입 & 비고
     editComponentTypeIds.value = work.componentTypeIds ? [...work.componentTypeIds] : []
@@ -200,17 +224,18 @@ export function useWorkTooltipData() {
       : [...editFloorIds.value, id]
   }
 
-  const toggleSection = (id: number) => {
-    editSectionIds.value = editSectionIds.value.includes(id)
-      ? editSectionIds.value.filter((v) => v !== id)
-      : [...editSectionIds.value, id]
-  }
+  // TODO: section/usage 임시 비활성화
+  // const toggleSection = (id: number) => {
+  //   editSectionIds.value = editSectionIds.value.includes(id)
+  //     ? editSectionIds.value.filter((v) => v !== id)
+  //     : [...editSectionIds.value, id]
+  // }
 
-  const toggleUsage = (id: number) => {
-    editUsageIds.value = editUsageIds.value.includes(id)
-      ? editUsageIds.value.filter((v) => v !== id)
-      : [...editUsageIds.value, id]
-  }
+  // const toggleUsage = (id: number) => {
+  //   editUsageIds.value = editUsageIds.value.includes(id)
+  //     ? editUsageIds.value.filter((v) => v !== id)
+  //     : [...editUsageIds.value, id]
+  // }
 
   // 부재 타입 토글
   const toggleComponentType = (id: number) => {
@@ -230,8 +255,9 @@ export function useWorkTooltipData() {
         isWorkingOnHoliday: true,
         zoneIds: editZoneIds.value,
         floorIds: editFloorIds.value,
-        sectionIds: editSectionIds.value,
-        usageIds: editUsageIds.value,
+        // TODO: section/usage 임시 비활성화
+        // sectionIds: editSectionIds.value,
+        // usageIds: editUsageIds.value,
       }
 
       if (editComponentTypeIds.value.length > 0) payload.componentTypeIds = editComponentTypeIds.value
@@ -254,24 +280,29 @@ export function useWorkTooltipData() {
 
   // 상세 정보 저장 → MutationResponse 반환
   const submitEdit = async (): Promise<MutationResponse | null> => {
-    if (!editingWorkId.value) return null
+    if (!editingWorkId.value || !originalWork.value) return null
+
+    const orig = originalWork.value
+    const payload: UpdateWorkPayload = {}
+
+    if (editStartDate.value !== orig.startDate) payload.startDate = editStartDate.value
+    if (editWorkLeadTime.value !== orig.workLeadTime) payload.workLeadTime = editWorkLeadTime.value
+    if (!arraysEqual(editZoneIds.value, orig.zoneIds ?? [])) payload.zoneIds = editZoneIds.value
+    if (!arraysEqual(editFloorIds.value, orig.floorIds ?? [])) payload.floorIds = editFloorIds.value
+    // TODO: section/usage 임시 비활성화
+    // if (!arraysEqual(editSectionIds.value, orig.sectionIds ?? [])) payload.sectionIds = editSectionIds.value
+    // if (!arraysEqual(editUsageIds.value, orig.usageIds ?? [])) payload.usageIds = editUsageIds.value
+    if (!arraysEqual(editComponentTypeIds.value, orig.componentTypeIds ?? [])) payload.componentTypeIds = editComponentTypeIds.value
+    if (editAnnotation.value !== (orig.annotation || '')) payload.annotation = editAnnotation.value
+    if (editSubWorkTypeId.value && Number(editSubWorkTypeId.value) !== orig.subWorkTypeId) payload.subWorkTypeId = Number(editSubWorkTypeId.value)
+
+    if (Object.keys(payload).length === 0) {
+      closeDialog()
+      return null
+    }
+
     isSavingDetails.value = true
     try {
-      const payload: UpdateWorkPayload = {
-        startDate: editStartDate.value,
-        workLeadTime: editWorkLeadTime.value,
-        zoneIds: editZoneIds.value,
-        floorIds: editFloorIds.value,
-        sectionIds: editSectionIds.value,
-        usageIds: editUsageIds.value,
-        componentTypeIds: editComponentTypeIds.value,
-        annotation: editAnnotation.value,
-      }
-
-      if (editSubWorkTypeId.value) {
-        payload.subWorkTypeId = Number(editSubWorkTypeId.value)
-      }
-
       const response = await workApi.updateWork(editingWorkId.value, payload)
       analyticsClient.trackAction('schedule_2d', 'update_work', 'success')
       closeDialog()
@@ -293,20 +324,23 @@ export function useWorkTooltipData() {
     tooltipSubWorkTypes,
     zones,
     floors,
-    sections,
-    usages,
+    // TODO: section/usage 임시 비활성화
+    // sections,
+    // usages,
     componentTypes,
     showDialog,
     editingWorkId,
     isCreateMode,
     createPositionY,
+    createSubWorkTypeName,
     editDivisionId,
     editWorkTypeId,
     editSubWorkTypeId,
     editZoneIds,
     editFloorIds,
-    editSectionIds,
-    editUsageIds,
+    // TODO: section/usage 임시 비활성화
+    // editSectionIds,
+    // editUsageIds,
     editComponentTypeIds,
     editAnnotation,
     editStartDate,
@@ -324,8 +358,9 @@ export function useWorkTooltipData() {
     handleTooltipSubWorkTypeChange,
     toggleZone,
     toggleFloor,
-    toggleSection,
-    toggleUsage,
+    // TODO: section/usage 임시 비활성화
+    // toggleSection,
+    // toggleUsage,
     toggleComponentType,
     submitCreate,
     submitEdit,

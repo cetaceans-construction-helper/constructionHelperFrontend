@@ -39,27 +39,21 @@ export function computeNodeWidthFromDates(startDate: string, completionDate: str
 }
 
 // Work → Node 변환 함수
-export function workToNode(work: WorkResponse): Node {
+export function workToNode(work: WorkResponse, yOverride?: number): Node {
   const computedWidth = computeNodeWidthFromDates(work.startDate, work.completionDate)
   const computedHeight = CHART_CONFIG.nodeHeight
 
-  // 휴일 휴무인 작업은 옅은 회색 배경
   const baseStyle: Record<string, string> = {
     width: `${computedWidth}px`,
     height: `${computedHeight}px`,
     overflow: 'visible',
-    whiteSpace: 'nowrap'
-  }
-
-  if (!work.isWorkingOnHoliday) {
-    baseStyle.backgroundColor = '#f3f4f6' // 옅은 회색 (gray-100)
-    baseStyle.borderColor = '#d1d5db' // gray-300
+    whiteSpace: 'nowrap',
   }
 
   return {
     id: `work-${work.workId}`,
-    type: 'default',
-    position: { x: computeNodeX(work.startDate), y: work.positionY },
+    type: 'work',
+    position: { x: computeNodeX(work.startDate), y: yOverride ?? work.positionY },
     data: {
       label: work.workName,
       work,

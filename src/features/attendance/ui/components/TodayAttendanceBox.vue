@@ -23,6 +23,7 @@ const groupedByCompany = computed(() => {
     {
       companyId: string
       companyDisplayName: string
+      workTypeName: string | null
       laborItems: AttendanceByDateItem[]
       equipmentItems: EquipmentDeploymentByDateItem[]
     }
@@ -34,6 +35,7 @@ const groupedByCompany = computed(() => {
       map.set(item.companyId, {
         companyId: item.companyId,
         companyDisplayName: item.companyDisplayName,
+        workTypeName: item.workTypeName ?? null,
         laborItems: [],
         equipmentItems: [],
       })
@@ -47,6 +49,7 @@ const groupedByCompany = computed(() => {
       map.set(item.companyId, {
         companyId: item.companyId,
         companyDisplayName: item.companyDisplayName,
+        workTypeName: item.workTypeName ?? null,
         laborItems: [],
         equipmentItems: [],
       })
@@ -56,6 +59,7 @@ const groupedByCompany = computed(() => {
 
   return Array.from(map.values())
 })
+
 
 const isEmpty = computed(() => {
   return props.attendances.length === 0 && props.equipmentDeployments.length === 0
@@ -87,8 +91,18 @@ const isAnyLoading = computed(() => {
         class="border border-border rounded-lg bg-card"
       >
         <!-- 협력업체 헤더 -->
-        <div class="px-4 py-2 border-b border-border bg-muted/50">
-          <span class="font-medium text-sm">{{ company.companyDisplayName }}</span>
+        <div class="px-4 py-2 border-b border-border bg-muted/50 flex items-center">
+          <span class="font-medium text-sm">
+            {{ company.workTypeName ? `${company.workTypeName}(${company.companyDisplayName})` : company.companyDisplayName }}
+          </span>
+          <div class="ml-auto flex items-center gap-3">
+            <span class="text-xs text-muted-foreground">
+              총 인원 : <span class="font-semibold text-foreground">{{ company.laborItems.reduce((sum, i) => sum + i.count, 0) }}명</span>
+            </span>
+            <span class="text-xs text-muted-foreground">
+              총 장비 : <span class="font-semibold text-foreground">{{ company.equipmentItems.reduce((sum, i) => sum + i.count, 0) }}대</span>
+            </span>
+          </div>
         </div>
 
         <div class="p-4 space-y-3">

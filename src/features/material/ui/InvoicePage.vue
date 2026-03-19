@@ -20,8 +20,20 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/shared/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/shared/ui/alert-dialog'
 import { Checkbox } from '@/shared/ui/checkbox'
 import { Label } from '@/shared/ui/label'
+import { X } from 'lucide-vue-next'
+import ImageRotatePreview from '@/shared/helper-ui/ImageRotatePreview.vue'
 import { materialOrderApi } from '@/features/material/infra/material-order-api'
 import {
   formatMaterialOrderLineLocation as formatLocation,
@@ -33,7 +45,7 @@ import { useMaterialOrder } from '@/features/material/view-model/useMaterialOrde
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 const router = useRouter()
-const { orders, isLoading, loadOrders } = useMaterialOrder()
+const { orders, isLoading, loadOrders, deleteOrder } = useMaterialOrder()
 const expandedOrders = reactive<Record<number, boolean>>({})
 
 // 송장입력 다이얼로그 상태
@@ -43,9 +55,40 @@ const deliveryNotes = ref<File[]>([])
 const deliveryPhotos = ref<File[]>([])
 const selectedZoneIds = ref<number[]>([])
 const selectedFloorIds = ref<number[]>([])
-const selectedSectionIds = ref<number[]>([])
-const selectedUsageIds = ref<number[]>([])
+// TODO: section/usage 임시 비활성화
+// const selectedSectionIds = ref<number[]>([])
+// const selectedUsageIds = ref<number[]>([])
 const isSaving = ref(false)
+
+// 삭제 다이얼로그 상태
+const showDeleteDialog = ref(false)
+const deleteTargetId = ref<number | null>(null)
+const deleteTargetName = ref('')
+const isDeletingOrder = ref(false)
+
+function openDeleteDialog(orderId: number, orderNo: string) {
+  deleteTargetId.value = orderId
+  deleteTargetName.value = orderNo
+  showDeleteDialog.value = true
+}
+
+async function confirmDeleteOrder() {
+  if (deleteTargetId.value == null) return
+  isDeletingOrder.value = true
+  try {
+    await deleteOrder(deleteTargetId.value)
+    showDeleteDialog.value = false
+    analyticsClient.trackAction('material_order', 'delete_order', 'success')
+    loadOrders()
+  } catch (error: unknown) {
+    console.error('발주서 삭제 실패:', error)
+    analyticsClient.trackAction('material_order', 'delete_order', 'fail')
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    alert(err.response?.data?.message || err.message)
+  } finally {
+    isDeletingOrder.value = false
+  }
+}
 
 // 선택된 order의 orderLines에서 고유한 위치정보 추출
 const uniqueZones = computed(() => {
@@ -70,27 +113,28 @@ const uniqueFloors = computed(() => {
   return Array.from(map, ([id, name]) => ({ id, name }))
 })
 
-const uniqueSections = computed(() => {
-  if (!selectedOrder.value) return []
-  const map = new Map<number, string>()
-  selectedOrder.value.orderLines.forEach((line) => {
-    if (line.sectionId != null && line.sectionName) {
-      map.set(line.sectionId, line.sectionName)
-    }
-  })
-  return Array.from(map, ([id, name]) => ({ id, name }))
-})
+// TODO: section/usage 임시 비활성화
+// const uniqueSections = computed(() => {
+//   if (!selectedOrder.value) return []
+//   const map = new Map<number, string>()
+//   selectedOrder.value.orderLines.forEach((line) => {
+//     if (line.sectionId != null && line.sectionName) {
+//       map.set(line.sectionId, line.sectionName)
+//     }
+//   })
+//   return Array.from(map, ([id, name]) => ({ id, name }))
+// })
 
-const uniqueUsages = computed(() => {
-  if (!selectedOrder.value) return []
-  const map = new Map<number, string>()
-  selectedOrder.value.orderLines.forEach((line) => {
-    if (line.usageId != null && line.usageName) {
-      map.set(line.usageId, line.usageName)
-    }
-  })
-  return Array.from(map, ([id, name]) => ({ id, name }))
-})
+// const uniqueUsages = computed(() => {
+//   if (!selectedOrder.value) return []
+//   const map = new Map<number, string>()
+//   selectedOrder.value.orderLines.forEach((line) => {
+//     if (line.usageId != null && line.usageName) {
+//       map.set(line.usageId, line.usageName)
+//     }
+//   })
+//   return Array.from(map, ([id, name]) => ({ id, name }))
+// })
 
 function toggleOrder(orderId: number) {
   if (expandedOrders[orderId]) {
@@ -111,8 +155,9 @@ async function openDeliveryDialog(order: MaterialOrderResponse) {
   await nextTick()
   selectedZoneIds.value = uniqueZones.value.map((z) => z.id)
   selectedFloorIds.value = uniqueFloors.value.map((f) => f.id)
-  selectedSectionIds.value = uniqueSections.value.map((s) => s.id)
-  selectedUsageIds.value = uniqueUsages.value.map((u) => u.id)
+  // TODO: section/usage 임시 비활성화
+  // selectedSectionIds.value = uniqueSections.value.map((s) => s.id)
+  // selectedUsageIds.value = uniqueUsages.value.map((u) => u.id)
   deliveryDialogOpen.value = true
 }
 
@@ -142,8 +187,9 @@ async function saveDelivery() {
       deliveryPhotos: deliveryPhotos.value,
       zoneIds: selectedZoneIds.value,
       floorIds: selectedFloorIds.value,
-      sectionIds: selectedSectionIds.value,
-      usageIds: selectedUsageIds.value,
+      // TODO: section/usage 임시 비활성화
+      // sectionIds: selectedSectionIds.value,
+      // usageIds: selectedUsageIds.value,
     })
     deliveryDialogOpen.value = false
     analyticsClient.trackAction('material_delivery', 'create_delivery', 'success')
@@ -190,46 +236,56 @@ onMounted(() => {
         >
           <!-- 카드 헤더 (클릭으로 펼치기/접기) -->
           <div
-            class="flex items-center gap-3 px-4 py-3 bg-muted/30 cursor-pointer select-none"
+            class="bg-muted/30 cursor-pointer select-none"
             @click="toggleOrder(order.id)"
           >
-            <span class="text-xs text-muted-foreground">{{ expandedOrders[order.id] ? '▲' : '▼' }}</span>
-            <Badge :class="['text-sm px-3 py-1', getStatusColor(order.orderStatus)]">
-              {{ getStatusLabel(order.orderStatus) }}
-            </Badge>
-            <span class="text-sm font-medium">{{ order.orderNo }}</span>
-            <span class="text-xs text-muted-foreground">{{ order.workTypeName }}</span>
-            <span class="text-sm font-medium bg-muted/30 border border-foreground px-2 py-0.5 rounded">
-              {{ order.totalQuantity }} {{ order.unit }}
-            </span>
-            <div v-if="order.specSummary?.length > 0" class="flex items-center gap-2 flex-wrap">
+            <div class="flex items-center gap-3 px-4 py-3">
+              <span class="text-xs text-muted-foreground">{{ expandedOrders[order.id] ? '▲' : '▼' }}</span>
+              <Badge :class="['text-sm px-3 py-1', getStatusColor(order.orderStatus)]">
+                {{ getStatusLabel(order.orderStatus) }}
+              </Badge>
+              <span class="text-sm font-medium">{{ order.orderNo }}</span>
+              <span class="text-xs text-muted-foreground">{{ order.workTypeName }}</span>
+              <span class="text-sm font-medium bg-muted/30 border border-foreground px-2 py-0.5 rounded">
+                {{ order.totalQuantity }} {{ order.unit }}
+              </span>
+              <div class="flex items-center gap-2 ml-auto" @click.stop>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  :disabled="order.orderStatus === 'ORDER_COMPLETED' || order.orderStatus === 'RECEIPT_COMPLETED'"
+                >
+                  발주하기
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  :disabled="order.orderStatus !== 'ORDER_COMPLETED'"
+                  @click="openDeliveryDialog(order)"
+                >
+                  송장입력
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  class="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                  @click="openDeleteDialog(order.id, order.orderNo)"
+                >
+                  <X class="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            <div v-if="order.specSummary?.length > 0" class="flex items-center gap-2 flex-wrap px-4 pb-3">
               <Badge
                 v-for="spec in order.specSummary"
                 :key="spec.materialSpecId"
                 variant="outline"
                 class="text-sm px-2.5 py-1"
               >
-                {{ spec.materialSpecName }}
+                {{ spec.materialSpecName }}:
                 <span class="font-semibold ml-1">{{ spec.quantity }}</span>
                 <span class="text-muted-foreground ml-0.5">{{ order.unit }}</span>
               </Badge>
-            </div>
-            <div class="flex items-center gap-2 ml-auto" @click.stop>
-              <Button
-                variant="outline"
-                size="sm"
-                :disabled="order.orderStatus === 'ORDER_COMPLETED' || order.orderStatus === 'RECEIPT_COMPLETED'"
-              >
-                발주하기
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                :disabled="order.orderStatus !== 'ORDER_COMPLETED'"
-                @click="openDeliveryDialog(order)"
-              >
-                송장입력
-              </Button>
             </div>
           </div>
 
@@ -272,7 +328,10 @@ onMounted(() => {
         <div class="space-y-5 py-2">
           <!-- 송장파일 -->
           <div class="space-y-2">
-            <Label>송장파일</Label>
+            <div class="flex items-center gap-2">
+              <Label>송장파일</Label>
+              <span class="text-xs text-muted-foreground">미입력 가능, 다시 눌러서 사진 재선택</span>
+            </div>
             <input
               type="file"
               multiple
@@ -280,11 +339,15 @@ onMounted(() => {
               class="block w-full text-sm text-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded file:border file:border-input file:bg-muted file:text-sm file:font-medium hover:file:bg-muted/80 cursor-pointer"
               @change="onDeliveryNotesChange"
             />
+            <ImageRotatePreview v-model="deliveryNotes" />
           </div>
 
           <!-- 반입사진 -->
           <div class="space-y-2">
-            <Label>반입사진</Label>
+            <div class="flex items-center gap-2">
+              <Label>반입사진</Label>
+              <span class="text-xs text-muted-foreground">미입력 가능, 다시 눌러서 사진 재선택</span>
+            </div>
             <input
               type="file"
               multiple
@@ -292,6 +355,7 @@ onMounted(() => {
               class="block w-full text-sm text-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded file:border file:border-input file:bg-muted file:text-sm file:font-medium hover:file:bg-muted/80 cursor-pointer"
               @change="onDeliveryPhotosChange"
             />
+            <ImageRotatePreview v-model="deliveryPhotos" />
           </div>
 
           <!-- 위치정보 -->
@@ -323,7 +387,8 @@ onMounted(() => {
             </div>
           </div>
 
-          <div v-if="uniqueSections.length > 0" class="space-y-2">
+          <!-- TODO: section/usage 임시 비활성화 -->
+          <!-- <div v-if="uniqueSections.length > 0" class="space-y-2">
             <Label>구역</Label>
             <div class="flex flex-wrap gap-3">
               <div v-for="section in uniqueSections" :key="section.id" class="flex items-center gap-1.5">
@@ -349,7 +414,7 @@ onMounted(() => {
                 <label :for="`usage-${usage.id}`" class="text-sm cursor-pointer">{{ usage.name }}</label>
               </div>
             </div>
-          </div>
+          </div> -->
         </div>
 
         <DialogFooter class="flex-col items-end gap-2">
@@ -365,5 +430,23 @@ onMounted(() => {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <!-- 발주서 삭제 확인 다이얼로그 -->
+    <AlertDialog :open="showDeleteDialog" @update:open="showDeleteDialog = $event">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>삭제 확인</AlertDialogTitle>
+          <AlertDialogDescription>
+            '{{ deleteTargetName }}' 발주서를 삭제하시겠습니까?
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel :disabled="isDeletingOrder">취소</AlertDialogCancel>
+          <AlertDialogAction :disabled="isDeletingOrder" @click="confirmDeleteOrder">
+            {{ isDeletingOrder ? '삭제 중...' : '삭제' }}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </PageContainer>
 </template>

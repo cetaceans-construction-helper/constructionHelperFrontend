@@ -3,7 +3,6 @@ import {
   referenceApi,
   type IdNameResponse,
   type WorkTypeResponse,
-  type SubWorkTypeResponse,
   type LaborTypeResponse,
 } from '@/shared/network-core/apis/reference'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
@@ -14,17 +13,15 @@ interface ApiError {
 }
 
 export function useLaborType() {
-  // 분류/공종/세부공종 목록
+  // 분류/공종 목록
   const divisions = ref<IdNameResponse[]>([])
   const workTypes = ref<WorkTypeResponse[]>([])
-  const subWorkTypes = ref<SubWorkTypeResponse[]>([])
 
   // 선택된 ID
   const selectedDivisionId = ref<number | null>(null)
   const selectedWorkTypeId = ref<number | null>(null)
-  const selectedSubWorkTypeId = ref<number | null>(null)
 
-  // 전체 직종 목록
+  // 선택된 공종의 직종 목록
   const laborTypes = ref<LaborTypeResponse[]>([])
 
   // 입력 필드
@@ -50,19 +47,10 @@ export function useLaborType() {
     }
   }
 
-  // 세부공종 목록 로드
-  const loadSubWorkTypes = async (workTypeId: number) => {
+  // 공종별 직종 목록 로드
+  const loadLaborTypes = async (workTypeId: number) => {
     try {
-      subWorkTypes.value = await referenceApi.getSubWorkTypeList(workTypeId)
-    } catch (error) {
-      console.error('SubWorkType 목록 로드 실패:', error)
-    }
-  }
-
-  // 전체 직종 목록 로드
-  const loadLaborTypes = async () => {
-    try {
-      laborTypes.value = await referenceApi.getLaborTypeList()
+      laborTypes.value = await referenceApi.getLaborTypeListByWorkType(workTypeId)
     } catch (error) {
       console.error('LaborType 목록 로드 실패:', error)
     }
@@ -72,21 +60,13 @@ export function useLaborType() {
   const selectDivision = (id: number) => {
     selectedDivisionId.value = id
     selectedWorkTypeId.value = null
-    selectedSubWorkTypeId.value = null
     workTypes.value = []
-    subWorkTypes.value = []
+    laborTypes.value = []
   }
 
   // 공종 선택
   const selectWorkType = (id: number) => {
     selectedWorkTypeId.value = id
-    selectedSubWorkTypeId.value = null
-    subWorkTypes.value = []
-  }
-
-  // 세부공종 선택
-  const selectSubWorkType = (id: number | null) => {
-    selectedSubWorkTypeId.value = id
   }
 
   // 직종 추가
@@ -101,11 +81,10 @@ export function useLaborType() {
       await referenceApi.createLaborType({
         name,
         workTypeId,
-        subWorkTypeId: selectedSubWorkTypeId.value,
+        subWorkTypeId: null,
       })
       newLaborTypeName.value = ''
-      // 생성 후 전체 목록 갱신
-      await loadLaborTypes()
+      await loadLaborTypes(workTypeId)
       analyticsClient.trackAction('admin_resource_data', 'create_labor_type', 'success')
     } catch (error: unknown) {
       console.error('LaborType 추가 실패:', error)
@@ -135,6 +114,36 @@ export function useLaborType() {
     }
   }
 
+  // 직종 이름 수정
+  const updateLaborTypeName = async (id: number, name: string) => {
+    try {
+      await referenceApi.updateLaborType({ id, name })
+      const item = laborTypes.value.find((lt) => lt.id === id)
+      if (item) item.name = name
+      analyticsClient.trackAction('admin_resource_data', 'update_labor_type', 'success')
+    } catch (error: unknown) {
+      console.error('LaborType 이름 수정 실패:', error)
+      analyticsClient.trackAction('admin_resource_data', 'update_labor_type', 'fail')
+      const err = error as ApiError
+      alert(err.response?.data?.message || err.message)
+      if (selectedWorkTypeId.value) await loadLaborTypes(selectedWorkTypeId.value)
+    }
+  }
+
+  // 직종 정렬 변경
+  const reorderLaborTypes = async (ids: number[]) => {
+    if (!selectedWorkTypeId.value) return
+    try {
+      await referenceApi.updateLaborType({ ids })
+      await loadLaborTypes(selectedWorkTypeId.value)
+    } catch (error: unknown) {
+      console.error('LaborType 정렬 실패:', error)
+      const err = error as ApiError
+      alert(err.response?.data?.message || err.message)
+      if (selectedWorkTypeId.value) await loadLaborTypes(selectedWorkTypeId.value)
+    }
+  }
+
   // 캐스케이딩 로드
   watch(selectedDivisionId, (id) => {
     workTypes.value = []
@@ -142,27 +151,25 @@ export function useLaborType() {
   })
 
   watch(selectedWorkTypeId, (id) => {
-    subWorkTypes.value = []
-    if (id) loadSubWorkTypes(id)
+    laborTypes.value = []
+    if (id) loadLaborTypes(id)
   })
 
   return {
     divisions,
     workTypes,
-    subWorkTypes,
     laborTypes,
     selectedDivisionId,
     selectedWorkTypeId,
-    selectedSubWorkTypeId,
     newLaborTypeName,
     isCreating,
     isDeleting,
     loadDivisions,
-    loadLaborTypes,
     selectDivision,
     selectWorkType,
-    selectSubWorkType,
     addLaborType,
     deleteLaborType,
+    updateLaborTypeName,
+    reorderLaborTypes,
   }
 }

@@ -4,9 +4,13 @@ import { attendanceRouteComponents } from '@/features/attendance/public'
 import { dashboardRouteComponents } from '@/features/dashboard/public'
 import { documentRouteComponents } from '@/features/document/public'
 import { materialRouteComponents } from '@/features/material/public'
+import { projectAdminDailyReportSettingRouteComponents } from '@/features/project-admin/daily-report-setting/public'
 import { projectAdminDocumentSettingRouteComponents } from '@/features/project-admin/document-setting/public'
 import { projectAdminHolidayRouteComponents } from '@/features/project-admin/holiday/public'
 import { projectAdminMasterDataRouteComponents } from '@/features/project-admin/master-data/public'
+import { projectAdminBulkDeploymentRouteComponents } from '@/features/project-admin/bulk-deployment/public'
+import { projectAdminHomepageSettingRouteComponents } from '@/features/project-admin/homepage-setting/public'
+import { rebuildWorkNamesRouteComponents } from '@/features/project-admin/rebuild-work-names/public'
 import { projectAdminResourceRouteComponents } from '@/features/project-admin/resource/public'
 import { schedule2dRouteComponents } from '@/features/schedule/schedule-2d/public'
 import { schedule3dRouteComponents } from '@/features/schedule/schedule-3d/public'
@@ -128,9 +132,29 @@ const router = createRouter({
           component: projectAdminDocumentSettingRouteComponents.DocumentSettingPage,
         },
         {
+          path: 'admin/daily-report',
+          name: 'admin-daily-report',
+          component: projectAdminDailyReportSettingRouteComponents.DailyReportSettingPage,
+        },
+        {
           path: 'admin/holiday',
           name: 'admin-holiday',
           component: projectAdminHolidayRouteComponents.HolidayManagementPage,
+        },
+        {
+          path: 'admin/bulk-deployment',
+          name: 'admin-bulk-deployment',
+          component: projectAdminBulkDeploymentRouteComponents.BulkDeploymentPage,
+        },
+        {
+          path: 'admin/homepage-setting',
+          name: 'admin-homepage-setting',
+          component: projectAdminHomepageSettingRouteComponents.HomepageSettingPage,
+        },
+        {
+          path: 'admin/rebuild-work-names',
+          name: 'admin-rebuild-work-names',
+          component: rebuildWorkNamesRouteComponents.RebuildWorkNamesPage,
         },
       ],
     },

@@ -2,6 +2,7 @@ export { useMaterialOrder } from '@/features/material/view-model/useMaterialOrde
 export { materialOrderApi } from '@/features/material/infra/material-order-api'
 export { materialOrderRepository } from '@/features/material/infra/material-order-repository'
 export { getMaterialOrders } from '@/features/material/use-cases/getMaterialOrders'
+export { deleteMaterialOrder } from '@/features/material/use-cases/deleteMaterialOrder'
 export {
   formatMaterialOrderLineLocation,
   getMaterialOrderStatusBadgeClass,
