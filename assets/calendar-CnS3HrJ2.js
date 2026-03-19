@@ -1,1 +1,0 @@
-import{J as e}from"./index-Bs5IiMLD.js";const c={async getProjectCalendar(t){const{data:a}=await e.get(`/project/getProjectCalendar/${t}`);return a},async getWeatherByDate(t){const{data:a}=await e.get("/project/getWeatherByDate",{params:{date:t}});return a}};export{c};
