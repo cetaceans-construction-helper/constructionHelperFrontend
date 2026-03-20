@@ -12,6 +12,7 @@ import {
   formatEquipment,
   formatManpower,
 } from '@/features/dashboard/use-cases/format-homepage-daily-report'
+import { importPublicKey, rsaEncrypt } from '@/shared/utils/rsa-encrypt'
 
 interface CreateHomepageDailyReportParams {
   todayDayName: string
@@ -22,18 +23,6 @@ interface CreateHomepageDailyReportParams {
   deliveryByWorkType: Map<string, DeliveryQuantityByDate[]>
   equipmentByGroup: EquipmentGroup[]
   attendanceByGroup: AttendanceGroup[]
-}
-
-async function importPublicKey(pem: string): Promise<CryptoKey> {
-  const pemBody = pem.replace(/-----.*-----/g, '').replace(/\s/g, '')
-  const binaryDer = Uint8Array.from(atob(pemBody), (c) => c.charCodeAt(0))
-  return crypto.subtle.importKey(
-    'spki',
-    binaryDer,
-    { name: 'RSA-OAEP', hash: 'SHA-256' },
-    false,
-    ['encrypt'],
-  )
 }
 
 function mapWeather(weather: string): string {
@@ -53,12 +42,6 @@ function mapWeather(weather: string): string {
     default:
       return weather
   }
-}
-
-async function rsaEncrypt(cryptoKey: CryptoKey, text: string): Promise<string> {
-  const encoded = new TextEncoder().encode(text)
-  const encrypted = await crypto.subtle.encrypt({ name: 'RSA-OAEP' }, cryptoKey, encoded)
-  return btoa(String.fromCharCode(...new Uint8Array(encrypted)))
 }
 
 export async function createHomepageDailyReport(params: CreateHomepageDailyReportParams): Promise<void> {

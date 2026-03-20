@@ -24,6 +24,17 @@ export class ValidationError extends Error {
   }
 }
 
+// RateLimitError class for login block responses
+export class RateLimitError extends Error {
+  remainingSeconds: number
+
+  constructor(message: string, remainingSeconds: number) {
+    super(message)
+    this.name = 'RateLimitError'
+    this.remainingSeconds = remainingSeconds
+  }
+}
+
 const client = axios.create({
   baseURL: `${appConfig.apiBaseUrl}/auth`,
   timeout: 10000,
@@ -65,6 +76,10 @@ interface ErrorResponseData {
   message?: string
   error?: string
   messages?: FieldErrors
+  details?: {
+    blocked?: boolean
+    remainingSeconds?: number
+  }
 }
 
 // Error extraction helper
@@ -103,7 +118,17 @@ client.interceptors.response.use(
     if ((error.response?.status === 401 || error.response?.status === 403) && !originalRequest._retry) {
       // Skip refresh for login/refresh endpoints
       if (originalRequest.url === '/login' || originalRequest.url === '/refresh') {
-        return Promise.reject(error)
+        const data = error.response?.data as ErrorResponseData | undefined
+        // 403 + blocked → 로그인 차단 상태
+        if (error.response?.status === 403 && data?.details?.blocked) {
+          return Promise.reject(
+            new RateLimitError(
+              data.message || '잠시 후 다시 시도해주세요.',
+              data.details.remainingSeconds ?? 60,
+            ),
+          )
+        }
+        return Promise.reject(extractError(error))
       }
 
       if (isRefreshing) {
@@ -131,6 +156,12 @@ client.interceptors.response.use(
       } finally {
         isRefreshing = false
       }
+    }
+
+    // 429 Too Many Requests - Rate limit
+    if (error.response?.status === 429) {
+      const data = error.response?.data as ErrorResponseData | undefined
+      return Promise.reject(new RateLimitError(data?.message || '잠시 후 다시 시도해주세요.', 60))
     }
 
     // 에러 객체 반환 (ValidationError 또는 일반 Error)

@@ -6,6 +6,7 @@ export {
   getAccessToken,
   setAccessToken,
   ValidationError,
+  RateLimitError,
 } from '@/features/auth/infra/auth-client'
 export { authGuard } from '@/features/auth/use-cases/auth-guard'
 export { getAuthErrorType } from '@/features/auth/use-cases/getAuthErrorType'
@@ -14,8 +15,6 @@ export type {
   AuthState,
   Company,
   FieldErrors,
-  LoginCredentials,
-  SignupCredentials,
   TokenResponse,
   User,
 } from '@/features/auth/model/auth-types'

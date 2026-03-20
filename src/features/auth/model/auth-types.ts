@@ -9,17 +9,17 @@ export interface User {
   companyName: string | null
 }
 
-// POST /api/auth/login 요청
+// POST /api/auth/login 요청 (RSA 암호화 전송)
 export interface LoginCredentials {
-  userEmail: string
-  userPassword: string
+  encryptedEmail: string
+  encryptedPassword: string
 }
 
-// POST /api/auth/signup 요청
+// POST /api/auth/signup 요청 (RSA 암호화 전송)
 export interface SignupCredentials {
-  userEmail: string
-  userPassword: string
-  userPasswordConfirm: string
+  encryptedEmail: string
+  encryptedPassword: string
+  encryptedPasswordConfirm: string
   userName: string
   phoneNumber: string
   jobTitle?: string

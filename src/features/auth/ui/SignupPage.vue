@@ -29,9 +29,9 @@ const handleSignup = async () => {
 
   try {
     await authStore.signup({
-      userEmail: userEmail.value,
-      userPassword: userPassword.value,
-      userPasswordConfirm: userPasswordConfirm.value,
+      email: userEmail.value,
+      password: userPassword.value,
+      passwordConfirm: userPasswordConfirm.value,
       userName: userName.value,
       phoneNumber: phoneNumber.value,
       jobTitle: jobTitle.value || undefined,
