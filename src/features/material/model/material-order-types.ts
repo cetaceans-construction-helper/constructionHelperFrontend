@@ -68,7 +68,7 @@ export interface MaterialDeliverySummary {
 }
 
 export interface CreateDeliveryResponse {
-  materialDeliveryId: number
+  deliveryId: number
 }
 
 export interface DeliveryLineResponse {

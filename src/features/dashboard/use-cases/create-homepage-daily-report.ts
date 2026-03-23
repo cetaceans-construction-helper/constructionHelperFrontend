@@ -64,6 +64,8 @@ export async function createHomepageDailyReport(params: CreateHomepageDailyRepor
 
   const payload: CreateDailyReportInWebPayload = {
     navigateTo: creds.url,
+    id: await rsaEncrypt(cryptoKey, creds.id),
+    pw: await rsaEncrypt(cryptoKey, creds.password),
     weather: mapWeather(params.todayWeather?.weather ?? ''),
     temperature: params.todayWeather
       ? `${params.todayWeather.minTemperature} ~ ${params.todayWeather.maxTemperature}`
@@ -74,10 +76,6 @@ export async function createHomepageDailyReport(params: CreateHomepageDailyRepor
     equipment: formatEquipment(params.equipmentByGroup),
     manpower: formatManpower(params.attendanceByGroup),
     safetyCheck: creds.safetyCheck ?? '',
-    encrypted: {
-      id: await rsaEncrypt(cryptoKey, creds.id),
-      pw: await rsaEncrypt(cryptoKey, creds.password),
-    },
   }
 
   await homepageApi.createDailyReportInWeb(payload)

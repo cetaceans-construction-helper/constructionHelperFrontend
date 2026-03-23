@@ -73,7 +73,14 @@ const emit = defineEmits<{
 // VueFlow
 const nodes = ref<Node[]>([])
 const edges = ref<Edge[]>([])
-const { viewport, setViewport } = useVueFlow()
+const { viewport, setViewport, onViewportChange } = useVueFlow()
+
+// 위쪽 공백 방지: viewport.y > 0 이면 0으로 클램핑
+onViewportChange(({ y, x, zoom }) => {
+  if (y > 0) {
+    setViewport({ x, y: 0, zoom })
+  }
+})
 
 // 패스 관련 상태
 const paths = ref<PathResponse[]>([])
@@ -457,7 +464,7 @@ const updateEdgeOverlapLocal = (
     const e = edges.value[edgeIdx]!
     edges.value[edgeIdx] = {
       ...e,
-      data: { ...e.data, isFollowing: days !== undefined && days !== null },
+      data: { ...e.data, isFollowing: days !== undefined && days !== null, lagDays: days ?? null },
     }
     edges.value = [...edges.value]
   }
@@ -512,6 +519,7 @@ const loadWorkData = async () => {
             pathName: path.workPathName,
             offset,
             isFollowing: edge.lagDays !== undefined && edge.lagDays !== null,
+            lagDays: edge.lagDays ?? null,
           },
         }
       }),
@@ -622,6 +630,7 @@ const applyMutation = (mutation: MutationResponse) => {
             pathName: path.workPathName,
             offset,
             isFollowing: edge.lagDays !== undefined && edge.lagDays !== null,
+            lagDays: edge.lagDays ?? null,
           },
         }
       }),
@@ -1121,6 +1130,7 @@ const handleConnect = async (params: { source: string; target: string }) => {
           pathName: newPath.workPathName,
           offset,
           isFollowing: edge.lagDays !== undefined && edge.lagDays !== null,
+          lagDays: edge.lagDays ?? null,
         },
       }
     })
@@ -1674,7 +1684,7 @@ const handleVueFlowWheel = (e: WheelEvent) => {
   const newX = mouseX - (mouseX - viewport.value.x) * (newZoom / oldZoom)
   const newY = mouseY - (mouseY - viewport.value.y) * (newZoom / oldZoom)
 
-  setViewport({ x: newX, y: newY, zoom: newZoom })
+  setViewport({ x: newX, y: Math.min(0, newY), zoom: newZoom })
 }
 
 // ESC 키 처리

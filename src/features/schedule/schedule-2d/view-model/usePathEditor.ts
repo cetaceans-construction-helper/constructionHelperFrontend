@@ -4,6 +4,20 @@ import { workPathApi, type PathResponse, type PathEdge, type UpdateWorkPathPaylo
 import type { WorkResponse, MutationResponse } from '@/shared/network-core/apis/work'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
+// lagDays를 부호 포함 문자열로 변환
+function formatLagDays(lagDays: number | null | undefined): string | undefined {
+  if (lagDays === null || lagDays === undefined) return undefined
+  if (lagDays > 0) return `+${lagDays}`
+  return `${lagDays}`
+}
+
+function lagLabelStyle(color: string): Record<string, string | number> {
+  return { fontSize: '24px', fontWeight: 600, fill: color }
+}
+
+// 투명 배경 + 엣지 선을 가려 끊어진 효과
+const lagLabelBgStyle = { fill: 'transparent' } as Record<string, string | number>
+
 // 엣지 배열 → 순서 있는 체인 배열
 function edgesToChain(edges: PathEdge[]): number[] {
   if (edges.length === 0) return []
@@ -152,10 +166,17 @@ export function usePathEditor(
       return edges.value.map(e => {
         const offset = e.data?.offset || 0
         const isFollowing = e.data?.isFollowing !== false
+        const lagLabel = isFollowing ? formatLagDays(e.data?.lagDays as number | null) : undefined
+        const edgeColor = (e.style as { stroke?: string })?.stroke || '#3b82f6'
         return {
           ...e,
+          label: lagLabel,
+          labelStyle: lagLabel ? lagLabelStyle(edgeColor) : undefined,
+          labelBgStyle: lagLabel ? lagLabelBgStyle : undefined,
+          labelBgPadding: lagLabel ? [4, 6] as [number, number] : undefined,
+          labelBgBorderRadius: lagLabel ? 2 : undefined,
           style: {
-            stroke: (e.style as { stroke?: string })?.stroke,
+            stroke: edgeColor,
             strokeDasharray: isFollowing ? undefined : '12 8',
             transform: `translate(${offset}px, ${offset}px)`
           }
@@ -172,8 +193,14 @@ export function usePathEditor(
       .map(e => {
         const offset = e.data?.offset || 0
         const isFollowing = e.data?.isFollowing !== false
+        const lagLabel = isFollowing ? formatLagDays(e.data?.lagDays as number | null) : undefined
         return {
           ...e,
+          label: lagLabel,
+          labelStyle: lagLabel ? lagLabelStyle('#9ca3af') : undefined,
+          labelBgStyle: lagLabel ? lagLabelBgStyle : undefined,
+          labelBgPadding: lagLabel ? [4, 6] as [number, number] : undefined,
+          labelBgBorderRadius: lagLabel ? 2 : undefined,
           style: {
             stroke: '#9ca3af',
             strokeWidth: 1,
@@ -186,6 +213,7 @@ export function usePathEditor(
     // 편집 중인 edge들 (패스 색상으로 표시)
     const editingEdges = editingPathEdges.value.map((edge, index) => {
       const isFollowing = edge.lagDays !== undefined && edge.lagDays !== null
+      const lagLabel = isFollowing ? formatLagDays(edge.lagDays) : undefined
       const handles = getEdgeHandles?.(edge.sourceWorkId, edge.targetWorkId)
       return {
         id: `editing-${selectedPathId.value}-${edge.sourceWorkId}-${edge.targetWorkId}-${index}`,
@@ -195,6 +223,11 @@ export function usePathEditor(
         targetHandle: handles?.targetHandle,
         type: 'smoothstep',
         pathOptions: { borderRadius: 20, offset: 15 },
+        label: lagLabel,
+        labelStyle: lagLabel ? lagLabelStyle(pathColor) : undefined,
+        labelBgStyle: lagLabel ? lagLabelBgStyle : undefined,
+        labelBgPadding: lagLabel ? [4, 6] as [number, number] : undefined,
+        labelBgBorderRadius: lagLabel ? 2 : undefined,
         style: { stroke: pathColor, strokeWidth: 2, strokeDasharray: isFollowing ? undefined : '12 8' },
         data: { pathId: selectedPathId.value, editing: true }
       }

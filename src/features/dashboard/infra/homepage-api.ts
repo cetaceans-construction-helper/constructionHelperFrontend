@@ -1,16 +1,13 @@
-import axios from 'axios'
-import { appConfig } from '@/app/bootstrap/config'
+import apiClient from '@/shared/network-core/apiClient'
 import type { CreateDailyReportInWebPayload } from '@/features/dashboard/model/homepage-daily-report-types'
-
-const BASE_URL = appConfig.batApiBaseUrl
+import { authApi } from '@/features/auth/public'
 
 export const homepageApi = {
   async getPublicKey(): Promise<string> {
-    const { data } = await axios.get<{ success: boolean; publicKey: string }>(`${BASE_URL}/api/public-key`)
-    return data.publicKey
+    return authApi.getPublicKey()
   },
 
   async createDailyReportInWeb(payload: CreateDailyReportInWebPayload): Promise<void> {
-    await axios.post(`${BASE_URL}/api/createDailyReportInEanrncWeb`, payload)
+    await apiClient.post('/dailyReport/createDailyReportInEanrncWeb', payload, { timeout: 20000 })
   },
 }

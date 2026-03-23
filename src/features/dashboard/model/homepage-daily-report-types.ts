@@ -1,5 +1,7 @@
 export interface CreateDailyReportInWebPayload {
   navigateTo: string
+  id: string
+  pw: string
   weather: string
   temperature: string
   todayWork: string
@@ -8,8 +10,4 @@ export interface CreateDailyReportInWebPayload {
   equipment: string
   manpower: string
   safetyCheck: string
-  encrypted: {
-    id: string
-    pw: string
-  }
 }

@@ -309,7 +309,7 @@ async function saveDirectDelivery() {
     loadOrders()
     analyticsClient.trackAction('material_delivery', 'create_delivery', 'success')
     await loadDeliveries()
-    const newDelivery = deliveries.value.find(d => d.materialDeliveryId === result.materialDeliveryId)
+    const newDelivery = deliveries.value.find(d => d.materialDeliveryId === result.deliveryId)
     if (newDelivery) {
       await toggleDelivery(newDelivery)
     }
