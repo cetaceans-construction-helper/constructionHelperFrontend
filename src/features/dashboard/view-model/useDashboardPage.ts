@@ -18,6 +18,7 @@ import type {
 import { formatLocalDate } from '@/features/dashboard/use-cases/dashboard-date'
 import { loadDashboardData } from '@/features/dashboard/use-cases/load-dashboard-data'
 import { dashboardRepository } from '@/features/dashboard/infra/dashboard-repository'
+import { analyticsClient } from '@/shared/analytics/analyticsClient'
 import {
   validateDailyReport,
   createDailyReport,
@@ -121,8 +122,10 @@ export const useDashboardPage = () => {
       photoPreviewDialogOpen.value = false
       todayWorks.value = await dashboardRepository.getWorkListByDate(todayString.value)
       await loadAllPhotos()
+      analyticsClient.trackAction('dashboard', 'upload_photo', 'success')
     } catch (error: unknown) {
       console.error('사진 업로드 실패:', error)
+      analyticsClient.trackAction('dashboard', 'upload_photo', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -179,8 +182,10 @@ export const useDashboardPage = () => {
       const work = todayWorks.value.find(w => w.workId === workId)
       if (work) work.isSkipped = true
       todayWorks.value = [...todayWorks.value]
+      analyticsClient.trackAction('dashboard', 'skip_work', 'success')
     } catch (error: any) {
       console.error('작업 숨기기 실패:', error)
+      analyticsClient.trackAction('dashboard', 'skip_work', 'fail')
       alert(error.response?.data?.message || error.message)
     }
   }
@@ -191,8 +196,10 @@ export const useDashboardPage = () => {
       const work = todayWorks.value.find(w => w.workId === workId)
       if (work) work.isSkipped = false
       todayWorks.value = [...todayWorks.value]
+      analyticsClient.trackAction('dashboard', 'unskip_work', 'success')
     } catch (error: any) {
       console.error('작업 숨기기 취소 실패:', error)
+      analyticsClient.trackAction('dashboard', 'unskip_work', 'fail')
       alert(error.response?.data?.message || error.message)
     }
   }
@@ -201,8 +208,10 @@ export const useDashboardPage = () => {
     try {
       await workApi.deleteWork(workId)
       await loadData()
+      analyticsClient.trackAction('dashboard', 'delete_work', 'success')
     } catch (error: any) {
       console.error('작업 삭제 실패:', error)
+      analyticsClient.trackAction('dashboard', 'delete_work', 'fail')
       alert(error.response?.data?.message || error.message)
     }
   }
@@ -215,8 +224,10 @@ export const useDashboardPage = () => {
       // reactivity trigger
       tomorrowWorks.value = [...tomorrowWorks.value]
       simpleTomorrowWorks.value = [...simpleTomorrowWorks.value]
+      analyticsClient.trackAction('dashboard', 'skip_tomorrow_work', 'success')
     } catch (error: any) {
       console.error('작업 숨기기 실패:', error)
+      analyticsClient.trackAction('dashboard', 'skip_tomorrow_work', 'fail')
       alert(error.response?.data?.message || error.message)
     }
   }
@@ -228,8 +239,10 @@ export const useDashboardPage = () => {
       if (work) work.isSkipped = false
       tomorrowWorks.value = [...tomorrowWorks.value]
       simpleTomorrowWorks.value = [...simpleTomorrowWorks.value]
+      analyticsClient.trackAction('dashboard', 'unskip_tomorrow_work', 'success')
     } catch (error: any) {
       console.error('작업 숨기기 취소 실패:', error)
+      analyticsClient.trackAction('dashboard', 'unskip_tomorrow_work', 'fail')
       alert(error.response?.data?.message || error.message)
     }
   }
@@ -364,9 +377,11 @@ export const useDashboardPage = () => {
         equipmentByGroup: equipmentByGroup.value,
         attendanceByGroup: attendanceByGroup.value,
       })
+      analyticsClient.trackAction('dashboard', 'create_homepage_daily_report', 'success')
       alert('홈페이지에 작업일보가 생성/수정되었습니다.')
     } catch (error: unknown) {
       console.error('홈페이지 작업일보 생성 실패:', error)
+      analyticsClient.trackAction('dashboard', 'create_homepage_daily_report', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -390,10 +405,12 @@ export const useDashboardPage = () => {
         showExcludeDialog.value = true
       } else {
         await createDailyReport(dailyReportRepository, { date: todayString.value })
+        analyticsClient.trackAction('dashboard', 'create_daily_report', 'success')
         router.push('/helper/document/daily-report')
       }
     } catch (error: unknown) {
       console.error('작업일보 생성 실패:', error)
+      analyticsClient.trackAction('dashboard', 'create_daily_report', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -413,9 +430,11 @@ export const useDashboardPage = () => {
         excludedIds,
         excludedPhotoIndices,
       })
+      analyticsClient.trackAction('dashboard', 'create_daily_report_with_exclude', 'success')
       router.push('/helper/document/daily-report')
     } catch (error: unknown) {
       console.error('작업일보 생성 실패:', error)
+      analyticsClient.trackAction('dashboard', 'create_daily_report_with_exclude', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {

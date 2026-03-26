@@ -137,6 +137,18 @@
 
 ### 5.2 `feature_action` 카탈로그
 
+#### `dashboard`
+
+- `upload_photo`
+- `skip_work`
+- `unskip_work`
+- `delete_work`
+- `skip_tomorrow_work`
+- `unskip_tomorrow_work`
+- `create_homepage_daily_report`
+- `create_daily_report`
+- `create_daily_report_with_exclude`
+
 #### `schedule_2d`
 
 - `create_work`
@@ -149,6 +161,11 @@
 - `optimize_all_paths`
 - `update_path_lag_days`
 - `change_layout_by_scroll`
+- `create_version`
+- `duplicate_version`
+- `update_version_name`
+- `delete_version`
+- `set_main_version`
 
 #### `schedule_3d`
 
@@ -245,6 +262,12 @@
 
 - `save_daily_report_setting`
 
+#### `admin_holiday`
+
+- `toggle_holiday`
+- `set_inactive_dates`
+- `release_inactive_dates`
+
 #### `system_admin`
 
 - 현재 없음
@@ -260,12 +283,10 @@
 
 ### 6.2 page_view만 있고 액션 추적이 없는 대표 화면
 
-- `/helper/dashboard`
 - `/helper/attendance/register`
 - `/helper/material/outgoing`
 - `/helper/material/remaining`
 - `/helper/document/manager`
-- `/helper/admin/holiday`
 - `/helper/admin/bulk-deployment`
 - `/helper/admin/homepage-setting`
 - `/helper/admin/rebuild-work-names`

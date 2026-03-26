@@ -2,6 +2,7 @@ import { ref, computed, watch } from 'vue'
 import { useCalendarStore } from '@/app/context/stores/calendarStore'
 import { useProjectStore } from '@/app/context/stores/project'
 import { projectCalendarApi } from '@/shared/network-core/apis/projectCalendar'
+import { analyticsClient } from '@/shared/analytics/analyticsClient'
 import type { CalendarDateInfo } from '@/shared/network-core/contracts/calendar'
 
 export interface CalendarCell {
@@ -187,8 +188,10 @@ export function useHolidayManagement() {
         isHoliday: !cell.isHoliday,
       })
       await calendarStore.refreshCalendar()
+      analyticsClient.trackAction('admin_holiday', 'toggle_holiday', 'success')
     } catch (error: unknown) {
       console.error('휴일 토글 실패:', error)
+      analyticsClient.trackAction('admin_holiday', 'toggle_holiday', 'fail')
       const e = error as { response?: { data?: { message?: string } }; message?: string }
       alert(e.response?.data?.message || e.message)
     } finally {
@@ -267,9 +270,13 @@ export function useHolidayManagement() {
         })
       }
       await calendarStore.refreshCalendar()
+      const actionName = flow.mode === 'set' ? 'set_inactive_dates' : 'release_inactive_dates'
+      analyticsClient.trackAction('admin_holiday', actionName, 'success')
       cancelInactiveFlow()
     } catch (error: unknown) {
       console.error('비활성일 처리 실패:', error)
+      const actionName = flow.mode === 'set' ? 'set_inactive_dates' : 'release_inactive_dates'
+      analyticsClient.trackAction('admin_holiday', actionName, 'fail')
       const e = error as { response?: { data?: { message?: string } }; message?: string }
       alert(e.response?.data?.message || e.message)
     } finally {

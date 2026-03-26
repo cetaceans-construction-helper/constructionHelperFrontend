@@ -127,6 +127,18 @@
 
 현재 코드 기준으로 실제 붙어 있는 액션은 아래와 같다.
 
+#### `dashboard`
+
+- `upload_photo`
+- `skip_work`
+- `unskip_work`
+- `delete_work`
+- `skip_tomorrow_work`
+- `unskip_tomorrow_work`
+- `create_homepage_daily_report`
+- `create_daily_report`
+- `create_daily_report_with_exclude`
+
 #### `schedule_2d`
 
 - `create_work`
@@ -139,6 +151,11 @@
 - `optimize_all_paths`
 - `update_path_lag_days`
 - `change_layout_by_scroll`
+- `create_version`
+- `duplicate_version`
+- `update_version_name`
+- `delete_version`
+- `set_main_version`
 
 설명:
 - `update_path_lag_days`는 초기 범위를 넘어 현재 코드에 추가된 액션이다.
@@ -236,6 +253,12 @@
 
 - `save_daily_report_setting`
 
+#### `admin_holiday`
+
+- `toggle_holiday`
+- `set_inactive_dates`
+- `release_inactive_dates`
+
 ## 5. GA가 붙어 있지 않은 부분
 
 ### 5.1 전략상 후보지만 아직 없는 것
@@ -263,14 +286,12 @@
 아래는 라우터 기준 `page_view`는 들어가지만, 코드 검색 기준 별도 `trackAction` 또는 커스텀 이벤트 호출이 없는 화면/영역이다.
 
 - 메인 공개 화면 `/`
-- 대시보드 `/helper/dashboard`
 - 작업자 등록 `/helper/attendance/register`
 - 반출자재 `/helper/material/outgoing`
 - 잔여자재 `/helper/material/remaining`
 - 문서관리 `/helper/document/manager`
 - 안전관리 placeholder `/helper/safety`
 - 유용한 기능 placeholder `/helper/functions`
-- 휴일관리 `/helper/admin/holiday`
 - 대량 출역 입력 `/helper/admin/bulk-deployment`
 - 홈페이지 입력정보 `/helper/admin/homepage-setting`
 - 공정명 재생성 `/helper/admin/rebuild-work-names`

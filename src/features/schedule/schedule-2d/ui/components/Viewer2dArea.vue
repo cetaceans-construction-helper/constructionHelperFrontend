@@ -382,7 +382,7 @@ const loadCalendarData = async () => {
 const calendarData = computed(() => calendarStore.calendarData)
 
 // 작업 및 의존관계 데이터 로드
-const loadWorkData = async () => {
+const loadWorkData = async (centerToday = false) => {
   isLoadingWorks.value = true
   try {
     const [works, depList] = await Promise.all([
@@ -426,13 +426,15 @@ const loadWorkData = async () => {
     })
 
     // 오늘 날짜가 화면 중앙에 오도록 뷰포트 설정
-    const container = containerRef.value
-    if (container) {
-      const containerWidth = container.clientWidth
-      const zoom = 0.6
-      const todayX = 0 // dayIndex=0이 오늘
-      const centerX = (containerWidth / 2 - LEFT_HEADER_WIDTH / 2)
-      setViewport({ x: -todayX * zoom + centerX, y: 0, zoom })
+    if (centerToday) {
+      const container = containerRef.value
+      if (container) {
+        const containerWidth = container.clientWidth
+        const zoom = 0.6
+        const todayX = 0 // dayIndex=0이 오늘
+        const centerX = (containerWidth / 2 - LEFT_HEADER_WIDTH / 2)
+        setViewport({ x: -todayX * zoom + centerX, y: 0, zoom })
+      }
     }
 
     emit('works-loaded', works)
@@ -1306,14 +1308,14 @@ const onDocumentClick = () => {
 
 // 버전 변경 시 데이터 재로드
 watch(activeVersion, () => {
-  loadWorkData()
+  loadWorkData(true)
 })
 
 onMounted(async () => {
   window.addEventListener('keydown', onKeydown)
   document.addEventListener('click', onDocumentClick)
   await Promise.all([loadCalendarData(), loadRefTree(), td.loadReferenceData(), loadVersions()])
-  loadWorkData()
+  loadWorkData(true)
   setupResizeObserver()
 })
 
