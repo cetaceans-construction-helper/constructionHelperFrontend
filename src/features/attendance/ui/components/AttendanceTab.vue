@@ -1,23 +1,16 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { Button } from '@/shared/ui/button'
-import { Input } from '@/shared/ui/input'
-import { Plus, Minus, Search } from 'lucide-vue-next'
+import { DateStepper } from '@/shared/ui/date-stepper'
 import ReferenceEditTrigger from '@/shared/helper-ui/ReferenceEditTrigger.vue'
 import { useAttendance } from '@/features/attendance/view-model/useAttendance'
 import { useEquipmentDeployment } from '@/features/attendance/view-model/useEquipmentDeployment'
-import { useAttendanceCumulative } from '@/features/attendance/view-model/useAttendanceCumulative'
 import LaborCountBox from '@/features/attendance/ui/components/LaborCountBox.vue'
 import EquipmentCountBox from '@/features/attendance/ui/components/EquipmentCountBox.vue'
-import TodayAttendanceBox from '@/features/attendance/ui/components/TodayAttendanceBox.vue'
-import CumulativeAttendanceBox from '@/features/attendance/ui/components/CumulativeAttendanceBox.vue'
-import CumulativeEquipmentBox from '@/features/attendance/ui/components/CumulativeEquipmentBox.vue'
 
 const {
   selectedDate,
   isSubmitting,
-  todayAttendance,
-  isLoadingToday,
   contractors,
   workTypeBoxes,
   selectCompany: selectLaborCompany,
@@ -33,8 +26,6 @@ const {
 const {
   isSubmittingEquipment,
   allEquipmentSpecs,
-  todayEquipment,
-  isLoadingEquipment,
   equipmentBoxes,
 
   selectCompany: selectEquipmentCompany,
@@ -55,29 +46,7 @@ const {
   init: initEquipment,
 } = useEquipmentDeployment(selectedDate, contractors)
 
-const {
-  startDate: cumulativeStartDate,
-  endDate: cumulativeEndDate,
-  cumulativeList,
-  isLoading: isLoadingCumulative,
-  grandTotal,
-  equipmentCumulativeList,
-  equipmentGrandTotal,
-  initDates: initCumulativeDates,
-  fetchCumulative,
-} = useAttendanceCumulative()
-
-function changeDate(days: number) {
-  const date = new Date(selectedDate.value)
-  date.setDate(date.getDate() + days)
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  selectedDate.value = `${y}-${m}-${d}`
-}
-
 onMounted(async () => {
-  await initCumulativeDates()
   await initAttendance()
   await initEquipment()
 })
@@ -86,42 +55,13 @@ onMounted(async () => {
 <template>
   <div class="flex flex-col h-full">
     <!-- 상단: 날짜 선택 -->
-    <div class="flex items-center justify-center gap-2 py-4 border-b border-border">
-      <Button variant="outline" size="icon-sm" @click="changeDate(-1)">
-        <Minus class="w-4 h-4" />
-      </Button>
-      <Input v-model="selectedDate" type="date" class="w-48" />
-      <Button variant="outline" size="icon-sm" @click="changeDate(1)">
-        <Plus class="w-4 h-4" />
-      </Button>
+    <div class="flex items-center justify-center py-4 border-b border-border">
+      <DateStepper v-model="selectedDate" />
     </div>
 
-    <!-- 4컬럼 레이아웃 -->
-    <div class="flex-1 overflow-hidden grid grid-cols-4 [@media(max-aspect-ratio:1/1)]:grid-cols-1 gap-4 p-4">
-      <!-- 왼쪽: 오늘 출역 (읽기 전용) -->
-      <div class="flex flex-col overflow-hidden border border-border rounded-lg bg-card">
-        <div class="px-4 py-3 border-b border-border bg-muted/50 flex items-center">
-          <h3 class="text-sm font-medium">오늘 출역</h3>
-          <div class="ml-auto flex items-center gap-3">
-            <span class="text-xs text-muted-foreground">
-              총 인원 : <span class="font-semibold text-foreground">{{ todayAttendance.reduce((s, i) => s + i.count, 0) }}명</span>
-            </span>
-            <span class="text-xs text-muted-foreground">
-              총 장비 : <span class="font-semibold text-foreground">{{ todayEquipment.reduce((s, i) => s + i.count, 0) }}대</span>
-            </span>
-          </div>
-        </div>
-        <div class="flex-1 overflow-y-auto p-4">
-          <TodayAttendanceBox
-            :attendances="todayAttendance"
-            :is-loading="isLoadingToday"
-            :equipment-deployments="todayEquipment"
-            :is-loading-equipment="isLoadingEquipment"
-          />
-        </div>
-      </div>
-
-      <!-- 중앙: 출역인원 입력 -->
+    <!-- 2컬럼 레이아웃 -->
+    <div class="flex-1 overflow-hidden grid grid-cols-2 [@media(max-aspect-ratio:1/1)]:grid-cols-1 gap-4 p-4">
+      <!-- 출역인원 입력 -->
       <div class="flex flex-col overflow-hidden border border-border rounded-lg bg-card">
         <div class="px-4 py-3 border-b border-border bg-muted/50 flex items-center gap-1">
           <h3 class="text-sm font-medium">출역인원 입력</h3>
@@ -220,38 +160,6 @@ onMounted(async () => {
         </div>
       </div>
 
-      <!-- 4번째: 출역 누적 집계 -->
-      <div class="flex flex-col overflow-hidden border border-border rounded-lg bg-card">
-        <div class="px-4 py-3 border-b border-border bg-muted/50">
-          <h3 class="text-sm font-medium">출역 누적 집계</h3>
-        </div>
-
-        <!-- 기간 선택 -->
-        <div class="flex items-center gap-2 px-4 py-3 border-b border-border">
-          <Input v-model="cumulativeStartDate" type="date" class="flex-1" />
-          <span class="text-sm text-muted-foreground">~</span>
-          <Input v-model="cumulativeEndDate" type="date" class="flex-1" />
-          <Button size="icon-sm" @click="fetchCumulative">
-            <Search class="w-4 h-4" />
-          </Button>
-        </div>
-
-        <!-- 집계 내용 -->
-        <div class="flex-1 overflow-y-auto p-4">
-          <div class="grid grid-cols-2 gap-4 h-full">
-            <CumulativeAttendanceBox
-              :cumulative-list="cumulativeList"
-              :is-loading="isLoadingCumulative"
-              :grand-total="grandTotal"
-            />
-            <CumulativeEquipmentBox
-              :cumulative-list="equipmentCumulativeList"
-              :is-loading="isLoadingCumulative"
-              :grand-total="equipmentGrandTotal"
-            />
-          </div>
-        </div>
-      </div>
     </div>
   </div>
 </template>

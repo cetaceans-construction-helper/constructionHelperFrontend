@@ -16,13 +16,20 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/shared/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select'
 import { Checkbox } from '@/shared/ui/checkbox'
+import { DateStepper } from '@/shared/ui/date-stepper'
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+} from '@/shared/ui/context-menu'
 import {
   workApi,
   type WorkResponse,
   type MutationResponse,
   type UpdateWorkPayload,
 } from '@/shared/network-core/apis/work'
-import { workPathApi, type PathResponse } from '@/shared/network-core/apis/workPath'
+import { workDepApi, type WorkDepResponse } from '@/shared/network-core/apis/workDep'
 import { useProjectStore } from '@/app/context/stores/project'
 import { useCalendarStore } from '@/app/context/stores/calendarStore'
 import {
@@ -62,7 +69,8 @@ import {
   HEADER_HEIGHT,
   WEEKLY_HEADER_HEIGHT,
 } from '@/features/schedule/schedule-2d/view-model/useDateHeader'
-import { usePathEditor } from '@/features/schedule/schedule-2d/view-model/usePathEditor'
+import { useDependencyEditor } from '@/features/schedule/schedule-2d/view-model/useDependencyEditor'
+import { useScheduleVersion } from '@/features/schedule/schedule-2d/view-model/useScheduleVersion'
 import { useWorkEditor } from '@/features/schedule/schedule-2d/view-model/useWorkEditor'
 import { useWorkTooltipData } from '@/features/schedule/schedule-2d/view-model/useWorkTooltipData'
 
@@ -82,8 +90,24 @@ onViewportChange(({ y, x, zoom }) => {
   }
 })
 
-// 패스 관련 상태
-const paths = ref<PathResponse[]>([])
+// 의존관계 상태
+const deps = ref<WorkDepResponse[]>([])
+
+// 버전 관리
+const {
+  versions,
+  activeVersion,
+  loadVersions,
+  createVersion,
+  duplicateVersion,
+  updateVersionName,
+  deleteVersion,
+  setMainVersion,
+  canCreate,
+} = useScheduleVersion()
+const editingVersionId = ref<number | null>(null)
+const editingVersionName = ref('')
+const pendingDeleteVersionId = ref<number | null>(null)
 
 // workType → 팔레트 인덱스 맵 (nodes와 독립적으로 관리, groupBoxes와 공유)
 const workTypePaletteMap = ref<Map<string, number>>(new Map())
@@ -209,81 +233,8 @@ const activeNodes = computed({
 
 // 삭제 팝업 상태
 const showDeleteDialog = ref(false)
-const deleteType = ref<'work' | 'path'>('work')
 const isDeleting = ref(false)
 
-// 경로 최적화 상태
-const showOptimizeDialog = ref(false)
-const isOptimizing = ref(false)
-const optimizeTarget = ref<'all' | 'current'>('all')
-
-const executeOptimize = async () => {
-  isOptimizing.value = true
-  const action = optimizeTarget.value === 'current' ? 'optimize_current_path' : 'optimize_all_paths'
-  try {
-    const mutation =
-      optimizeTarget.value === 'current'
-        ? await workPathApi.optimizePath(selectedPathId.value!)
-        : await workPathApi.optimizePaths()
-    applyMutation(mutation)
-    showOptimizeDialog.value = false
-    showPathDialog.value = false
-    analyticsClient.trackAction('schedule_2d', action, 'success')
-  } catch (error: unknown) {
-    console.error('경로 최적화 실패:', error)
-    analyticsClient.trackAction('schedule_2d', action, 'fail')
-    const err = error as { response?: { data?: { message?: string } }; message?: string }
-    alert(err.response?.data?.message || err.message)
-  } finally {
-    isOptimizing.value = false
-  }
-}
-
-// 말풍선 상태 - flow 좌표 저장
-const tooltip = ref<{
-  visible: boolean
-  nodeX: number // flow 좌표 (노드 중앙 X)
-  nodeY: number // flow 좌표 (노드 상단 Y)
-  workId: number | null
-  workName: string
-  startDate: string
-  workLeadTime: number
-  completionDate: string
-  isWorkingOnHoliday: boolean
-}>({
-  visible: false,
-  nodeX: 0,
-  nodeY: 0,
-  workId: null,
-  workName: '',
-  startDate: '',
-  workLeadTime: 0,
-  completionDate: '',
-  isWorkingOnHoliday: true,
-})
-
-// 선택된 노드의 선행작업 목록 (모든 패스에서)
-const tooltipPredecessors = computed(() => {
-  const wId = tooltip.value.workId
-  if (!wId) return []
-
-  return paths.value.flatMap((p) => {
-    const predecessorEdges = p.edges.filter((e) => e.targetWorkId === wId)
-    return predecessorEdges.map((e) => {
-      const node = nodes.value.find((n) => n.id === `work-${e.sourceWorkId}`)
-      const work = node?.data.work as WorkResponse | undefined
-      return {
-        pathId: p.workPathId,
-        pathName: p.workPathName,
-        pathColor: p.workPathColor,
-        workId: e.sourceWorkId,
-        workName: work?.workName || `Work ${e.sourceWorkId}`,
-        lagDays: e.lagDays ?? 0,
-        isFollowing: e.lagDays !== undefined && e.lagDays !== null,
-      }
-    })
-  })
-})
 
 /** 노드 스타일을 단일 CSS 변수 --node-border 기반으로 빌드 */
 function buildNodeStyle(
@@ -430,51 +381,14 @@ const loadCalendarData = async () => {
 // calendarData computed (useDateHeader에 전달)
 const calendarData = computed(() => calendarStore.calendarData)
 
-// lagDays 수정
-const updateEdgeOverlap = async (
-  pathId: number,
-  _sourceWorkId: number,
-  targetWorkId: number,
-  days: number | null,
-) => {
-  await updateLagDays(pathId, targetWorkId, days)
-  tooltip.value.visible = false
-}
-
-// lagDays 로컬 업데이트 (API 호출 없이 computed 재계산용)
-const updateEdgeOverlapLocal = (
-  pathId: number,
-  sourceWorkId: number,
-  targetWorkId: number,
-  days: number | null,
-) => {
-  const path = paths.value.find((p) => p.workPathId === pathId)
-  if (!path) return
-  const idx = path.edges.findIndex(
-    (e) => e.sourceWorkId === sourceWorkId && e.targetWorkId === targetWorkId,
-  )
-  if (idx === -1) return
-  path.edges[idx] = { ...path.edges[idx]!, lagDays: days }
-  paths.value = [...paths.value]
-
-  // 엣지의 isFollowing 동기화
-  const edgeId = `edge-${pathId}-${sourceWorkId}-${targetWorkId}`
-  const edgeIdx = edges.value.findIndex((e) => e.id === edgeId)
-  if (edgeIdx !== -1) {
-    const e = edges.value[edgeIdx]!
-    edges.value[edgeIdx] = {
-      ...e,
-      data: { ...e.data, isFollowing: days !== undefined && days !== null, lagDays: days ?? null },
-    }
-    edges.value = [...edges.value]
-  }
-}
-
-// 작업 및 패스 데이터 로드
+// 작업 및 의존관계 데이터 로드
 const loadWorkData = async () => {
   isLoadingWorks.value = true
   try {
-    const [works, pathList] = await Promise.all([workApi.getWorkList(), workPathApi.getPathList()])
+    const [works, depList] = await Promise.all([
+      workApi.getWorkListByVersion(activeVersion.value),
+      workDepApi.getWorkDepListByVersion(activeVersion.value),
+    ])
 
     const layout = computeRowLayout(works, refTree.value.length > 0 ? refTree.value : undefined)
 
@@ -488,62 +402,40 @@ const loadWorkData = async () => {
       const y = (layout.workRowMap.get(w.workId) ?? 0) * ROW_UNIT + NODE_OFFSET_Y
       return styledWorkToNode(w, y)
     })
-    paths.value = pathList
+    deps.value = depList
 
-    // 같은 source-target 쌍을 가진 엣지들에 offset 적용
-    const edgePairCount = new Map<string, number>()
+    // 의존관계 → 엣지 변환
+    edges.value = depList.map((dep) => {
+      const handles = getEdgeHandles(dep.sourceWorkId, dep.targetWorkId)
+      return {
+        id: `dep-${dep.id}`,
+        source: `work-${dep.sourceWorkId}`,
+        target: `work-${dep.targetWorkId}`,
+        sourceHandle: handles.sourceHandle,
+        targetHandle: handles.targetHandle,
+        type: 'smoothstep',
+        pathOptions: { borderRadius: 20, offset: 15 },
+        style: { stroke: '#3b82f6' },
+        data: {
+          depId: dep.id,
+          offset: 0,
+          isFollowing: dep.lagDays !== null,
+          lagDays: dep.lagDays,
+        },
+      }
+    })
 
-    edges.value = pathList.flatMap((path) =>
-      path.edges.map((edge) => {
-        const pairKey = `${edge.sourceWorkId}-${edge.targetWorkId}`
-        const currentCount = edgePairCount.get(pairKey) || 0
-        edgePairCount.set(pairKey, currentCount + 1)
-
-        // offset 계산: 0, 3, -3, 6, -6, ... (X, Y 동일)
-        const offsetIndex = currentCount
-        const offset =
-          offsetIndex === 0 ? 0 : (offsetIndex % 2 === 1 ? 1 : -1) * Math.ceil(offsetIndex / 2) * 3
-
-        const handles = getEdgeHandles(edge.sourceWorkId, edge.targetWorkId)
-        return {
-          id: `edge-${path.workPathId}-${edge.sourceWorkId}-${edge.targetWorkId}`,
-          source: `work-${edge.sourceWorkId}`,
-          target: `work-${edge.targetWorkId}`,
-          sourceHandle: handles.sourceHandle,
-          targetHandle: handles.targetHandle,
-          type: 'smoothstep',
-          pathOptions: { borderRadius: 20, offset: 15 },
-          style: { stroke: path.workPathColor },
-          data: {
-            pathId: path.workPathId,
-            pathName: path.workPathName,
-            offset,
-            isFollowing: edge.lagDays !== undefined && edge.lagDays !== null,
-            lagDays: edge.lagDays ?? null,
-          },
-        }
-      }),
-    )
+    // 오늘 날짜가 화면 중앙에 오도록 뷰포트 설정
+    const container = containerRef.value
+    if (container) {
+      const containerWidth = container.clientWidth
+      const zoom = 0.6
+      const todayX = 0 // dayIndex=0이 오늘
+      const centerX = (containerWidth / 2 - LEFT_HEADER_WIDTH / 2)
+      setViewport({ x: -todayX * zoom + centerX, y: 0, zoom })
+    }
 
     emit('works-loaded', works)
-
-    // 말풍선이 열려있으면 갱신된 노드 데이터로 동기화
-    if (tooltip.value.visible && tooltip.value.workId) {
-      const updatedNode = nodes.value.find((n) => n.id === `work-${tooltip.value.workId}`)
-      const updatedWork = updatedNode?.data.work as WorkResponse | undefined
-      if (updatedNode && updatedWork) {
-        tooltip.value.workName = updatedWork.workName
-        tooltip.value.startDate = updatedWork.startDate
-        tooltip.value.workLeadTime = updatedWork.workLeadTime
-        tooltip.value.completionDate = updatedWork.completionDate
-        tooltip.value.isWorkingOnHoliday = updatedWork.isWorkingOnHoliday
-        tooltip.value.nodeX =
-          updatedNode.position.x + (updatedNode.data.computedWidth as number) / 2
-        tooltip.value.nodeY = updatedNode.position.y - 8
-      } else {
-        tooltip.value.visible = false
-      }
-    }
   } catch (error) {
     console.error('데이터 로드 실패:', error)
   } finally {
@@ -569,79 +461,51 @@ const applyMutation = (mutation: MutationResponse) => {
       const row = layout.workRowMap.get(work.workId)
       if (row !== undefined) n.position.y = row * ROW_UNIT + NODE_OFFSET_Y
     })
-    // 말풍선 동기화
-    if (tooltip.value.visible && tooltip.value.workId) {
-      const w = updateMap.get(tooltip.value.workId)
-      if (w) {
-        tooltip.value.workName = w.workName
-        tooltip.value.startDate = w.startDate
-        tooltip.value.workLeadTime = w.workLeadTime
-        tooltip.value.completionDate = w.completionDate
-        tooltip.value.isWorkingOnHoliday = w.isWorkingOnHoliday
-        const node = nodes.value.find((n) => n.id === `work-${w.workId}`)
-        if (node) {
-          tooltip.value.nodeX = node.position.x + (node.data.computedWidth as number) / 2
-          tooltip.value.nodeY = node.position.y - 8
-        }
-      }
-    }
     emit(
       'works-loaded',
       nodes.value.map((n) => n.data.work as WorkResponse),
     )
   }
 
-  // 2) updatedWorkPaths 반영 → 해당 path의 edges 재생성
-  if (mutation.updatedWorkPaths.length > 0) {
-    const updatedPathIds = new Set(mutation.updatedWorkPaths.map((p) => p.workPathId))
-    // paths 배열 갱신 (기존 path를 새 데이터로 교체)
-    const pathMap = new Map(mutation.updatedWorkPaths.map((p) => [p.workPathId, p]))
-    paths.value = paths.value.map((p) => pathMap.get(p.workPathId) ?? p)
-    // 해당 path의 기존 엣지 제거 후 새로 생성
-    edges.value = edges.value.filter((e) => !updatedPathIds.has(e.data?.pathId))
-    // 새 엣지 추가 (offset 계산 포함)
-    const edgePairCount = new Map<string, number>()
-    // 기존 엣지에서 pairCount 집계
-    edges.value.forEach((e) => {
-      const key = `${e.source}-${e.target}`
-      edgePairCount.set(key, (edgePairCount.get(key) || 0) + 1)
+  // 2) updatedWorkDeps 반영 → 의존관계 및 엣지 갱신
+  if (mutation.updatedWorkDeps.length > 0) {
+    const updatedDepIds = new Set(mutation.updatedWorkDeps.map((d) => d.id))
+    // deps 배열 갱신
+    const depMap = new Map(mutation.updatedWorkDeps.map((d) => [d.id, d]))
+    // 기존 dep 업데이트 + 신규 dep 추가
+    const existingIds = new Set(deps.value.map(d => d.id))
+    deps.value = [
+      ...deps.value.map((d) => depMap.get(d.id) ?? d),
+      ...mutation.updatedWorkDeps.filter(d => !existingIds.has(d.id)),
+    ]
+    // 삭제된 dep 제거 (updatedWorkDeps에 없으면서 edges에서 사라진 것)
+    // 해당 dep의 기존 엣지 제거 후 새로 생성
+    edges.value = edges.value.filter((e) => !updatedDepIds.has(e.data?.depId))
+    const newEdges = mutation.updatedWorkDeps.map((dep) => {
+      const handles = getEdgeHandles(dep.sourceWorkId, dep.targetWorkId)
+      return {
+        id: `dep-${dep.id}`,
+        source: `work-${dep.sourceWorkId}`,
+        target: `work-${dep.targetWorkId}`,
+        sourceHandle: handles.sourceHandle,
+        targetHandle: handles.targetHandle,
+        type: 'smoothstep',
+        pathOptions: { borderRadius: 20, offset: 15 },
+        style: { stroke: '#3b82f6' },
+        data: {
+          depId: dep.id,
+          offset: 0,
+          isFollowing: dep.lagDays !== null,
+          lagDays: dep.lagDays,
+        },
+      }
     })
-    const newEdges = mutation.updatedWorkPaths.flatMap((path) =>
-      path.edges.map((edge) => {
-        const pairKey = `work-${edge.sourceWorkId}-work-${edge.targetWorkId}`
-        const currentCount = edgePairCount.get(pairKey) || 0
-        edgePairCount.set(pairKey, currentCount + 1)
-        const offset =
-          currentCount === 0
-            ? 0
-            : (currentCount % 2 === 1 ? 1 : -1) * Math.ceil(currentCount / 2) * 3
-        const handles = getEdgeHandles(edge.sourceWorkId, edge.targetWorkId)
-        return {
-          id: `edge-${path.workPathId}-${edge.sourceWorkId}-${edge.targetWorkId}`,
-          source: `work-${edge.sourceWorkId}`,
-          target: `work-${edge.targetWorkId}`,
-          sourceHandle: handles.sourceHandle,
-          targetHandle: handles.targetHandle,
-          type: 'smoothstep',
-          pathOptions: { borderRadius: 20, offset: 15 },
-          style: { stroke: path.workPathColor },
-          data: {
-            pathId: path.workPathId,
-            pathName: path.workPathName,
-            offset,
-            isFollowing: edge.lagDays !== undefined && edge.lagDays !== null,
-            lagDays: edge.lagDays ?? null,
-          },
-        }
-      }),
-    )
     edges.value = [...edges.value, ...newEdges]
   }
 }
 
 // 삭제 팝업 열기
-const openDeleteDialog = (type: 'work' | 'path') => {
-  deleteType.value = type
+const openDeleteDialog = () => {
   showDeleteDialog.value = true
 }
 
@@ -649,38 +513,29 @@ const openDeleteDialog = (type: 'work' | 'path') => {
 const executeDelete = async () => {
   isDeleting.value = true
   try {
-    if (deleteType.value === 'work' && selectedWorkId.value) {
+    if (selectedWorkId.value) {
       const mutation = await workApi.deleteWork(selectedWorkId.value)
       const deletedNodeId = `work-${selectedWorkId.value}`
       edges.value = edges.value.filter(
         (e) => e.source !== deletedNodeId && e.target !== deletedNodeId,
       )
+      // 관련 deps도 제거
+      deps.value = deps.value.filter(
+        (d) => d.sourceWorkId !== selectedWorkId.value && d.targetWorkId !== selectedWorkId.value,
+      )
       nodes.value = nodes.value.filter((n) => n.id !== deletedNodeId)
       applyMutation(mutation)
       clearWorkSelection()
-      tooltip.value.visible = false
       emit(
         'works-loaded',
         nodes.value.map((n) => n.data.work as WorkResponse),
       )
       analyticsClient.trackAction('schedule_2d', 'delete_work', 'success')
-    } else if (deleteType.value === 'path' && selectedPathId.value) {
-      await workPathApi.deleteWorkPath(selectedPathId.value)
-      const deletedPathId = selectedPathId.value
-      edges.value = edges.value.filter((e) => e.data?.pathId !== deletedPathId)
-      paths.value = paths.value.filter((p) => p.workPathId !== deletedPathId)
-      cancelPathEdit()
-      showPathDialog.value = false
-      analyticsClient.trackAction('schedule_2d', 'delete_path', 'success')
     }
     showDeleteDialog.value = false
   } catch (error: unknown) {
     console.error('삭제 실패:', error)
-    analyticsClient.trackAction(
-      'schedule_2d',
-      deleteType.value === 'work' ? 'delete_work' : 'delete_path',
-      'fail',
-    )
+    analyticsClient.trackAction('schedule_2d', 'delete_work', 'fail')
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     const errorMessage = err.response?.data?.message || err.message
     alert(errorMessage)
@@ -707,51 +562,31 @@ const {
 } = useDateHeader(viewport, calendarData)
 
 const {
-  selectedPathId,
-  editingPathEdges,
-  isPathEditMode,
-  selectedPathColor,
-  pathNodeIds,
-  deleteButtonNodes,
   styledEdges,
-  selectPath,
-  cancelPathEdit,
-  onConnect,
-  removeNodeFromPath,
-  savePathEdges,
-  updatePath,
+  createDep,
   updateLagDays,
-} = usePathEditor(nodes, edges, paths, applyMutation, getEdgeHandles)
+  updateLagDaysLocal,
+  deleteDep,
+} = useDependencyEditor(edges, deps, activeVersion, applyMutation)
 
-// 패스 연결 모드 상태 (watch보다 먼저 선언 필요)
+// 의존관계 연결 모드 상태
 const connectingFrom = ref<{
   workId: number
-  mode: 'new' | 'add'
-  pathId?: number
+  lagDays: number | null // null=후행작업추가, 0=따라가기추가
 } | null>(null)
 
-// 패스 편집 모드 또는 연결 모드에서 노드 하이라이트
+// 연결 모드에서 노드 하이라이트
 watch(
-  [isPathEditMode, selectedPathColor, pathNodeIds, connectingFrom],
-  ([editMode, pathColor, nodeIds, connecting]) => {
+  [connectingFrom],
+  ([connecting]) => {
     nodes.value = nodes.value.map((node) => {
       const work = node.data.work as WorkResponse
       const workId = parseInt(node.id.replace('work-', ''))
       const wtIdx = workTypePaletteMap.value.get(work.workType || '미분류')
       const palette = wtIdx !== undefined ? GROUP_PALETTE[wtIdx % GROUP_PALETTE.length]! : undefined
-      // 패스 편집 모드 하이라이트
       let highlight: { color: string } | undefined
-      if (editMode && pathColor && nodeIds.has(workId)) {
-        highlight = { color: pathColor }
-      }
-      // 연결 모드 source 노드 하이라이트
       if (connecting && connecting.workId === workId) {
-        const color =
-          connecting.mode === 'add' && connecting.pathId
-            ? paths.value.find((p) => p.workPathId === connecting.pathId)?.workPathColor ||
-              '#3b82f6'
-            : '#3b82f6'
-        highlight = { color }
+        highlight = { color: '#3b82f6' }
       }
       const result = buildNodeStyle(
         work,
@@ -774,71 +609,8 @@ const {
 } = useWorkEditor(nodes, applyMutation)
 
 // 작업 생성/수정 다이얼로그
-const td = reactive(useWorkTooltipData())
+const td = reactive(useWorkTooltipData(() => activeVersion.value))
 
-// 패스 편집 상태
-const editPathName = ref('')
-const editPathColor = ref('')
-const editPathCritical = ref(false)
-const isSavingPath = ref(false)
-
-watch(selectedPathId, (pathId) => {
-  if (pathId) {
-    const path = paths.value.find((p) => p.workPathId === pathId)
-    if (path) {
-      editPathName.value = path.workPathName ?? ''
-      editPathColor.value = path.workPathColor
-      editPathCritical.value = path.critical
-    }
-  }
-})
-
-function handleDeleteFromPath(workId: number) {
-  removeNodeFromPath(workId)
-  savePathEdges()
-}
-
-
-function handleSavePathAndClose() {
-  savePathChanges()
-  showPathDialog.value = false
-}
-
-// 패스 변경 저장 (변경된 필드만 전송)
-const savePathChanges = async () => {
-  if (!selectedPathId.value) return
-  const path = paths.value.find((p) => p.workPathId === selectedPathId.value)
-  if (!path) return
-
-  const payload: import('@/shared/network-core/apis/workPath').UpdateWorkPathPayload = {}
-  if (editPathName.value !== (path.workPathName ?? '')) payload.workPathName = editPathName.value
-  if (editPathColor.value !== path.workPathColor) payload.workPathColor = editPathColor.value
-  if (editPathCritical.value !== path.critical) payload.critical = editPathCritical.value
-
-  const newEdges = editingPathEdges.value.map(({ sourceWorkId, targetWorkId }) => ({
-    sourceWorkId,
-    targetWorkId,
-  }))
-  const origEdges = path.edges.map(({ sourceWorkId, targetWorkId }) => ({
-    sourceWorkId,
-    targetWorkId,
-  }))
-  const edgesChanged = JSON.stringify(newEdges) !== JSON.stringify(origEdges)
-  if (edgesChanged) payload.edges = newEdges
-
-  if (Object.keys(payload).length === 0) {
-    cancelPathEdit()
-    return
-  }
-
-  isSavingPath.value = true
-  try {
-    await updatePath(selectedPathId.value, payload)
-    cancelPathEdit()
-  } finally {
-    isSavingPath.value = false
-  }
-}
 
 // 리사이즈 핸들 상태
 const resizing = ref<{
@@ -895,55 +667,27 @@ const resizeHandles = computed(() => {
 })
 
 // 노드 클릭 핸들러 - 패스 연결 모드 또는 작업 선택 + 말풍선 표시
-const onNodeClick = (event: { node: Node; event: MouseEvent | TouchEvent }) => {
+const onNodeClick = async (event: { node: Node; event: MouseEvent | TouchEvent }) => {
   const work = event.node.data.work as WorkResponse | undefined
   if (!work) return
 
-  // 패스 연결 모드
+  // 의존관계 연결 모드
   if (connectingFrom.value) {
     if (work.workId === connectingFrom.value.workId) return
-
-    if (connectingFrom.value.mode === 'new') {
-      handleConnect({
-        source: `work-${connectingFrom.value.workId}`,
-        target: event.node.id,
-      })
-    } else {
-      // 기존 패스에 추가
-      selectPath(connectingFrom.value.pathId!)
-      const result = onConnect({
-        source: `work-${connectingFrom.value.workId}`,
-        target: event.node.id,
-      })
-      if (!result && isPathEditMode.value) savePathEdges()
-    }
+    const result = await createDep(connectingFrom.value.workId, work.workId, connectingFrom.value.lagDays)
     connectingFrom.value = null
+    if (result) loadWorkData()
     return
   }
 
   // 같은 노드 클릭 시 선택 해제
-  if (tooltip.value.visible && tooltip.value.workId === work.workId) {
-    if (!isPathEditMode.value) clearWorkSelection()
-    tooltip.value.visible = false
-    tooltip.value.workId = null
+  if (selectedWorkId.value === work.workId) {
+    clearWorkSelection()
     return
   }
 
-  // 노드 선택 (패스 편집 중이 아닐 때만)
-  if (!isPathEditMode.value) selectWork(work.workId)
-
-  // 말풍선 표시
-  tooltip.value = {
-    visible: true,
-    nodeX: event.node.position.x + (event.node.data.computedWidth as number) / 2,
-    nodeY: event.node.position.y - 8,
-    workId: work.workId,
-    workName: work.workName,
-    startDate: work.startDate,
-    workLeadTime: work.workLeadTime,
-    completionDate: work.completionDate,
-    isWorkingOnHoliday: work.isWorkingOnHoliday,
-  }
+  // 노드 선택
+  selectWork(work.workId)
 }
 
 // 로컬 날짜를 YYYY-MM-DD 문자열로 변환
@@ -951,34 +695,13 @@ const formatLocalDate = (date: Date): string => {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
-// 말풍선에서 작업 즉시 업데이트 (startDate, workLeadTime, isWorkingOnHoliday)
-const updateTooltipWork = async (patch: {
-  startDate?: string
-  workLeadTime?: number
-  isWorkingOnHoliday?: boolean
-}) => {
-  if (!tooltip.value.workId) return
-
-  const prev = {
-    startDate: tooltip.value.startDate,
-    workLeadTime: tooltip.value.workLeadTime,
-    isWorkingOnHoliday: tooltip.value.isWorkingOnHoliday,
-  }
-
-  // 낙관적 반영
-  if (patch.startDate !== undefined) tooltip.value.startDate = patch.startDate
-  if (patch.workLeadTime !== undefined) tooltip.value.workLeadTime = patch.workLeadTime
-  if (patch.isWorkingOnHoliday !== undefined)
-    tooltip.value.isWorkingOnHoliday = patch.isWorkingOnHoliday
-
+// 컨텍스트 메뉴에서 휴일 작업 토글
+const toggleHolidayFromContextMenu = async (work: WorkResponse) => {
+  const newValue = !work.isWorkingOnHoliday
   try {
-    const mutation = await workApi.updateWork(tooltip.value.workId, patch)
-    workEditForm.value.startDate = tooltip.value.startDate
-    workEditForm.value.workLeadTime = tooltip.value.workLeadTime
-    workEditForm.value.isWorkingOnHoliday = tooltip.value.isWorkingOnHoliday
-
-    // 대상 노드 명시적 갱신 (applyMutation이 처리 못할 경우 대비)
-    const directWork = mutation.updatedWorks.find((w) => w.workId === tooltip.value.workId)
+    const mutation = await workApi.updateWork(work.workId, { isWorkingOnHoliday: newValue })
+    // 노드 갱신
+    const directWork = mutation.updatedWorks.find((w) => w.workId === work.workId)
     if (directWork) {
       const updated = styledWorkToNode(directWork)
       const row = rowLayout.value.workRowMap.get(directWork.workId)
@@ -989,35 +712,23 @@ const updateTooltipWork = async (patch: {
           : n,
       )
     }
-
-    // cascade 및 path 갱신
+    // cascade
     const cascadeMutation = {
-      updatedWorks: mutation.updatedWorks.filter((w) => w.workId !== tooltip.value.workId),
-      updatedWorkPaths: mutation.updatedWorkPaths,
+      updatedWorks: mutation.updatedWorks.filter((w) => w.workId !== work.workId),
+      updatedWorkDeps: mutation.updatedWorkDeps,
     }
-    if (cascadeMutation.updatedWorks.length > 0 || cascadeMutation.updatedWorkPaths.length > 0) {
+    if (cascadeMutation.updatedWorks.length > 0 || cascadeMutation.updatedWorkDeps.length > 0) {
       applyMutation(cascadeMutation)
     }
-
-    emit(
-      'works-loaded',
-      nodes.value.map((n) => n.data.work as WorkResponse),
-    )
+    emit('works-loaded', nodes.value.map((n) => n.data.work as WorkResponse))
     analyticsClient.trackAction('schedule_2d', 'update_work', 'success')
   } catch (error: unknown) {
-    console.error('작업 수정 실패:', error)
+    console.error('휴일 설정 변경 실패:', error)
     analyticsClient.trackAction('schedule_2d', 'update_work', 'fail')
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     alert(err.response?.data?.message || err.message)
-    // 롤백
-    tooltip.value.startDate = prev.startDate
-    tooltip.value.workLeadTime = prev.workLeadTime
-    tooltip.value.isWorkingOnHoliday = prev.isWorkingOnHoliday
   }
 }
-
-// 패스 편집 다이얼로그
-const showPathDialog = ref(false)
 
 // 컨텍스트 메뉴 상태
 const contextMenu = ref<{
@@ -1078,105 +789,8 @@ const connectingLine = computed(() => {
   }
 })
 
-// 연결 중인 source 노드의 패스 색상
-const connectingColor = computed(() => {
-  if (!connectingFrom.value) return '#3b82f6'
-  if (connectingFrom.value.mode === 'add' && connectingFrom.value.pathId) {
-    const path = paths.value.find((p) => p.workPathId === connectingFrom.value!.pathId)
-    return path?.workPathColor || '#3b82f6'
-  }
-  return '#3b82f6'
-})
-
-// 노드 연결 핸들러 (패스 미선택 시 새 패스 생성)
-const handleConnect = async (params: { source: string; target: string }) => {
-  const result = onConnect(params)
-  if (!result) {
-    // 패스 편집 모드에서 work 추가된 경우 즉시 저장
-    if (isPathEditMode.value) savePathEdges()
-    return
-  }
-
-  // 패스 미선택 상태 → createPath 호출
-  try {
-    const mutation = await workPathApi.createPath(result)
-    const newPath = mutation.updatedWorkPaths[0]!
-    // paths 배열에 추가
-    paths.value = [...paths.value, newPath]
-    // 엣지 생성 (offset 계산)
-    const edgePairCount = new Map<string, number>()
-    edges.value.forEach((e) => {
-      const key = `${e.source}-${e.target}`
-      edgePairCount.set(key, (edgePairCount.get(key) || 0) + 1)
-    })
-    const newEdges = newPath.edges.map((edge) => {
-      const pairKey = `work-${edge.sourceWorkId}-work-${edge.targetWorkId}`
-      const currentCount = edgePairCount.get(pairKey) || 0
-      edgePairCount.set(pairKey, currentCount + 1)
-      const offset =
-        currentCount === 0 ? 0 : (currentCount % 2 === 1 ? 1 : -1) * Math.ceil(currentCount / 2) * 3
-      const handles = getEdgeHandles(edge.sourceWorkId, edge.targetWorkId)
-      return {
-        id: `edge-${newPath.workPathId}-${edge.sourceWorkId}-${edge.targetWorkId}`,
-        source: `work-${edge.sourceWorkId}`,
-        target: `work-${edge.targetWorkId}`,
-        sourceHandle: handles.sourceHandle,
-        targetHandle: handles.targetHandle,
-        type: 'smoothstep',
-        pathOptions: { borderRadius: 20, offset: 15 },
-        style: { stroke: newPath.workPathColor },
-        data: {
-          pathId: newPath.workPathId,
-          pathName: newPath.workPathName,
-          offset,
-          isFollowing: edge.lagDays !== undefined && edge.lagDays !== null,
-          lagDays: edge.lagDays ?? null,
-        },
-      }
-    })
-    edges.value = [...edges.value, ...newEdges]
-    applyMutation(mutation)
-    // 생성된 패스를 자동 선택
-    selectPath(newPath.workPathId)
-    analyticsClient.trackAction('schedule_2d', 'create_path', 'success')
-  } catch (error: unknown) {
-    console.error('패스 생성 실패:', error)
-    analyticsClient.trackAction('schedule_2d', 'create_path', 'fail')
-    const err = error as { response?: { data?: { message?: string } }; message?: string }
-    alert(err.response?.data?.message || err.message)
-  }
-}
-
-// 엣지 클릭 시 하이라이트 (겹친 패스 순환 선택)
-const onEdgeClick = (event: { edge: Edge }) => {
-  const pathId = event.edge.data?.pathId as number | undefined
-  if (!pathId) return
-
-  // 같은 source-target 쌍의 패스 ID 수집
-  const pairPathIds = [
-    ...new Set(
-      edges.value
-        .filter(
-          (e) => e.source === event.edge.source && e.target === event.edge.target && e.data?.pathId,
-        )
-        .map((e) => e.data!.pathId as number),
-    ),
-  ]
-
-  if (
-    pairPathIds.length > 1 &&
-    selectedPathId.value &&
-    pairPathIds.includes(selectedPathId.value)
-  ) {
-    const idx = pairPathIds.indexOf(selectedPathId.value)
-    selectPath(pairPathIds[(idx + 1) % pairPathIds.length]!)
-  } else {
-    selectPath(pathId)
-  }
-
-  clearWorkSelection()
-  tooltip.value.visible = false
-}
+// 연결 중인 선 색상
+const connectingColor = computed(() => '#3b82f6')
 
 // 노드 우클릭 → 컨텍스트 메뉴
 const onNodeContextMenu = (event: { node: Node; event: MouseEvent | TouchEvent }) => {
@@ -1208,19 +822,7 @@ const handleWorkEditSubmit = async () => {
     nodes.value = [...nodes.value, newNode]
     // rowLayout will recompute and place the node at the correct Y
 
-    // 선택 + 말풍선 표시
     selectWork(response.workId)
-    tooltip.value = {
-      visible: true,
-      nodeX: newNode.position.x + (newNode.data.computedWidth as number) / 2,
-      nodeY: newNode.position.y - 8,
-      workId: response.workId,
-      workName: response.workName,
-      startDate: response.startDate,
-      workLeadTime: response.workLeadTime,
-      completionDate: response.completionDate,
-      isWorkingOnHoliday: response.isWorkingOnHoliday,
-    }
   } else {
     // 수정 모드
     const editingId = td.editingWorkId
@@ -1253,24 +855,11 @@ const handleWorkEditSubmit = async () => {
       if (row !== undefined) n.position.y = row * ROW_UNIT + NODE_OFFSET_Y
     })
 
-    // updatedWorkPaths도 반영
-    if (result.updatedWorkPaths.length > 0) {
-      applyMutation({ updatedWorks: [], updatedWorkPaths: result.updatedWorkPaths })
+    // updatedWorkDeps도 반영
+    if (result.updatedWorkDeps.length > 0) {
+      applyMutation({ updatedWorks: [], updatedWorkDeps: result.updatedWorkDeps })
     }
 
-    // 말풍선이 열려있으면 갱신
-    if (tooltip.value.visible && tooltip.value.workId === response.workId) {
-      const node = nodes.value.find((n) => n.id === `work-${response.workId}`)
-      if (node) {
-        tooltip.value.workName = response.workName
-        tooltip.value.startDate = response.startDate
-        tooltip.value.workLeadTime = response.workLeadTime
-        tooltip.value.completionDate = response.completionDate
-        tooltip.value.isWorkingOnHoliday = response.isWorkingOnHoliday
-        tooltip.value.nodeX = node.position.x + (node.data.computedWidth as number) / 2
-        tooltip.value.nodeY = node.position.y - 8
-      }
-    }
   }
 
   emit(
@@ -1287,25 +876,17 @@ const onPaneClick = () => {
     connectingFrom.value = null
     return
   }
-  tooltip.value.visible = false
-  if (isPathEditMode.value) {
-    cancelPathEdit()
-  }
-  if (!isPathEditMode.value) {
-    clearWorkSelection()
-  }
-
+  clearWorkSelection()
 }
 
 // 컨테이너 mousedown capture
 const onContainerMouseDown = (event: MouseEvent) => {
   if (event.button !== 0) return
   const target = event.target as HTMLElement
-  // 노드·컨트롤·말풍선 위 mousedown은 해당 요소가 처리
+  // 노드·컨트롤 위 mousedown은 해당 요소가 처리
   if (
     target.closest('.vue-flow__node') ||
-    target.closest('.vue-flow__panel') ||
-    target.closest('[data-tooltip-balloon]')
+    target.closest('.vue-flow__panel')
   )
     return
 }
@@ -1344,22 +925,12 @@ const onContainerContextMenu = (event: MouseEvent) => {
   }
 }
 
-// 컨텍스트 메뉴에서 선택된 노드가 속한 패스만 표시
-const contextMenuNodePaths = computed(() => {
-  if (!contextMenu.value?.work) return []
-  const workId = contextMenu.value.work.workId
-  return paths.value.filter((p) =>
-    p.edges.some((e) => e.sourceWorkId === workId || e.targetWorkId === workId),
-  )
-})
-
 // 컨텍스트 메뉴 액션: 작업 생성
 const handleContextMenuCreate = () => {
   if (!contextMenu.value || contextMenu.value.type !== 'pane') return
   const { flowX, flowY } = contextMenu.value
   contextMenu.value = null
   if (flowX === undefined || flowY === undefined) return
-  if (isPathEditMode.value) return
 
   const resolved = resolveSubWorkTypeFromY(flowY)
   if (!resolved) return
@@ -1382,27 +953,12 @@ const handleContextMenuEdit = () => {
   td.openDialog(work)
 }
 
-// 컨텍스트 메뉴 액션: 신규 패스 생성
-const handleContextMenuNewPath = () => {
+// 컨텍스트 메뉴 액션: 후행작업추가
+const handleContextMenuAddSuccessor = () => {
   if (!contextMenu.value?.work) return
   const workId = contextMenu.value.work.workId
   contextMenu.value = null
-  connectingFrom.value = { workId, mode: 'new' }
-}
-
-// 컨텍스트 메뉴 액션: 기존 패스에 작업 추가
-const handleContextMenuAddToPath = (pathId: number) => {
-  if (!contextMenu.value?.work) return
-  const workId = contextMenu.value.work.workId
-  contextMenu.value = null
-  connectingFrom.value = { workId, mode: 'add', pathId }
-}
-
-// 컨텍스트 메뉴 액션: 패스 편집 다이얼로그 열기
-const handleContextMenuEditPath = (pathId: number) => {
-  contextMenu.value = null
-  selectPath(pathId)
-  showPathDialog.value = true
+  connectingFrom.value = { workId, lagDays: 0 }
 }
 
 // 컨텍스트 메뉴 액션: 작업 삭제
@@ -1411,7 +967,64 @@ const handleContextMenuDelete = () => {
   const work = contextMenu.value.work
   contextMenu.value = null
   selectWork(work.workId)
-  openDeleteDialog('work')
+  openDeleteDialog()
+}
+
+// 엣지 컨텍스트 메뉴 (우클릭 → 연결 삭제)
+const edgeContextMenu = ref<{
+  x: number
+  y: number
+  depId: number
+  lagDays: number | null
+  isFollowing: boolean
+} | null>(null)
+
+const onEdgeContextMenu = (event: { edge: Edge; event: MouseEvent | TouchEvent }) => {
+  event.event.preventDefault()
+  const depId = event.edge.data?.depId as number | undefined
+  if (!depId) return
+  const e = event.event as MouseEvent
+  const lagDays = (event.edge.data?.lagDays as number | null) ?? null
+  const isFollowing = lagDays !== null
+  edgeContextMenu.value = {
+    x: e.clientX,
+    y: e.clientY,
+    depId,
+    lagDays: lagDays ?? 0,
+    isFollowing,
+  }
+}
+
+const edgeMenuSetLagDays = async (lagDays: number | null) => {
+  if (!edgeContextMenu.value) return
+  const depId = edgeContextMenu.value.depId
+  edgeContextMenu.value = null
+  await updateLagDays(depId, lagDays)
+  loadWorkData()
+}
+
+const edgeMenuUpdateLocalLagDays = (delta: number) => {
+  if (!edgeContextMenu.value) return
+  const newDays = edgeContextMenu.value.lagDays + delta
+  edgeContextMenu.value.lagDays = newDays
+  updateLagDaysLocal(edgeContextMenu.value.depId, newDays)
+}
+
+const edgeMenuSaveLagDays = async () => {
+  if (!edgeContextMenu.value) return
+  const depId = edgeContextMenu.value.depId
+  const lagDays = edgeContextMenu.value.lagDays
+  edgeContextMenu.value = null
+  await updateLagDays(depId, lagDays)
+  loadWorkData()
+}
+
+const handleEdgeDelete = async () => {
+  if (!edgeContextMenu.value) return
+  const depId = edgeContextMenu.value.depId
+  edgeContextMenu.value = null
+  await deleteDep(depId)
+  loadWorkData()
 }
 
 // flowY → rowLayout에서 subWorkType 찾기
@@ -1622,12 +1235,6 @@ const onNodeDrag = (event: { node: Node }) => {
     if (row !== undefined) event.node.position.y = row * ROW_UNIT + NODE_OFFSET_Y
   }
 
-  // 패스 편집 중: X 이동도 차단
-  if (isPathEditMode.value) {
-    if (originalX !== undefined) event.node.position.x = originalX
-    return
-  }
-
   const cfg = chartConfigStore.config
 
   // X축: 날짜 단위 스냅
@@ -1636,11 +1243,6 @@ const onNodeDrag = (event: { node: Node }) => {
     event.node.position.x = (originalX as number) + daysDelta * cfg.pixelPerDay
   }
 
-  // 드래그 중인 노드에 말풍선이 열려있으면 위치 갱신
-  if (work && tooltip.value.visible && tooltip.value.workId === work.workId) {
-    tooltip.value.nodeX = event.node.position.x + (event.node.data.computedWidth as number) / 2
-    tooltip.value.nodeY = event.node.position.y - 8
-  }
 }
 
 const ZOOM_MIN = 0.25
@@ -1678,11 +1280,12 @@ const handleVueFlowWheel = (e: WheelEvent) => {
   if (!container) return
   const rect = container.getBoundingClientRect()
   const mouseX = e.clientX - rect.left - LEFT_HEADER_WIDTH
-  const mouseY = e.clientY - rect.top - activeHeaderHeight.value
+  // Y축 확대/축소 기준점을 헤더 바로 아래(차트 최상단)로 고정
+  const anchorY = 0
 
   // 커서 아래의 flow 좌표가 줌 후에도 동일 화면 위치에 유지되도록 viewport 보정
   const newX = mouseX - (mouseX - viewport.value.x) * (newZoom / oldZoom)
-  const newY = mouseY - (mouseY - viewport.value.y) * (newZoom / oldZoom)
+  const newY = anchorY - (anchorY - viewport.value.y) * (newZoom / oldZoom)
 
   setViewport({ x: newX, y: Math.min(0, newY), zoom: newZoom })
 }
@@ -1698,12 +1301,18 @@ const onKeydown = (e: KeyboardEvent) => {
 // 어디든 클릭 시 컨텍스트 메뉴 닫기
 const onDocumentClick = () => {
   contextMenu.value = null
+  edgeContextMenu.value = null
 }
+
+// 버전 변경 시 데이터 재로드
+watch(activeVersion, () => {
+  loadWorkData()
+})
 
 onMounted(async () => {
   window.addEventListener('keydown', onKeydown)
   document.addEventListener('click', onDocumentClick)
-  await Promise.all([loadCalendarData(), loadRefTree(), td.loadReferenceData()])
+  await Promise.all([loadCalendarData(), loadRefTree(), td.loadReferenceData(), loadVersions()])
   loadWorkData()
   setupResizeObserver()
 })
@@ -1717,6 +1326,7 @@ onUnmounted(() => {
 })
 
 // ── 3주/3개월 공정표 생성 ──
+const exportMenuOpen = ref(false)
 const showExcludeDialog = ref(false)
 const excludeDialogTitle = ref('')
 const excludeDialogType = ref<'3week' | '3month'>('3week')
@@ -1731,10 +1341,11 @@ async function handleExcludeConfirm(excludedIds: number[]) {
   const type = excludeDialogType.value
   const actionName = type === '3week' ? 'create_3week_schedule' : 'create_3month_schedule'
   try {
+    const excluded = excludedIds.length > 0 ? excludedIds : undefined
     const url =
       type === '3week'
-        ? await scheduleApi.create3WeekSchedule(excludedIds.length > 0 ? excludedIds : undefined)
-        : await scheduleApi.create3MonthSchedule(excludedIds.length > 0 ? excludedIds : undefined)
+        ? await scheduleApi.create3WeekSchedule(activeVersion.value, excluded)
+        : await scheduleApi.create3MonthSchedule(activeVersion.value, excluded)
     const a = document.createElement('a')
     a.href = url
     a.download = type === '3week' ? '3주공정표.xlsx' : '3개월공정표.xlsx'
@@ -1752,11 +1363,77 @@ async function handleExcludeConfirm(excludedIds: number[]) {
 </script>
 
 <template>
-  <div class="h-full">
+  <div class="h-full flex flex-col">
+    <!-- 버전 탭 (엑셀 시트 스타일) -->
+    <div class="flex items-center gap-1 pl-2 shrink-0 relative">
+      <ContextMenu v-for="ver in versions" :key="ver.id">
+        <ContextMenuTrigger as-child>
+          <button
+            class="px-4 py-2 text-sm rounded-t-md border border-b-0 transition-colors relative"
+            :class="[
+              activeVersion === ver.id
+                ? 'bg-muted border-border -mb-px z-10'
+                : 'bg-background border-transparent hover:bg-muted/50',
+              ver.isMain ? 'text-blue-500 font-bold' : (activeVersion === ver.id ? 'text-foreground font-medium' : 'text-muted-foreground font-medium'),
+            ]"
+            @click="activeVersion = ver.id"
+            @dblclick="editingVersionId = ver.id; editingVersionName = ver.versionName"
+          >
+            <template v-if="editingVersionId === ver.id">
+              <input
+                v-model="editingVersionName"
+                class="w-24 bg-transparent border-none outline-none text-sm text-center"
+                @blur="updateVersionName(ver.id, editingVersionName); editingVersionId = null"
+                @keydown.enter="($event.target as HTMLInputElement).blur()"
+                @keydown.escape="editingVersionId = null"
+                @click.stop
+                autofocus
+              />
+            </template>
+            <template v-else>
+              {{ ver.versionName }}
+            </template>
+          </button>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem :disabled="ver.isMain" @select="setMainVersion(ver.id)">메인공정표로 지정</ContextMenuItem>
+          <ContextMenuItem :disabled="!canCreate()" @select="duplicateVersion(ver.id)">공정표 복제</ContextMenuItem>
+          <ContextMenuItem class="text-destructive focus:text-destructive" @select="pendingDeleteVersionId = ver.id">공정표 삭제</ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
+      <button
+        v-if="canCreate()"
+        class="px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded-t-md transition-colors"
+        @click="createVersion()"
+      >
+        +
+      </button>
+      <div class="ml-auto pr-2 relative">
+        <Button variant="outline" size="sm" class="bg-green-50 border-green-500 text-green-700 hover:bg-green-100 dark:bg-green-950 dark:border-green-600 dark:text-green-400 dark:hover:bg-green-900" @click="exportMenuOpen = !exportMenuOpen">엑셀 내보내기</Button>
+        <div
+          v-if="exportMenuOpen"
+          class="absolute right-0 top-full mt-1 bg-popover border border-border rounded-md shadow-md py-1 min-w-[140px] z-50"
+        >
+          <button
+            class="w-full text-left px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
+            @click="exportMenuOpen = false; openExcludeDialog('3week')"
+          >
+            3주 공정표
+          </button>
+          <button
+            class="w-full text-left px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
+            @click="exportMenuOpen = false; openExcludeDialog('3month')"
+          >
+            3개월 공정표
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- VueFlow 영역 -->
     <div
       ref="containerRef"
-      class="relative h-full min-w-0 border border-border rounded-lg overflow-hidden"
+      class="relative flex-1 min-w-0 border border-border rounded-lg overflow-hidden"
       @wheel="handleVueFlowWheel"
       @mousedown.capture="onContainerMouseDown"
       @contextmenu="onContainerContextMenu"
@@ -1960,12 +1637,12 @@ async function handleExcludeConfirm(excludedIds: number[]) {
           :nodes-connectable="false"
           @node-click="onNodeClick"
           @node-context-menu="onNodeContextMenu"
+          @edge-context-menu="onEdgeContextMenu"
           @node-mouse-enter="setHoveredNode($event.node.id)"
           @node-mouse-leave="scheduleHoverClear"
           @node-drag="onNodeDrag"
           @node-drag-stop="onNodeDragStop"
           @pane-click="onPaneClick"
-          @edge-click="onEdgeClick"
         >
           <!-- 세로 줄 패턴 - 프로젝트 기간 내에서만 -->
           <svg
@@ -2099,207 +1776,6 @@ async function handleExcludeConfirm(excludedIds: number[]) {
             </g>
           </svg>
 
-          <!-- 말풍선 - VueFlow 내부에 배치, 뷰포트 반응형 바인딩 -->
-          <div
-            v-if="tooltip.visible"
-            data-tooltip-balloon
-            class="absolute z-10"
-            :style="{
-              left: `${tooltip.nodeX * viewport.zoom + viewport.x}px`,
-              top: `${tooltip.nodeY * viewport.zoom + viewport.y}px`,
-              transform: `translateX(-50%) translateY(-100%) scale(${viewport.zoom})`,
-              transformOrigin: 'bottom center',
-            }"
-          >
-            <div
-              class="px-3 py-2 text-sm bg-popover border border-border rounded-lg shadow-lg space-y-2"
-            >
-              <!-- ID / 작업이름 -->
-              <p class="text-xs font-medium">
-                <span class="text-muted-foreground">{{ tooltip.workId }}.</span>
-                {{ tooltip.workName }}
-              </p>
-
-              <!-- 시작일 (읽기전용) -->
-              <p class="text-[11px] text-muted-foreground">
-                시작일: <span class="font-medium text-foreground">{{ tooltip.startDate }}</span>
-              </p>
-
-              <!-- 작업기간 (읽기전용) -->
-              <p class="text-[11px] text-muted-foreground">
-                작업기간:
-                <span class="font-medium text-foreground">{{ tooltip.workLeadTime }}일</span>
-              </p>
-
-              <!-- 완료일 (읽기전용) -->
-              <p class="text-[11px] text-muted-foreground">
-                완료일:
-                <span class="font-medium text-foreground">{{ tooltip.completionDate }}</span>
-              </p>
-
-              <!-- 선행작업 목록 -->
-              <div
-                v-if="tooltipPredecessors.length > 0"
-                class="space-y-1.5 pt-1 border-t border-border"
-              >
-                <div
-                  v-for="(pred, idx) in tooltipPredecessors"
-                  :key="`${pred.pathId}-${pred.workId}`"
-                  class="space-y-0.5"
-                >
-                  <p class="text-[11px] text-muted-foreground">
-                    선행작업{{ idx + 1 }}:
-                    <span
-                      class="inline-block w-2 h-2 rounded-full mr-1 align-middle"
-                      :style="{ backgroundColor: pred.pathColor }"
-                    ></span>
-                    <span class="font-medium text-foreground"
-                      >{{ pred.workId }}. {{ pred.workName }}</span
-                    >
-                  </p>
-                  <div class="flex items-center gap-1">
-                    <Checkbox
-                      :model-value="pred.isFollowing"
-                      class="h-3.5 w-3.5"
-                      @update:model-value="
-                        updateEdgeOverlap(
-                          pred.pathId,
-                          pred.workId,
-                          tooltip.workId!,
-                          $event ? 0 : null,
-                        )
-                      "
-                    />
-                    <label class="text-[11px] text-muted-foreground">따라가기</label>
-                    <template v-if="pred.isFollowing">
-                      <button
-                        type="button"
-                        class="flex items-center justify-center w-5 h-5 text-[11px] font-medium rounded border border-border bg-background hover:bg-muted transition-colors"
-                        @click="
-                          updateEdgeOverlapLocal(
-                            pred.pathId,
-                            pred.workId,
-                            tooltip.workId!,
-                            pred.lagDays - 1,
-                          )
-                        "
-                      >
-                        −
-                      </button>
-                      <span class="h-5 text-[11px] text-center leading-5 select-none"
-                        >{{ pred.lagDays }}일</span
-                      >
-                      <button
-                        type="button"
-                        class="flex items-center justify-center w-5 h-5 text-[11px] font-medium rounded border border-border bg-background hover:bg-muted transition-colors"
-                        @click="
-                          updateEdgeOverlapLocal(
-                            pred.pathId,
-                            pred.workId,
-                            tooltip.workId!,
-                            pred.lagDays + 1,
-                          )
-                        "
-                      >
-                        +
-                      </button>
-                      <span class="text-[11px] text-muted-foreground">→</span>
-                      <span
-                        class="text-[11px] font-medium"
-                        :class="
-                          pred.lagDays < 0
-                            ? 'text-blue-500'
-                            : pred.lagDays > 0
-                              ? 'text-orange-500'
-                              : 'text-muted-foreground'
-                        "
-                      >
-                        {{
-                          pred.lagDays < 0
-                            ? `${Math.abs(pred.lagDays)}일 겹치기`
-                            : pred.lagDays === 0
-                              ? '다음날'
-                              : `${pred.lagDays}일 벌리기`
-                        }}
-                      </span>
-                    </template>
-                    <button
-                      type="button"
-                      class="ml-auto px-1.5 py-0.5 text-[10px] font-medium rounded border border-primary/30 text-primary hover:bg-primary/10 transition-colors"
-                      @click="
-                        updateEdgeOverlap(
-                          pred.pathId,
-                          pred.workId,
-                          tooltip.workId!,
-                          pred.isFollowing ? pred.lagDays : null,
-                        )
-                      "
-                    >
-                      저장
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <!-- 휴일 작업 여부 -->
-              <div class="flex rounded-md border border-border overflow-hidden">
-                <button
-                  type="button"
-                  class="flex-1 py-1 text-xs font-medium transition-colors"
-                  :class="
-                    tooltip.isWorkingOnHoliday
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-background hover:bg-muted'
-                  "
-                  @click="updateTooltipWork({ isWorkingOnHoliday: true })"
-                >
-                  휴일 작업
-                </button>
-                <button
-                  type="button"
-                  class="flex-1 py-1 text-xs font-medium transition-colors border-l border-border"
-                  :class="
-                    !tooltip.isWorkingOnHoliday
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-background hover:bg-muted'
-                  "
-                  @click="updateTooltipWork({ isWorkingOnHoliday: false })"
-                >
-                  휴일 휴무
-                </button>
-              </div>
-            </div>
-            <!-- 삼각형 화살표 (콘텐츠 밖 flow 배치 → translateY(-100%)에 높이 반영) -->
-            <div class="flex justify-center">
-              <div class="relative">
-                <div
-                  class="border-l-8 border-r-8 border-t-8 border-transparent border-t-border"
-                ></div>
-                <div
-                  class="absolute top-0 left-1/2 -translate-x-1/2 border-l-[7px] border-r-[7px] border-t-[7px] border-transparent border-t-popover"
-                ></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 패스 편집 모드: 삭제 버튼들 -->
-          <template v-if="isPathEditMode">
-            <button
-              v-for="btn in deleteButtonNodes"
-              :key="`delete-${btn.workId}`"
-              class="absolute z-20 w-5 h-5 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white rounded-full shadow-md transition-colors cursor-pointer"
-              :style="{
-                left: `${btn.x * viewport.zoom + viewport.x}px`,
-                top: `${btn.y * viewport.zoom + viewport.y}px`,
-                transform: `translate(-50%, -50%) scale(${Math.min(viewport.zoom, 1)})`,
-              }"
-              @click="handleDeleteFromPath(btn.workId)"
-            >
-              <span class="text-xs font-bold">×</span>
-            </button>
-          </template>
-
-
         </VueFlow>
       </div>
 
@@ -2386,6 +1862,9 @@ async function handleExcludeConfirm(excludedIds: number[]) {
 
           <!-- 노드 메뉴 -->
           <template v-if="contextMenu.type === 'node'">
+            <div class="px-3 py-1 text-xs text-muted-foreground border-b border-border mb-1">
+              ID: {{ contextMenu.work?.workId }}
+            </div>
             <button
               type="button"
               class="w-full px-3 py-1.5 text-left text-sm hover:bg-muted transition-colors"
@@ -2396,40 +1875,18 @@ async function handleExcludeConfirm(excludedIds: number[]) {
             <button
               type="button"
               class="w-full px-3 py-1.5 text-left text-sm hover:bg-muted transition-colors"
-              @click="handleContextMenuNewPath"
+              @click="handleContextMenuAddSuccessor"
             >
-              신규 패스 생성
+              후행작업 추가
             </button>
-            <template v-if="contextMenuNodePaths.length > 0">
-              <div class="my-1 border-t border-border" />
-              <button
-                v-for="path in contextMenuNodePaths"
-                :key="`add-${path.workPathId}`"
-                type="button"
-                class="w-full px-3 py-1.5 text-left text-sm hover:bg-muted transition-colors flex items-center gap-2"
-                @click="handleContextMenuAddToPath(path.workPathId)"
-              >
-                <span
-                  class="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
-                  :style="{ backgroundColor: path.workPathColor }"
-                />
-                패스에 작업 추가
-              </button>
-              <div class="my-1 border-t border-border" />
-              <button
-                v-for="path in contextMenuNodePaths"
-                :key="`edit-${path.workPathId}`"
-                type="button"
-                class="w-full px-3 py-1.5 text-left text-sm hover:bg-muted transition-colors flex items-center gap-2"
-                @click="handleContextMenuEditPath(path.workPathId)"
-              >
-                <span
-                  class="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
-                  :style="{ backgroundColor: path.workPathColor }"
-                />
-                패스 편집
-              </button>
-            </template>
+            <button
+              v-if="contextMenu.work"
+              type="button"
+              class="w-full px-3 py-1.5 text-left text-sm hover:bg-muted transition-colors"
+              @click="toggleHolidayFromContextMenu(contextMenu.work!); contextMenu = null"
+            >
+              {{ contextMenu.work.isWorkingOnHoliday ? '휴일휴무로 변경' : '휴일작업으로 변경' }}
+            </button>
             <div class="my-1 border-t border-border" />
             <button
               type="button"
@@ -2442,14 +1899,80 @@ async function handleExcludeConfirm(excludedIds: number[]) {
         </div>
       </Teleport>
 
-      <!-- 공정표 생성 버튼 (우측 하단) -->
-      <div
-        v-if="!isPathEditMode"
-        class="absolute bottom-4 right-4 z-30 flex flex-col gap-2"
-      >
-        <Button variant="outline" class="text-base h-14 px-6" @click="openExcludeDialog('3week')">3주 공정표 생성</Button>
-        <Button variant="outline" class="text-base h-14 px-6" @click="openExcludeDialog('3month')">3개월 공정표 생성</Button>
-      </div>
+      <!-- 엣지 컨텍스트 메뉴 -->
+      <Teleport to="body">
+        <template v-if="edgeContextMenu">
+          <div class="fixed inset-0 z-[9998]" @click="edgeContextMenu = null" />
+          <div
+            class="fixed z-[9999] min-w-[180px] rounded-md border border-border bg-popover py-1 shadow-lg"
+            :style="{ left: `${edgeContextMenu.x}px`, top: `${edgeContextMenu.y}px` }"
+          >
+            <div class="px-3 py-1 text-xs text-muted-foreground border-b border-border mb-1">
+              ID: {{ edgeContextMenu.depId }}
+            </div>
+            <!-- 따라가기로 변경 (현재 따라가기가 아닐 때) -->
+            <button
+              v-if="!edgeContextMenu.isFollowing"
+              type="button"
+              class="w-full px-3 py-1.5 text-left text-sm hover:bg-muted transition-colors"
+              @click="edgeMenuSetLagDays(0)"
+            >
+              따라가기로 변경
+            </button>
+
+            <!-- 따라가기 날짜 변경 (현재 따라가기일 때) -->
+            <template v-if="edgeContextMenu.isFollowing">
+              <div class="px-3 py-1.5 flex items-center gap-1.5">
+                <span class="text-sm text-muted-foreground shrink-0">따라가기</span>
+                <button
+                  type="button"
+                  class="flex items-center justify-center w-5 h-5 text-xs font-medium rounded border border-border bg-background hover:bg-muted transition-colors"
+                  @click.stop="edgeMenuUpdateLocalLagDays(-1)"
+                >
+                  −
+                </button>
+                <span class="text-xs text-center select-none min-w-[24px]">{{ edgeContextMenu.lagDays }}일</span>
+                <button
+                  type="button"
+                  class="flex items-center justify-center w-5 h-5 text-xs font-medium rounded border border-border bg-background hover:bg-muted transition-colors"
+                  @click.stop="edgeMenuUpdateLocalLagDays(1)"
+                >
+                  +
+                </button>
+                <span class="text-xs" :class="edgeContextMenu.lagDays < 0 ? 'text-blue-500' : edgeContextMenu.lagDays > 0 ? 'text-orange-500' : 'text-muted-foreground'">
+                  {{ edgeContextMenu.lagDays < 0 ? `${Math.abs(edgeContextMenu.lagDays)}일 겹치기` : edgeContextMenu.lagDays === 0 ? '다음날' : `${edgeContextMenu.lagDays}일 벌리기` }}
+                </span>
+                <button
+                  type="button"
+                  class="ml-auto px-1.5 py-0.5 text-[10px] font-medium rounded border border-primary/30 text-primary hover:bg-primary/10 transition-colors"
+                  @click.stop="edgeMenuSaveLagDays()"
+                >
+                  저장
+                </button>
+              </div>
+
+              <!-- 따라가기 해제 -->
+              <button
+                type="button"
+                class="w-full px-3 py-1.5 text-left text-sm hover:bg-muted transition-colors"
+                @click="edgeMenuSetLagDays(null)"
+              >
+                따라가기 해제
+              </button>
+            </template>
+
+            <div class="my-1 border-t border-border" />
+            <button
+              type="button"
+              class="w-full px-3 py-1.5 text-left text-sm text-destructive hover:bg-destructive/10 transition-colors"
+              @click="handleEdgeDelete"
+            >
+              연결 삭제
+            </button>
+          </div>
+        </template>
+      </Teleport>
+
     </div>
   </div>
 
@@ -2460,97 +1983,6 @@ async function handleExcludeConfirm(excludedIds: number[]) {
     @update:open="showExcludeDialog = $event"
     @confirm="handleExcludeConfirm"
   />
-
-  <!-- 패스 편집 다이얼로그 (중앙) -->
-  <Dialog v-model:open="showPathDialog">
-    <DialogContent class="max-w-xs">
-      <DialogHeader>
-        <DialogTitle>패스 편집</DialogTitle>
-      </DialogHeader>
-
-      <div class="space-y-3">
-        <!-- 패스명 -->
-        <div class="space-y-1">
-          <label class="text-[11px] text-muted-foreground">패스명</label>
-          <input
-            v-model="editPathName"
-            class="w-full h-8 text-sm rounded border border-border bg-background px-2"
-          />
-        </div>
-
-        <!-- 색상 -->
-        <div class="space-y-1">
-          <label class="text-[11px] text-muted-foreground">색상</label>
-          <div class="flex items-center gap-1.5">
-            <input
-              type="color"
-              v-model="editPathColor"
-              class="h-8 w-8 rounded border border-border cursor-pointer p-0.5"
-            />
-            <input
-              v-model="editPathColor"
-              class="flex-1 h-8 text-sm rounded border border-border bg-background px-2 font-mono"
-            />
-          </div>
-        </div>
-
-        <!-- 주공정 여부 -->
-        <div class="flex rounded-md border border-border overflow-hidden">
-          <button
-            type="button"
-            class="flex-1 py-1.5 text-xs font-medium transition-colors"
-            :class="
-              editPathCritical
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-background hover:bg-muted'
-            "
-            @click="editPathCritical = true"
-          >
-            주공정
-          </button>
-          <button
-            type="button"
-            class="flex-1 py-1.5 text-xs font-medium transition-colors border-l border-border"
-            :class="
-              !editPathCritical
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-background hover:bg-muted'
-            "
-            @click="editPathCritical = false"
-          >
-            일반
-          </button>
-        </div>
-      </div>
-
-      <DialogFooter class="flex-col gap-1.5 sm:flex-col">
-        <Button size="sm" class="w-full" :disabled="isSavingPath" @click="handleSavePathAndClose">
-          {{ isSavingPath ? '저장 중...' : '저장' }}
-        </Button>
-        <button
-          type="button"
-          class="w-full py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 rounded border border-destructive/30 transition-colors"
-          @click="openDeleteDialog('path')"
-        >
-          삭제
-        </button>
-        <!-- <button
-          type="button"
-          class="w-full py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950 rounded border border-blue-300 dark:border-blue-700 transition-colors"
-          @click="optimizeTarget = 'current'; showOptimizeDialog = true"
-        >
-          현재 패스 최적화
-        </button>
-        <button
-          type="button"
-          class="w-full py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950 rounded border border-blue-300 dark:border-blue-700 transition-colors"
-          @click="optimizeTarget = 'all'; showOptimizeDialog = true"
-        >
-          전체 패스 최적화
-        </button> -->
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
 
   <!-- 삭제 확인 다이얼로그 -->
   <AlertDialog v-model:open="showDeleteDialog">
@@ -2568,26 +2000,25 @@ async function handleExcludeConfirm(excludedIds: number[]) {
     </AlertDialogContent>
   </AlertDialog>
 
-  <!-- 경로 최적화 확인 다이얼로그 -->
-  <AlertDialog v-model:open="showOptimizeDialog">
+  <!-- 공정표 삭제 확인 다이얼로그 -->
+  <AlertDialog :open="pendingDeleteVersionId != null">
     <AlertDialogContent>
       <AlertDialogHeader>
-        <AlertDialogTitle>경로 최적화</AlertDialogTitle>
+        <AlertDialogTitle>공정표 삭제</AlertDialogTitle>
         <AlertDialogDescription>
-          {{
-            optimizeTarget === 'current'
-              ? '현재 패스에 포함된 작업을 선행작업 완료일 기준으로 최대한 앞으로 당깁니다.'
-              : '모든 패스의 작업을 선행작업 완료일 기준으로 최대한 앞으로 당깁니다.'
-          }}
-          <br />
-          정말 최적화를 진행하시겠습니까?
+          <template v-if="versions.find(v => v.id === pendingDeleteVersionId)?.isMain">
+            <span class="text-destructive font-bold">이 공정표는 주 공정표입니다.</span> 정말 삭제하시겠습니까?
+          </template>
+          <template v-else>
+            '{{ versions.find(v => v.id === pendingDeleteVersionId)?.versionName }}' 공정표를 삭제하시겠습니까?
+          </template>
         </AlertDialogDescription>
       </AlertDialogHeader>
       <AlertDialogFooter>
-        <AlertDialogCancel :disabled="isOptimizing">취소</AlertDialogCancel>
-        <AlertDialogAction :disabled="isOptimizing" @click="executeOptimize">
-          {{ isOptimizing ? '최적화 중...' : '최적화' }}
-        </AlertDialogAction>
+        <AlertDialogCancel @click="pendingDeleteVersionId = null">취소</AlertDialogCancel>
+        <Button variant="destructive" @click="() => { const id = pendingDeleteVersionId!; pendingDeleteVersionId = null; deleteVersion(id) }">
+          삭제
+        </Button>
       </AlertDialogFooter>
     </AlertDialogContent>
   </AlertDialog>
@@ -2604,12 +2035,7 @@ async function handleExcludeConfirm(excludedIds: number[]) {
         <template v-if="!td.isCreateMode">
           <div class="space-y-1.5">
             <label class="text-sm font-medium">시작일</label>
-            <input
-              type="date"
-              :value="td.editStartDate"
-              class="w-full h-8 text-sm rounded-md border border-border bg-background px-3"
-              @change="td.editStartDate = ($event.target as HTMLInputElement).value"
-            />
+            <DateStepper v-model="td.editStartDate" />
           </div>
 
           <div class="space-y-1.5">
@@ -2648,65 +2074,67 @@ async function handleExcludeConfirm(excludedIds: number[]) {
             {{ td.createSubWorkTypeName }}
           </div>
         </div>
-        <div v-else class="space-y-1.5">
-          <div class="flex items-center gap-1">
+        <div v-else>
+          <div class="flex items-center gap-1 mb-1.5">
             <label class="text-sm font-medium">공종</label>
             <ReferenceEditTrigger type="work-classification" @refresh="td.loadReferenceData" />
           </div>
-          <Select
-            :model-value="td.editDivisionId"
-            @update:model-value="td.handleTooltipDivisionChange($event)"
-          >
-            <SelectTrigger class="h-8 text-sm">
-              <SelectValue placeholder="분류 선택" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem v-for="d in td.divisions" :key="d.id" :value="String(d.id)">{{
-                d.name
-              }}</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select
-            :model-value="td.editWorkTypeId"
-            :disabled="!td.editDivisionId || td.isLoadingTooltipWorkTypes"
-            @update:model-value="td.handleTooltipWorkTypeChange($event)"
-          >
-            <SelectTrigger class="h-8 text-sm">
-              <SelectValue :placeholder="td.isLoadingTooltipWorkTypes ? '로딩...' : '공종 선택'" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem v-for="w in td.tooltipWorkTypes" :key="w.id" :value="String(w.id)">{{
-                w.name
-              }}</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select
-            :model-value="td.editSubWorkTypeId"
-            :disabled="!td.editWorkTypeId || td.isLoadingTooltipSubWorkTypes"
-            @update:model-value="td.handleTooltipSubWorkTypeChange($event)"
-          >
-            <SelectTrigger class="h-8 text-sm">
-              <SelectValue
-                :placeholder="td.isLoadingTooltipSubWorkTypes ? '로딩...' : '세부공종 선택'"
-              />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem v-for="s in td.tooltipSubWorkTypes" :key="s.id" :value="String(s.id)">{{
-                s.name
-              }}</SelectItem>
-            </SelectContent>
-          </Select>
+          <div class="grid grid-cols-[1fr_2fr_2fr] gap-2">
+            <Select
+              :model-value="td.editDivisionId"
+              @update:model-value="td.handleTooltipDivisionChange($event)"
+            >
+              <SelectTrigger class="h-8 text-sm">
+                <SelectValue placeholder="분류" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem v-for="d in td.divisions" :key="d.id" :value="String(d.id)">{{
+                  d.name
+                }}</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              :model-value="td.editWorkTypeId"
+              :disabled="!td.editDivisionId || td.isLoadingTooltipWorkTypes"
+              @update:model-value="td.handleTooltipWorkTypeChange($event)"
+            >
+              <SelectTrigger class="h-8 text-sm">
+                <SelectValue :placeholder="td.isLoadingTooltipWorkTypes ? '로딩...' : '공종'" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem v-for="w in td.tooltipWorkTypes" :key="w.id" :value="String(w.id)">{{
+                  w.name
+                }}</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              :model-value="td.editSubWorkTypeId"
+              :disabled="!td.editWorkTypeId || td.isLoadingTooltipSubWorkTypes"
+              @update:model-value="td.handleTooltipSubWorkTypeChange($event)"
+            >
+              <SelectTrigger class="h-8 text-sm">
+                <SelectValue
+                  :placeholder="td.isLoadingTooltipSubWorkTypes ? '로딩...' : '세부공종'"
+                />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem v-for="s in td.tooltipSubWorkTypes" :key="s.id" :value="String(s.id)">{{
+                  s.name
+                }}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <!-- 위치 (Zone, Floor, Section, Usage) — 다중 선택 -->
         <div class="space-y-1.5">
-          <label class="text-sm font-medium">위치</label>
+          <div class="flex items-center gap-1">
+            <label class="text-sm font-medium">위치</label>
+            <ReferenceEditTrigger type="location" @refresh="td.loadReferenceData" />
+          </div>
           <div class="grid grid-cols-2 gap-3">
             <div v-if="td.zones.length" class="space-y-1">
-              <div class="flex items-center gap-1">
-                <span class="text-xs text-muted-foreground">구역</span>
-                <ReferenceEditTrigger type="zone" @refresh="td.loadReferenceData" />
-              </div>
+              <span class="text-xs text-muted-foreground">구역</span>
               <div class="flex flex-wrap gap-x-3 gap-y-1">
                 <label
                   v-for="z in td.zones"
@@ -2723,10 +2151,7 @@ async function handleExcludeConfirm(excludedIds: number[]) {
               </div>
             </div>
             <div v-if="td.floors.length" class="space-y-1">
-              <div class="flex items-center gap-1">
-                <span class="text-xs text-muted-foreground">층</span>
-                <ReferenceEditTrigger type="floor" @refresh="td.loadReferenceData" />
-              </div>
+              <span class="text-xs text-muted-foreground">층</span>
               <div class="flex flex-wrap gap-x-3 gap-y-1">
                 <label
                   v-for="f in td.floors"

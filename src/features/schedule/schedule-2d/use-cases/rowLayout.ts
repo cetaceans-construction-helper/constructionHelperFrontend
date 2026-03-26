@@ -184,27 +184,36 @@ export function computeRowLayout(works: WorkResponse[], refTree?: RefWorkType[])
       const subSections: SubWorkTypeSection[] = []
       const sectionStartRow = currentRow
 
-      for (const sub of wt.subWorkTypes) {
-        const worksInSub = bySubId.get(sub.id) || []
-        const subRowCount = binPackSubWorks(worksInSub, currentRow, workRowMap)
+      if (wt.subWorkTypes.length > 0) {
+        for (const sub of wt.subWorkTypes) {
+          const worksInSub = bySubId.get(sub.id) || []
+          const subRowCount = binPackSubWorks(worksInSub, currentRow, workRowMap)
+          subSections.push({
+            subWorkTypeId: sub.id,
+            subWorkType: sub.name,
+            subRowCount,
+            startRowIndex: currentRow,
+          })
+          currentRow += subRowCount
+          placedSubIds.add(sub.id)
+        }
+      } else {
+        // subWorkType이 없는 workType: 빈 행 1개 생성
         subSections.push({
-          subWorkTypeId: sub.id,
-          subWorkType: sub.name,
-          subRowCount,
+          subWorkTypeId: 0,
+          subWorkType: '',
+          subRowCount: 1,
           startRowIndex: currentRow,
         })
-        currentRow += subRowCount
-        placedSubIds.add(sub.id)
+        currentRow += 1
       }
 
-      if (subSections.length > 0) {
-        sections.push({
-          workType: wt.name,
-          subSections,
-          totalRows: currentRow - sectionStartRow,
-          startRowIndex: sectionStartRow,
-        })
-      }
+      sections.push({
+        workType: wt.name,
+        subSections,
+        totalRows: currentRow - sectionStartRow,
+        startRowIndex: sectionStartRow,
+      })
     }
 
     // Fallback: works with subWorkTypeId not in refTree

@@ -3,7 +3,8 @@ export { default as Viewer2dAreaView } from '@/features/schedule/schedule-2d/ui/
 
 export * from '@/features/schedule/schedule-2d/view-model/chartConfigStore'
 export * from '@/features/schedule/schedule-2d/view-model/useDateHeader'
-export * from '@/features/schedule/schedule-2d/view-model/usePathEditor'
+export * from '@/features/schedule/schedule-2d/view-model/useDependencyEditor'
+export * from '@/features/schedule/schedule-2d/view-model/useScheduleVersion'
 export * from '@/features/schedule/schedule-2d/view-model/useWorkEditor'
 export * from '@/features/schedule/schedule-2d/view-model/useWorkForm'
 export * from '@/features/schedule/schedule-2d/view-model/useWorkTooltipData'

@@ -1,8 +1,9 @@
 import apiClient from '@/shared/network-core/apiClient'
 
 export const scheduleApi = {
-  async create3WeekSchedule(excludedSubWorkTypeIds?: number[]): Promise<string> {
-    const body = excludedSubWorkTypeIds?.length ? { excludedSubWorkTypeIds } : undefined
+  async create3WeekSchedule(scheduleVersionId: number, excludedSubWorkTypeIds?: number[]): Promise<string> {
+    const body: Record<string, unknown> = { scheduleVersionId }
+    if (excludedSubWorkTypeIds?.length) body.excludedSubWorkTypeIds = excludedSubWorkTypeIds
     const { data } = await apiClient.post<Blob>(
       '/schedule/create3WeekSchedule',
       body,
@@ -11,8 +12,9 @@ export const scheduleApi = {
     return URL.createObjectURL(data)
   },
 
-  async create3MonthSchedule(excludedSubWorkTypeIds?: number[]): Promise<string> {
-    const body = excludedSubWorkTypeIds?.length ? { excludedSubWorkTypeIds } : undefined
+  async create3MonthSchedule(scheduleVersionId: number, excludedSubWorkTypeIds?: number[]): Promise<string> {
+    const body: Record<string, unknown> = { scheduleVersionId }
+    if (excludedSubWorkTypeIds?.length) body.excludedSubWorkTypeIds = excludedSubWorkTypeIds
     const { data } = await apiClient.post<Blob>(
       '/schedule/create3MonthSchedule',
       body,

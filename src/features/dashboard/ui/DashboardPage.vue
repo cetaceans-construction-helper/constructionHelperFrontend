@@ -1,9 +1,13 @@
 <script setup lang="ts">
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AreaCard from '@/shared/helper-ui/AreaCard.vue'
 import ImageRotatePreview from '@/shared/helper-ui/ImageRotatePreview.vue'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
+import { DateStepper } from '@/shared/ui/date-stepper'
+import { Plus } from 'lucide-vue-next'
+import { ClickMenu, ClickMenuItem } from '@/shared/ui/click-menu'
 import {
   Dialog,
   DialogContent,
@@ -11,8 +15,21 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/shared/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/shared/ui/alert-dialog'
 import WorkPhotoDialog from '@/features/dashboard/ui/components/WorkPhotoDialog.vue'
 import DailyReportExcludeDialog from '@/features/dashboard/ui/components/DailyReportExcludeDialog.vue'
+import { LaborInputDialog, EquipmentInputDialog } from '@/features/attendance/public'
+import { MaterialDeliveryCreateDialog } from '@/features/material/public'
+import WorkCreateDialog from '@/shared/helper-ui/WorkCreateDialog.vue'
 import { useDashboardPage } from '@/features/dashboard/view-model/useDashboardPage'
 
 const router = useRouter()
@@ -31,6 +48,7 @@ const {
   generateDailyReport,
   isCreatingDailyReport,
   isLoading,
+  loadData,
   onPhotoFileChange,
   onPhotoUpdated,
   openPhotoDialog,
@@ -39,6 +57,10 @@ const {
   photoDialogRef,
   photoObjectUrls,
   photoPreviewDialogOpen,
+  selectedDateString,
+  deleteWork,
+  skipWork,
+  unskipWork,
   showExcludeDialog,
   today,
   todayWeather,
@@ -48,10 +70,66 @@ const {
   tomorrowWorkMode,
   activeTomorrowWorksByType,
   activeTomorrowDateLabel,
+  activeTomorrowDateString,
+  skipTomorrowWork,
+  unskipTomorrowWork,
   toggleTomorrowWorkMode,
   triggerPhotoUpload,
   validateResult,
 } = useDashboardPage()
+
+const isToday = computed(() => {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = String(now.getMonth() + 1).padStart(2, '0')
+  const d = String(now.getDate()).padStart(2, '0')
+  return selectedDateString.value === `${y}-${m}-${d}`
+})
+
+const workCreateDialogOpen = ref(false)
+const workCreatePresetWorkType = ref<string | undefined>(undefined)
+const workCreateDate = ref('')
+
+function openWorkCreateDialog(workTypeName?: string, dateString?: string) {
+  workCreatePresetWorkType.value = workTypeName
+  workCreateDate.value = dateString || selectedDateString.value
+  workCreateDialogOpen.value = true
+}
+
+// 작업 클릭 메뉴
+const workMenu = ref<{
+  x: number
+  y: number
+  work: import('@/shared/network-core/apis/work').WorkResponse
+  type: 'today' | 'tomorrow'
+} | null>(null)
+
+function openWorkMenu(e: MouseEvent, work: import('@/shared/network-core/apis/work').WorkResponse, type: 'today' | 'tomorrow') {
+  workMenu.value = { x: e.clientX, y: e.clientY, work, type }
+}
+
+function closeWorkMenu() {
+  workMenu.value = null
+}
+
+const deleteWorkTargetId = ref<number | null>(null)
+const deleteWorkTargetName = ref('')
+
+function openDeleteWorkDialog(workId: number, workName: string) {
+  deleteWorkTargetId.value = workId
+  deleteWorkTargetName.value = workName
+}
+
+async function executeDeleteWork() {
+  if (deleteWorkTargetId.value == null) return
+  const id = deleteWorkTargetId.value
+  deleteWorkTargetId.value = null
+  await deleteWork(id)
+}
+
+const laborDialogOpen = ref(false)
+const equipmentDialogOpen = ref(false)
+const materialDeliveryDialogOpen = ref(false)
 </script>
 
 <template>
@@ -69,35 +147,29 @@ const {
             <Button
               variant="outline"
               size="sm"
-              :disabled="isCreatingHomepageDailyReport"
+              class="bg-indigo-50 border-indigo-600 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-950 dark:border-indigo-500 dark:text-indigo-400 dark:hover:bg-indigo-900"
+              :disabled="!isToday || isCreatingHomepageDailyReport"
               @click="generateHomepageDailyReport"
             >
-              {{ isCreatingHomepageDailyReport ? '생성 중...' : '홈페이지에 작업일보생성/수정' }}
+              {{ isCreatingHomepageDailyReport ? '생성 중...' : '홈페이지에 입력' }}
             </Button>
             <Button
               variant="outline"
               size="sm"
+              class="bg-green-50 border-green-500 text-green-700 hover:bg-green-100 dark:bg-green-950 dark:border-green-600 dark:text-green-400 dark:hover:bg-green-900"
               :disabled="isCreatingDailyReport"
               @click="generateDailyReport"
             >
-              {{ isCreatingDailyReport ? '생성 중...' : '작업일보생성' }}
-            </Button>
-            <Button variant="outline" size="sm" @click="router.push('/helper/schedule/2d')">
-              공정표 수정
+              {{ isCreatingDailyReport ? '생성 중...' : '엑셀 작업일보 생성' }}
             </Button>
           </div>
         </div>
 
         <div v-if="isLoading" class="text-sm text-muted-foreground">로딩 중...</div>
         <div v-else class="space-y-4">
-          <!-- 오늘 날짜 정보 -->
+          <!-- 날짜 선택 -->
           <div class="flex items-center justify-between">
-            <div>
-              <p class="text-lg font-semibold">
-                {{ today.getMonth() + 1 }}월 {{ today.getDate() }}일 ({{ todayDayName }}요일)
-              </p>
-              <p class="text-sm text-muted-foreground">{{ todayString }}</p>
-            </div>
+            <DateStepper v-model="selectedDateString" />
             <div class="text-right text-sm text-muted-foreground">
               <p>{{ todayWeather?.weather ?? '-' }}</p>
               <p>
@@ -112,25 +184,40 @@ const {
 
           <!-- 오늘 작업 -->
           <div class="border border-border rounded-lg p-3">
-            <h4 class="text-sm font-semibold mb-2 text-foreground">오늘 작업</h4>
+            <h4 class="text-sm font-semibold mb-2 text-foreground">오늘 작업 ({{ todayDayName }}요일)</h4>
             <div v-if="todayWorksByType.size === 0" class="text-sm text-muted-foreground">
               오늘 예정된 작업이 없습니다.
             </div>
             <div v-else class="space-y-3">
               <div v-for="[workType, works] in todayWorksByType" :key="workType">
-                <p class="text-sm font-medium mb-1">&#9632; {{ workType }}</p>
+                <p
+                  class="text-sm font-medium mb-1 inline-flex items-center gap-1"
+                  :class="isToday ? 'cursor-pointer hover:text-primary transition-colors' : ''"
+                  @click="isToday && openWorkCreateDialog(workType)"
+                >
+                  &#9632; {{ workType }} <Plus v-if="isToday" class="w-3.5 h-3.5" />
+                </p>
                 <div class="space-y-0.5">
                   <p
                     v-for="work in works"
                     :key="work.workId"
                     class="text-sm text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
-                    @click="triggerPhotoUpload(work)"
+                    :class="work.isSkipped ? 'line-through opacity-50' : ''"
+                    @click="openWorkMenu($event, work, 'today')"
                   >
                     - {{ work.workName }}
                   </p>
                 </div>
               </div>
             </div>
+            <!-- 새로운 공종 추가 -->
+            <p
+              v-if="isToday"
+              class="text-sm font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors mt-3 inline-flex items-center gap-1"
+              @click="openWorkCreateDialog()"
+            >
+              &#9632; 새로운 공종 <Plus class="w-3.5 h-3.5" />
+            </p>
 
             <!-- 사진 영역 -->
             <div v-if="allTodayPhotos.length > 0" class="mt-4 pt-3 border-t border-border">
@@ -186,19 +273,44 @@ const {
             </div>
             <div v-else class="space-y-3">
               <div v-for="[workType, works] in activeTomorrowWorksByType" :key="workType">
-                <p class="text-sm font-medium mb-1">&#9632; {{ workType }}</p>
+                <p
+                  class="text-sm font-medium mb-1 inline-flex items-center gap-1"
+                  :class="isToday ? 'cursor-pointer hover:text-primary transition-colors' : ''"
+                  @click="isToday && openWorkCreateDialog(workType, activeTomorrowDateString)"
+                >
+                  &#9632; {{ workType }} <Plus v-if="isToday" class="w-3.5 h-3.5" />
+                </p>
                 <div class="space-y-0.5">
-                  <p v-for="work in works" :key="work.workId" class="text-sm text-muted-foreground">
+                  <p
+                    v-for="work in works"
+                    :key="work.workId"
+                    class="text-sm text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+                    :class="work.isSkipped ? 'line-through opacity-50' : ''"
+                    @click="openWorkMenu($event, work, 'tomorrow')"
+                  >
                     - {{ work.workName }}
                   </p>
                 </div>
               </div>
             </div>
+            <!-- 새로운 공종 추가 -->
+            <p
+              v-if="isToday"
+              class="text-sm font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors mt-3 inline-flex items-center gap-1"
+              @click="openWorkCreateDialog(undefined, activeTomorrowDateString)"
+            >
+              &#9632; 새로운 공종 <Plus class="w-3.5 h-3.5" />
+            </p>
           </div>
 
           <!-- 반입 자재 -->
           <div class="border border-border rounded-lg p-3">
-            <h4 class="text-sm font-semibold mb-2 text-foreground">반입 자재</h4>
+            <h4
+              class="text-sm font-semibold mb-2 text-foreground inline-flex items-center gap-1 cursor-pointer hover:text-primary transition-colors"
+              @click="materialDeliveryDialogOpen = true"
+            >
+              반입 자재 <Plus class="w-3.5 h-3.5" />
+            </h4>
             <div v-if="deliveryByWorkType.size === 0" class="text-sm text-muted-foreground">
               오늘 반입된 자재가 없습니다.
             </div>
@@ -221,7 +333,12 @@ const {
 
           <!-- 반입 장비 -->
           <div class="border border-border rounded-lg p-3">
-            <h4 class="text-sm font-semibold mb-2 text-foreground">반입 장비</h4>
+            <h4
+              class="text-sm font-semibold mb-2 text-foreground inline-flex items-center gap-1 cursor-pointer hover:text-primary transition-colors"
+              @click="equipmentDialogOpen = true"
+            >
+              반입 장비 <Plus class="w-3.5 h-3.5" />
+            </h4>
             <div v-if="equipmentByGroup.length === 0" class="text-sm text-muted-foreground">
               오늘 반입된 장비가 없습니다.
             </div>
@@ -249,7 +366,12 @@ const {
 
           <!-- 출역인원 -->
           <div class="border border-border rounded-lg p-3">
-            <h4 class="text-sm font-semibold mb-2 text-foreground">출역 인원</h4>
+            <h4
+              class="text-sm font-semibold mb-2 text-foreground inline-flex items-center gap-1 cursor-pointer hover:text-primary transition-colors"
+              @click="laborDialogOpen = true"
+            >
+              출역 인원 <Plus class="w-3.5 h-3.5" />
+            </h4>
             <div v-if="attendanceByGroup.length === 0" class="text-sm text-muted-foreground">
               오늘 출역 인원이 없습니다.
             </div>
@@ -290,6 +412,18 @@ const {
           <h3 class="text-lg font-semibold">Release Note</h3>
           <div class="mt-4 flex-1 min-h-0">
             <div class="border border-border rounded-lg p-3 h-full overflow-y-auto text-sm">
+              <p>
+                26.03.27 금요일<br />
+                1. 로그인/회원가입 보안 강화 — 비밀번호가 암호화되어 전송됩니다. 로그인 5회 실패 시 일시 잠금됩니다.<br />
+                2. 2D공정표 버전 관리 — 공정표 탭 우클릭으로 복제/삭제/주 공정표 지정이 가능합니다.<br />
+                3. 2D공정표 작업/연결선 우클릭 메뉴 — 작업 ID 확인, 휴일 작업 전환, 따라가기 설정 및 지연일수 조정이 가능합니다.<br />
+                4. 2D공정표 세부공종이 없는 공종도 빈 행으로 표시됩니다.<br />
+                5. 대시보드 날짜 이동 — 날짜를 자유롭게 변경하여 다른 날의 작업을 확인할 수 있습니다.<br />
+                6. 대시보드 작업 관리 — 작업 클릭 시 사진입력/가리기/삭제 메뉴가 제공됩니다. 공종 옆 +버튼으로 작업을 바로 생성할 수 있습니다.<br />
+                7. 출역 누적 집계가 '유용한 기능' 메뉴로 이동했습니다. 대시보드에서 인력/장비 입력이 가능합니다.<br />
+                8. 자재 반입 등록 팝업이 개선되었습니다.
+              </p>
+              <br />
               <p>
                 26.03.20 목요일<br />
                 1. 2D공정표에서 3주 공정표 / 3개월 공정표 엑셀 생성 기능 추가.<br />
@@ -487,6 +621,61 @@ const {
       @confirm="confirmExcludeAndCreate"
       @cancel="showExcludeDialog = false"
     />
+
+    <LaborInputDialog
+      v-model:open="laborDialogOpen"
+      :selected-date="selectedDateString"
+      @submitted="loadData"
+    />
+    <EquipmentInputDialog
+      v-model:open="equipmentDialogOpen"
+      :selected-date="selectedDateString"
+      @submitted="loadData"
+    />
+    <MaterialDeliveryCreateDialog
+      v-model:open="materialDeliveryDialogOpen"
+      @submitted="router.push('/helper/material/incoming')"
+    />
+    <WorkCreateDialog
+      v-model:open="workCreateDialogOpen"
+      :default-start-date="workCreateDate"
+      :preset-work-type-name="workCreatePresetWorkType"
+      @submitted="loadData"
+    />
+
+    <!-- 작업 클릭 메뉴 -->
+    <ClickMenu v-if="workMenu" :x="workMenu.x" :y="workMenu.y" :offset-y="10" @close="closeWorkMenu()">
+      <template v-if="workMenu.type === 'today' && !workMenu.work.isSkipped">
+        <ClickMenuItem @select="triggerPhotoUpload(workMenu.work); closeWorkMenu()">사진입력</ClickMenuItem>
+        <ClickMenuItem @select="skipWork(workMenu.work.workId); closeWorkMenu()">오늘작업에서 가리기</ClickMenuItem>
+      </template>
+      <template v-else-if="workMenu.type === 'today' && workMenu.work.isSkipped">
+        <ClickMenuItem @select="unskipWork(workMenu.work.workId); closeWorkMenu()">가리기 해제</ClickMenuItem>
+      </template>
+      <template v-else-if="workMenu.type === 'tomorrow' && !workMenu.work.isSkipped">
+        <ClickMenuItem @select="skipTomorrowWork(workMenu.work.workId); closeWorkMenu()">오늘작업에서 가리기</ClickMenuItem>
+      </template>
+      <template v-else>
+        <ClickMenuItem @select="unskipTomorrowWork(workMenu.work.workId); closeWorkMenu()">가리기 해제</ClickMenuItem>
+      </template>
+      <ClickMenuItem variant="destructive" @select="openDeleteWorkDialog(workMenu.work.workId, workMenu.work.workName); closeWorkMenu()">작업 삭제</ClickMenuItem>
+    </ClickMenu>
+
+    <!-- 작업 삭제 확인 -->
+    <AlertDialog :open="deleteWorkTargetId != null">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>작업 삭제</AlertDialogTitle>
+          <AlertDialogDescription>
+            '{{ deleteWorkTargetName }}' 작업을 삭제하시겠습니까?
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel @click="deleteWorkTargetId = null">취소</AlertDialogCancel>
+          <Button variant="destructive" @click="executeDeleteWork">삭제</Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </div>
 </template>
 

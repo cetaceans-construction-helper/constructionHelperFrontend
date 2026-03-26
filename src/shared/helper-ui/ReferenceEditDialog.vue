@@ -17,6 +17,7 @@ import MaterialPanel from '@/shared/helper-ui/reference-edit-panels/MaterialPane
 import WorkClassificationPanel from '@/shared/helper-ui/reference-edit-panels/WorkClassificationPanel.vue'
 import ComponentPanel from '@/shared/helper-ui/reference-edit-panels/ComponentPanel.vue'
 import SingleReferencePanel from '@/shared/helper-ui/reference-edit-panels/SingleReferencePanel.vue'
+import LocationPanel from '@/shared/helper-ui/reference-edit-panels/LocationPanel.vue'
 
 const props = defineProps<{
   open: boolean
@@ -36,6 +37,7 @@ const PANEL_MAP: Record<ReferenceEditType, Component> = {
   component: markRaw(ComponentPanel),
   zone: markRaw(SingleReferencePanel),
   floor: markRaw(SingleReferencePanel),
+  location: markRaw(LocationPanel),
 }
 
 const panelRef = ref<{ load: () => Promise<void> } | null>(null)

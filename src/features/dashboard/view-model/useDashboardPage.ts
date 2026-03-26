@@ -1,11 +1,12 @@
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import type {
   AttendanceByDateItem,
   EquipmentDeploymentByDateItem,
 } from '@/features/attendance/public'
 import type { DeliveryQuantityByDate } from '@/features/material/public'
-import type { WorkPhotoResponse, WorkResponse } from '@/shared/network-core/apis/work'
+import { workApi, type WorkPhotoResponse, type WorkResponse } from '@/shared/network-core/apis/work'
+import { skippedWorkApi } from '@/shared/network-core/apis/skippedWork'
 import { useProjectStore } from '@/app/context/stores/project'
 import type { WeatherByDateResponse } from '@/shared/network-core/contracts/calendar'
 import type {
@@ -14,7 +15,7 @@ import type {
   PhotoWithWork,
   WorkPhotoDialogExpose,
 } from '@/features/dashboard/model/dashboard-types'
-import { getDashboardDateContext } from '@/features/dashboard/use-cases/dashboard-date'
+import { formatLocalDate } from '@/features/dashboard/use-cases/dashboard-date'
 import { loadDashboardData } from '@/features/dashboard/use-cases/load-dashboard-data'
 import { dashboardRepository } from '@/features/dashboard/infra/dashboard-repository'
 import {
@@ -28,14 +29,21 @@ import { dailyReportRepository } from '@/features/document/public'
 export const useDashboardPage = () => {
   const projectStore = useProjectStore()
   const router = useRouter()
-  const { today, todayDayName, todayString } = getDashboardDateContext()
+  const dayNames = ['일', '월', '화', '수', '목', '금', '토']
+
+  const selectedDateString = ref(formatLocalDate(new Date()))
+  const today = computed(() => new Date(selectedDateString.value + 'T00:00:00'))
+  const todayString = computed(() => selectedDateString.value)
+  const todayDayName = computed(() => dayNames[today.value.getDay()] ?? '알수없음')
 
   // 데이터 상태
   const todayWorks = ref<WorkResponse[]>([])
   const tomorrowWorks = ref<WorkResponse[]>([])
   const nextWorkDateLabel = ref('')
+  const nextWorkDateString = ref('')
   const simpleTomorrowWorks = ref<WorkResponse[]>([])
   const simpleTomorrowDateLabel = ref('')
+  const simpleTomorrowDateString = ref('')
   const tomorrowWorkMode = ref<1 | 2>(1)
   const todayAttendance = ref<AttendanceByDateItem[]>([])
   const todayDeliveryQuantities = ref<DeliveryQuantityByDate[]>([])
@@ -106,12 +114,12 @@ export const useDashboardPage = () => {
         : undefined
       await dashboardRepository.createWorkPhoto(
         selectedWorkForPhoto.value.workId,
-        todayString,
+        todayString.value,
         pendingPhotos.value,
         descriptions,
       )
       photoPreviewDialogOpen.value = false
-      todayWorks.value = await dashboardRepository.getWorkListByDate(todayString)
+      todayWorks.value = await dashboardRepository.getWorkListByDate(todayString.value)
       await loadAllPhotos()
     } catch (error: unknown) {
       console.error('사진 업로드 실패:', error)
@@ -151,7 +159,7 @@ export const useDashboardPage = () => {
   }
 
   const onPhotoUpdated = async () => {
-    todayWorks.value = await dashboardRepository.getWorkListByDate(todayString)
+    todayWorks.value = await dashboardRepository.getWorkListByDate(todayString.value)
     await loadAllPhotos()
   }
 
@@ -164,6 +172,67 @@ export const useDashboardPage = () => {
     }
     return grouped
   })
+
+  const skipWork = async (workId: number) => {
+    try {
+      await skippedWorkApi.createSkippedWork(workId, todayString.value)
+      const work = todayWorks.value.find(w => w.workId === workId)
+      if (work) work.isSkipped = true
+      todayWorks.value = [...todayWorks.value]
+    } catch (error: any) {
+      console.error('작업 숨기기 실패:', error)
+      alert(error.response?.data?.message || error.message)
+    }
+  }
+
+  const unskipWork = async (workId: number) => {
+    try {
+      await skippedWorkApi.deleteSkippedWork(workId, todayString.value)
+      const work = todayWorks.value.find(w => w.workId === workId)
+      if (work) work.isSkipped = false
+      todayWorks.value = [...todayWorks.value]
+    } catch (error: any) {
+      console.error('작업 숨기기 취소 실패:', error)
+      alert(error.response?.data?.message || error.message)
+    }
+  }
+
+  const deleteWork = async (workId: number) => {
+    try {
+      await workApi.deleteWork(workId)
+      await loadData()
+    } catch (error: any) {
+      console.error('작업 삭제 실패:', error)
+      alert(error.response?.data?.message || error.message)
+    }
+  }
+
+  const skipTomorrowWork = async (workId: number) => {
+    try {
+      await skippedWorkApi.createSkippedWork(workId, activeTomorrowDateString.value)
+      const work = activeTomorrowWorks.value.find(w => w.workId === workId)
+      if (work) work.isSkipped = true
+      // reactivity trigger
+      tomorrowWorks.value = [...tomorrowWorks.value]
+      simpleTomorrowWorks.value = [...simpleTomorrowWorks.value]
+    } catch (error: any) {
+      console.error('작업 숨기기 실패:', error)
+      alert(error.response?.data?.message || error.message)
+    }
+  }
+
+  const unskipTomorrowWork = async (workId: number) => {
+    try {
+      await skippedWorkApi.deleteSkippedWork(workId, activeTomorrowDateString.value)
+      const work = activeTomorrowWorks.value.find(w => w.workId === workId)
+      if (work) work.isSkipped = false
+      tomorrowWorks.value = [...tomorrowWorks.value]
+      simpleTomorrowWorks.value = [...simpleTomorrowWorks.value]
+    } catch (error: any) {
+      console.error('작업 숨기기 취소 실패:', error)
+      alert(error.response?.data?.message || error.message)
+    }
+  }
 
   const tomorrowWorksByType = computed(() => {
     const grouped = new Map<string, WorkResponse[]>()
@@ -191,6 +260,10 @@ export const useDashboardPage = () => {
 
   const activeTomorrowDateLabel = computed(() =>
     tomorrowWorkMode.value === 1 ? nextWorkDateLabel.value : simpleTomorrowDateLabel.value,
+  )
+
+  const activeTomorrowDateString = computed(() =>
+    tomorrowWorkMode.value === 1 ? nextWorkDateString.value : simpleTomorrowDateString.value,
   )
 
   const activeTomorrowWorksByType = computed(() => {
@@ -274,10 +347,17 @@ export const useDashboardPage = () => {
   const generateHomepageDailyReport = async () => {
     isCreatingHomepageDailyReport.value = true
     try {
+      // skipped 작업 제외
+      const filteredTodayWorksByType = new Map<string, WorkResponse[]>()
+      for (const [wt, works] of todayWorksByType.value) {
+        const filtered = works.filter(w => !w.isSkipped)
+        if (filtered.length > 0) filteredTodayWorksByType.set(wt, filtered)
+      }
+
       await createHomepageDailyReport({
-        todayDayName,
+        todayDayName: todayDayName.value,
         todayWeather: todayWeather.value,
-        todayWorksByType: todayWorksByType.value,
+        todayWorksByType: filteredTodayWorksByType,
         tomorrowWorksByType: tomorrowWorksByType.value,
         simpleTomorrowWorksByType: simpleTomorrowWorksByType.value,
         deliveryByWorkType: deliveryByWorkType.value,
@@ -302,14 +382,14 @@ export const useDashboardPage = () => {
   const generateDailyReport = async () => {
     isCreatingDailyReport.value = true
     try {
-      const result = await validateDailyReport(dailyReportRepository, todayString)
+      const result = await validateDailyReport(dailyReportRepository, todayString.value)
       const hasExceeded = result.sections.some((s) => s.exceeded) || (result.photos?.exceeded ?? false)
 
       if (hasExceeded) {
         validateResult.value = result
         showExcludeDialog.value = true
       } else {
-        await createDailyReport(dailyReportRepository, { date: todayString })
+        await createDailyReport(dailyReportRepository, { date: todayString.value })
         router.push('/helper/document/daily-report')
       }
     } catch (error: unknown) {
@@ -343,19 +423,21 @@ export const useDashboardPage = () => {
     }
   }
 
-  onMounted(async () => {
+  const loadData = async () => {
     if (!projectStore.selectedProjectId) return
 
     isLoading.value = true
     try {
-      const data = await loadDashboardData(dashboardRepository, todayString)
+      const data = await loadDashboardData(dashboardRepository, todayString.value)
 
       todayWeather.value = data.weather
       todayWorks.value = data.todayWorks
       tomorrowWorks.value = data.tomorrowWorks
       nextWorkDateLabel.value = data.nextWorkDateLabel
+      nextWorkDateString.value = data.nextWorkDateString
       simpleTomorrowWorks.value = data.simpleTomorrowWorks
       simpleTomorrowDateLabel.value = data.simpleTomorrowDateLabel
+      simpleTomorrowDateString.value = data.simpleTomorrowDateString
       todayAttendance.value = data.attendance
       todayDeliveryQuantities.value = data.deliveryQuantities
       todayEquipment.value = data.equipment
@@ -366,7 +448,11 @@ export const useDashboardPage = () => {
     } finally {
       isLoading.value = false
     }
-  })
+  }
+
+  watch(selectedDateString, () => loadData())
+
+  onMounted(() => loadData())
 
   onUnmounted(() => {
     revokeAllObjectUrls()
@@ -395,7 +481,11 @@ export const useDashboardPage = () => {
     photoDialogRef,
     photoObjectUrls,
     photoPreviewDialogOpen,
+    deleteWork,
+    skipWork,
+    unskipWork,
     showExcludeDialog,
+    selectedDateString,
     today,
     todayWeather,
     todayDayName,
@@ -405,7 +495,11 @@ export const useDashboardPage = () => {
     tomorrowWorkMode,
     activeTomorrowWorksByType,
     activeTomorrowDateLabel,
+    activeTomorrowDateString,
+    skipTomorrowWork,
+    unskipTomorrowWork,
     toggleTomorrowWorkMode,
+    loadData,
     triggerPhotoUpload,
     validateResult,
   }

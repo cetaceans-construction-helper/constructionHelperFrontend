@@ -288,12 +288,12 @@ export function useEquipmentDeployment(
   }
 
   // --- 제출 ---
-  async function submitEquipmentDeployment() {
+  async function submitEquipmentDeployment(): Promise<boolean> {
     const validBoxes = equipmentBoxes.value.filter((box) => box.companyId)
 
     if (validBoxes.length === 0) {
       alert('제출할 출역장비가 없습니다.')
-      return
+      return false
     }
 
     const entries: EquipmentDeploymentEntry[] = []
@@ -327,12 +327,12 @@ export function useEquipmentDeployment(
 
     if (warnings.length > 0) {
       alert(warnings.join('\n'))
-      return
+      return false
     }
 
     if (entries.length === 0) {
       alert('제출할 장비가 없습니다.')
-      return
+      return false
     }
 
     try {
@@ -346,10 +346,12 @@ export function useEquipmentDeployment(
       alert('출역장비가 저장되었습니다.')
       analyticsClient.trackAction('material_equipment', 'save_equipment', 'success')
       await loadTodayEquipment()
+      return true
     } catch (error: unknown) {
       console.error('출역장비 저장 실패:', error)
       analyticsClient.trackAction('material_equipment', 'save_equipment', 'fail')
       alert(getErrorMessage(error))
+      return false
     } finally {
       isSubmittingEquipment.value = false
     }

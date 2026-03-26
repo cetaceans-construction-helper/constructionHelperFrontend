@@ -63,11 +63,11 @@ type ProjectSelectionState = 'manual' | 'auto_initial' | 'auto_recovery'
 const sections = [
   { id: 'dashboard', label: '대시보드', shortLabel: '대시', path: '/helper/dashboard' },
   { id: 'process', label: '공정관리', shortLabel: '공정', path: '/helper/schedule/2d' },
-  { id: 'attendance', label: '출역관리', shortLabel: '출역', path: '/helper/attendance/input' },
+  // { id: 'attendance', label: '출역관리', shortLabel: '출역', path: '/helper/attendance/input' },
   { id: 'material', label: '자재관리', shortLabel: '자재', path: '/helper/material/incoming' },
-  { id: 'safety', label: '안전관리', shortLabel: '안전', path: '/helper/safety' },
+  // { id: 'safety', label: '안전관리', shortLabel: '안전', path: '/helper/safety' },
   { id: 'document', label: '문서관리', shortLabel: '문서', path: '/helper/document/daily-report' },
-  { id: 'utility', label: '유용한 기능', shortLabel: '기능', path: '/helper/functions' },
+  { id: 'utility', label: '유용한 기능', shortLabel: '기능', path: '/helper/functions/cumulative-attendance' },
   { id: 'admin', label: '관리자', shortLabel: '관리', path: '/helper/admin' },
 ]
 
@@ -84,17 +84,17 @@ const menusBySection: Record<string, MenuItem[]> = {
     { id: '2d-schedule', label: '2D공정표', path: '/helper/schedule/2d', icon: Grid2x2 },
     { id: '3d-schedule', label: '3D공정표', path: '/helper/schedule/3d', icon: Box },
   ],
-  attendance: [
-    { id: 'attendance-input', label: '출역입력', path: '/helper/attendance/input', icon: UserPlus },
-    { id: 'worker-register', label: '작업자등록', path: '/helper/attendance/register', icon: UserCog },
-  ],
+  // attendance: [
+  //   { id: 'attendance-input', label: '출역입력', path: '/helper/attendance/input', icon: UserPlus },
+  //   { id: 'worker-register', label: '작업자등록', path: '/helper/attendance/register', icon: UserCog },
+  // ],
   material: [
     { id: 'incoming', label: '반입자재', path: '/helper/material/incoming', icon: PackagePlus },
-    { id: 'order', label: '자재발주서', path: '/helper/material/order', icon: FileText },
+    // { id: 'order', label: '자재발주서', path: '/helper/material/order', icon: FileText },
     { id: 'outgoing', label: '반출자재', path: '/helper/material/outgoing', icon: PackageMinus },
     { id: 'remaining', label: '잔여자재', path: '/helper/material/remaining', icon: Package },
   ],
-  safety: [{ id: 'placeholder', label: '(구현예정)', path: '/helper/safety', icon: Shield }],
+  // safety: [{ id: 'placeholder', label: '(구현예정)', path: '/helper/safety', icon: Shield }],
   document: [
     { id: 'daily-report', label: '일일작업일보', path: '/helper/document/daily-report', icon: CalendarCheck },
     {
@@ -105,7 +105,9 @@ const menusBySection: Record<string, MenuItem[]> = {
     },
     { id: 'manager', label: '문서관리', path: '/helper/document/manager', icon: FolderOpen },
   ],
-  utility: [{ id: 'placeholder', label: '(구현예정)', path: '/helper/functions', icon: Wrench }],
+  utility: [
+    { id: 'cumulative-attendance', label: '출역누적집계', path: '/helper/functions/cumulative-attendance', icon: CalendarCheck },
+  ],
   admin: [
     { id: 'master-data', label: '기준정보 관리', path: '/helper/admin', icon: Database },
     { id: 'resource-info', label: '자원정보 관리', path: '/helper/admin/resource', icon: Users },
@@ -123,9 +125,9 @@ const currentSection = computed(() => {
   const path = route.path
   if (path.startsWith('/helper/dashboard')) return 'dashboard'
   if (path.startsWith('/helper/schedule')) return 'process'
-  if (path.startsWith('/helper/attendance')) return 'attendance'
+  // if (path.startsWith('/helper/attendance')) return 'attendance'
   if (path.startsWith('/helper/material')) return 'material'
-  if (path.startsWith('/helper/safety')) return 'safety'
+  // if (path.startsWith('/helper/safety')) return 'safety'
   if (path.startsWith('/helper/document')) return 'document'
   if (path.startsWith('/helper/functions')) return 'utility'
   if (path.startsWith('/helper/admin')) return 'admin'

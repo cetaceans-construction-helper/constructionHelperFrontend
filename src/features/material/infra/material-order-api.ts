@@ -112,6 +112,7 @@ export const materialOrderApi = {
       supplier: string
       deliveryDate: string
       location?: string | null
+      workTypeId?: number
       deliveryLines: {
         manufacturer: string | null
         specId: number | null

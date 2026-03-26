@@ -1,4 +1,4 @@
-import { ref, watch } from 'vue'
+import { ref, watch, type Ref } from 'vue'
 import { referenceApi, type LaborTypeResponse } from '@/shared/network-core/apis/reference'
 import {
   attendanceApi,
@@ -37,9 +37,9 @@ function getErrorMessage(error: unknown): string {
 
 let boxIdCounter = 0
 
-export function useAttendance() {
+export function useAttendance(externalDate?: Ref<string>) {
   // 상태
-  const selectedDate = ref<string>(getTodayString())
+  const selectedDate = externalDate ?? ref<string>(getTodayString())
   const isSubmitting = ref(false)
 
   // 오늘 출역인원 (서버에서 조회)
@@ -320,7 +320,7 @@ export function useAttendance() {
   }
 
   // 출석 제출
-  async function submitAttendance() {
+  async function submitAttendance(): Promise<boolean> {
     // 유효한 박스만 필터링 (협력업체가 선택된 박스)
     const validBoxes = workTypeBoxes.value.filter(
       (box) => box.companyId && box.workTypeId,
@@ -328,7 +328,7 @@ export function useAttendance() {
 
     if (validBoxes.length === 0) {
       alert('제출할 출역인원이 없습니다.')
-      return
+      return false
     }
 
     // flat list로 수집 (0값 포함)
@@ -343,7 +343,7 @@ export function useAttendance() {
 
     if (entries.length === 0) {
       alert('제출할 직종이 없습니다.')
-      return
+      return false
     }
 
     try {
@@ -359,10 +359,12 @@ export function useAttendance() {
 
       // 저장 후 출역인원 다시 조회 (입력 카드도 자동 재생성)
       await loadTodayAttendance()
+      return true
     } catch (error: unknown) {
       console.error('출역인원 저장 실패:', error)
       analyticsClient.trackAction('material_attendance', 'save_attendance', 'fail')
       alert(getErrorMessage(error))
+      return false
     } finally {
       isSubmitting.value = false
     }

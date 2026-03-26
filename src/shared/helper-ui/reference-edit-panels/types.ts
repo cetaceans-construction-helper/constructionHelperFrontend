@@ -6,6 +6,7 @@ export type ReferenceEditType =
   | 'component'
   | 'zone'
   | 'floor'
+  | 'location'
 
 export const REFERENCE_EDIT_TITLES: Record<ReferenceEditType, string> = {
   equipment: '장비 관리',
@@ -15,6 +16,7 @@ export const REFERENCE_EDIT_TITLES: Record<ReferenceEditType, string> = {
   component: '부재코드 관리',
   zone: '공구 관리',
   floor: '층 관리',
+  location: '위치 관리',
 }
 
 export const REFERENCE_EDIT_WIDTHS: Record<ReferenceEditType, string> = {
@@ -25,4 +27,5 @@ export const REFERENCE_EDIT_WIDTHS: Record<ReferenceEditType, string> = {
   component: 'sm:max-w-2xl',
   zone: 'sm:max-w-sm',
   floor: 'sm:max-w-sm',
+  location: 'sm:max-w-xl',
 }

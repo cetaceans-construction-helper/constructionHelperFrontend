@@ -25,6 +25,7 @@ export type {
   SpecSummary,
 } from '@/features/material/model/material-order-types'
 
+export { default as MaterialDeliveryCreateDialog } from '@/features/material/ui/components/MaterialDeliveryCreateDialog.vue'
 export { default as InvoicePageView } from '@/features/material/ui/InvoicePage.vue'
 export { default as IncomingMaterialPageView } from '@/features/material/ui/IncomingMaterialPage.vue'
 export { default as OutgoingMaterialPageView } from '@/features/material/ui/OutgoingMaterialPage.vue'

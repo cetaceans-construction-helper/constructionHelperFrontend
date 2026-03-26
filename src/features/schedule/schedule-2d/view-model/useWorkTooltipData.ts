@@ -16,7 +16,7 @@ function arraysEqual(a: number[], b: number[]): boolean {
   return sa.every((v, i) => v === sb[i])
 }
 
-export function useWorkTooltipData() {
+export function useWorkTooltipData(getScheduleVersion?: () => number) {
   // 참조 데이터 (한 번 로드)
   const divisions = ref<IdNameResponse[]>([])
   const tooltipWorkTypes = ref<WorkTypeResponse[]>([])
@@ -258,6 +258,7 @@ export function useWorkTooltipData() {
         // TODO: section/usage 임시 비활성화
         // sectionIds: editSectionIds.value,
         // usageIds: editUsageIds.value,
+        scheduleVersionId: getScheduleVersion?.() ?? 0,
       }
 
       if (editComponentTypeIds.value.length > 0) payload.componentTypeIds = editComponentTypeIds.value

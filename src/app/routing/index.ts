@@ -114,7 +114,12 @@ const router = createRouter({
         {
           path: 'functions',
           name: 'functions',
-          component: () => import('@/app/shell/ui/placeholders/FunctionsPlaceholderPage.vue'),
+          redirect: '/helper/functions/cumulative-attendance',
+        },
+        {
+          path: 'functions/cumulative-attendance',
+          name: 'cumulative-attendance',
+          component: attendanceRouteComponents.CumulativeAttendancePage,
         },
         {
           path: 'admin',

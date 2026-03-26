@@ -9,8 +9,10 @@ export interface DashboardData {
   todayWorks: WorkResponse[]
   tomorrowWorks: WorkResponse[]
   nextWorkDateLabel: string
+  nextWorkDateString: string
   simpleTomorrowWorks: WorkResponse[]
   simpleTomorrowDateLabel: string
+  simpleTomorrowDateString: string
   attendance: AttendanceByDateItem[]
   deliveryQuantities: DeliveryQuantityByDate[]
   equipment: EquipmentDeploymentByDateItem[]
@@ -54,8 +56,10 @@ export const loadDashboardData = async (
     todayWorks,
     tomorrowWorks,
     nextWorkDateLabel,
+    nextWorkDateString: nextDateStr ?? '',
     simpleTomorrowWorks,
     simpleTomorrowDateLabel,
+    simpleTomorrowDateString: simpleDateStr ?? '',
     attendance,
     deliveryQuantities,
     equipment,

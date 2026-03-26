@@ -41,10 +41,14 @@ import {
   AlertDialogTitle,
 } from '@/shared/ui/alert-dialog'
 import { X } from 'lucide-vue-next'
+import { DateRangeFilter } from '@/shared/ui/date-range-picker'
+import { dateRangeToStrings, toCalendarDate } from '@/shared/utils/date-convert'
+import { useCalendarStore } from '@/app/context/stores/calendarStore'
+import { today, getLocalTimeZone } from '@internationalized/date'
 import ImageRotatePreview from '@/shared/helper-ui/ImageRotatePreview.vue'
 import ReferenceEditTrigger from '@/shared/helper-ui/ReferenceEditTrigger.vue'
+import MaterialDeliveryCreateDialog from '@/features/material/ui/components/MaterialDeliveryCreateDialog.vue'
 import { materialOrderApi } from '@/features/material/infra/material-order-api'
-import { validateDirectMaterialDeliveryInput } from '@/features/material/model/material-order-rules'
 import type {
   DeliveryLineResponse,
   MaterialDeliverySummary,
@@ -70,62 +74,16 @@ import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 const router = useRouter()
 const { orders, loadOrders } = useMaterialOrder()
+const calendarStore = useCalendarStore()
+const calendarMinDate = computed(() =>
+  calendarStore.calendarData?.projectStartDate ? toCalendarDate(calendarStore.calendarData.projectStartDate) : undefined,
+)
+const calendarMaxDate = computed(() =>
+  calendarStore.calendarData?.projectEndDate ? toCalendarDate(calendarStore.calendarData.projectEndDate) : undefined,
+)
 
 // 발주서 없이 송장입력 다이얼로그 상태
 const directDeliveryDialogOpen = ref(false)
-const directSelectedMaterialTypeId = ref<string>('')
-const directSelectedDivisionId = ref<string>('')
-const directSelectedWorkTypeId = ref<string>('')
-const directMaterialTypes = ref<MaterialTypeResponse[]>([])
-const directDivisions = ref<IdNameResponse[]>([])
-const directWorkTypes = ref<WorkTypeResponse[]>([])
-const isLoadingDirectWorkTypes = ref(false)
-const isSavingDirect = ref(false)
-
-async function reloadDirectMaterialTypes() {
-  try {
-    directMaterialTypes.value = await referenceApi.getMaterialTypeList()
-  } catch (error: unknown) {
-    console.error('자재유형 새로고침 실패:', error)
-  }
-}
-
-async function reloadDirectDivisions() {
-  try {
-    directDivisions.value = await referenceApi.getDivisionList()
-  } catch (error: unknown) {
-    console.error('분류 새로고침 실패:', error)
-  }
-}
-
-async function reloadDirectZones() {
-  try {
-    directZones.value = await referenceApi.getZoneList()
-  } catch (error: unknown) {
-    console.error('존 새로고침 실패:', error)
-  }
-}
-
-async function reloadDirectFloors() {
-  try {
-    directFloors.value = await referenceApi.getFloorList()
-  } catch (error: unknown) {
-    console.error('층 새로고침 실패:', error)
-  }
-}
-const directDeliveryNotes = ref<File[]>([])
-const directDeliveryPhotos = ref<File[]>([])
-// 발주서 없이 송장입력 - 위치 선택
-const directZones = ref<IdNameResponse[]>([])
-const directFloors = ref<IdNameResponse[]>([])
-// TODO: section/usage 임시 비활성화
-// const directSections = ref<IdNameResponse[]>([])
-// const directUsages = ref<IdNameResponse[]>([])
-const directSelectedZoneIds = ref<number[]>([])
-const directSelectedFloorIds = ref<number[]>([])
-// TODO: section/usage 임시 비활성화
-// const directSelectedSectionIds = ref<number[]>([])
-// const directSelectedUsageIds = ref<number[]>([])
 
 
 // 삭제 다이얼로그 상태
@@ -134,9 +92,41 @@ const deleteTargetId = ref<number | null>(null)
 const deleteTargetName = ref('')
 const isDeletingDelivery = ref(false)
 
+// 필터 상태
+const filterMaterialTypeId = ref<string>('__all__')
+const todayDate = today(getLocalTimeZone())
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const filterDateRange = ref<any>({ start: undefined, end: undefined })
+const filterMaterialTypes = ref<MaterialTypeResponse[]>([])
+
 // 반입자재 상태
 const deliveries = ref<MaterialDeliverySummary[]>([])
 const isLoadingDeliveries = ref(false)
+
+// 발주서 기반 자재유형 매핑 (delivery → materialType)
+const orderMaterialTypeMap = computed(() => {
+  const map = new Map<number, number>()
+  for (const order of orders.value) {
+    map.set(order.id, order.materialTypeId)
+  }
+  return map
+})
+
+// 필터 적용된 목록
+const filteredDeliveries = computed(() => {
+  let list = deliveries.value
+  if (filterMaterialTypeId.value && filterMaterialTypeId.value !== '__all__') {
+    const typeId = Number(filterMaterialTypeId.value)
+    list = list.filter((d) => orderMaterialTypeMap.value.get(d.materialOrderId) === typeId)
+  }
+  const range = dateRangeToStrings(filterDateRange.value)
+  if (range.start && range.end) {
+    list = list.filter((d) => d.deliveryDate >= range.start! && d.deliveryDate <= range.end!)
+  } else if (range.start) {
+    list = list.filter((d) => d.deliveryDate === range.start!)
+  }
+  return list
+})
 
 // 반입자재 펼치기/접기 + 인라인 수정 상태
 const expandedDeliveries = reactive<Record<number, boolean>>({})
@@ -145,11 +135,16 @@ const deliveryEditState = ref<Record<number, {
   supplier: string
   deliveryDate: string
   location: string
+  divisionId: string
+  workTypeId: string
   noteDescriptions: { noteId: number; description: string }[]
   photoDescriptions: { photoId: number; description: string }[]
 }>>({})
 const isLoadingLines = ref<Record<number, boolean>>({})
 const isUpdatingDelivery = ref<Record<number, boolean>>({})
+const editDivisions = ref<IdNameResponse[]>([])
+const editWorkTypes = ref<WorkTypeResponse[]>([])
+const isLoadingEditWorkTypes = ref(false)
 const materialSpecs = ref<MaterialSpecResponse[]>([])
 const currentMaterialTypeId = ref<number | null>(null)
 
@@ -216,110 +211,36 @@ function removeDeliveryLine(deliveryId: number, lineIdx: number) {
   deliveryLinesMap.value[deliveryId] = lines.filter((_, i) => i !== lineIdx)
 }
 
-async function openDirectDeliveryDialog() {
-  directDeliveryNotes.value = []
-  directDeliveryPhotos.value = []
-  directSelectedMaterialTypeId.value = ''
-  directSelectedDivisionId.value = ''
-  directSelectedWorkTypeId.value = ''
-  directWorkTypes.value = []
-  directSelectedZoneIds.value = []
-  directSelectedFloorIds.value = []
-  // TODO: section/usage 임시 비활성화
-  // directSelectedSectionIds.value = []
-  // directSelectedUsageIds.value = []
-
-  try {
-    // TODO: section/usage 임시 비활성화
-    const [mtList, divList, zoneList, floorList] = await Promise.all([
-      referenceApi.getMaterialTypeList(),
-      referenceApi.getDivisionList(),
-      referenceApi.getZoneList(),
-      referenceApi.getFloorList(),
-      // referenceApi.getSectionList(),
-      // referenceApi.getUsageList(),
-    ])
-    directMaterialTypes.value = mtList
-    directDivisions.value = divList
-    directZones.value = zoneList
-    directFloors.value = floorList
-    // TODO: section/usage 임시 비활성화
-    // directSections.value = sectionList
-    // directUsages.value = usageList
-  } catch (error: unknown) {
-    console.error('기초 데이터 로드 실패:', error)
-    const err = error as { response?: { data?: { message?: string } }; message?: string }
-    alert(err.response?.data?.message || err.message)
-    return
-  }
-
+function openDirectDeliveryDialog() {
   directDeliveryDialogOpen.value = true
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleDirectDivisionChange(divisionId: any) {
-  directSelectedDivisionId.value = String(divisionId ?? '')
-  directSelectedWorkTypeId.value = ''
-  directWorkTypes.value = []
-  if (!directSelectedDivisionId.value) return
+async function handleEditDivisionChange(deliveryId: number, divisionId: any) {
+  const editState = deliveryEditState.value[deliveryId]
+  if (!editState) return
+  editState.divisionId = String(divisionId ?? '')
+  editState.workTypeId = ''
+  editWorkTypes.value = []
+  if (!editState.divisionId) return
 
-  isLoadingDirectWorkTypes.value = true
+  isLoadingEditWorkTypes.value = true
   try {
-    directWorkTypes.value = await referenceApi.getWorkTypeList(Number(directSelectedDivisionId.value))
+    editWorkTypes.value = await referenceApi.getWorkTypeList(Number(editState.divisionId))
   } catch (error: unknown) {
     console.error('공종 목록 로드 실패:', error)
   } finally {
-    isLoadingDirectWorkTypes.value = false
+    isLoadingEditWorkTypes.value = false
   }
 }
 
-function onDirectDeliveryNotesChange(event: Event) {
-  const input = event.target as HTMLInputElement
-  directDeliveryNotes.value = input.files ? Array.from(input.files) : []
-}
-
-function onDirectDeliveryPhotosChange(event: Event) {
-  const input = event.target as HTMLInputElement
-  directDeliveryPhotos.value = input.files ? Array.from(input.files) : []
-}
-
-async function saveDirectDelivery() {
-  const validationError = validateDirectMaterialDeliveryInput({
-    materialTypeId: directSelectedMaterialTypeId.value,
-  })
-  if (validationError) {
-    alert(validationError)
-    return
-  }
-  isSavingDirect.value = true
-  try {
-    const result = await materialOrderApi.createMaterialDelivery({
-      materialTypeId: Number(directSelectedMaterialTypeId.value),
-      workTypeId: directSelectedWorkTypeId.value ? Number(directSelectedWorkTypeId.value) : undefined,
-      deliveryNotes: directDeliveryNotes.value,
-      deliveryPhotos: directDeliveryPhotos.value,
-      zoneIds: directSelectedZoneIds.value,
-      floorIds: directSelectedFloorIds.value,
-      // TODO: section/usage 임시 비활성화
-      // sectionIds: directSelectedSectionIds.value,
-      // usageIds: directSelectedUsageIds.value,
-    })
-    directDeliveryDialogOpen.value = false
-    materialSpecs.value = []
-    loadOrders()
-    analyticsClient.trackAction('material_delivery', 'create_delivery', 'success')
-    await loadDeliveries()
-    const newDelivery = deliveries.value.find(d => d.materialDeliveryId === result.deliveryId)
-    if (newDelivery) {
-      await toggleDelivery(newDelivery)
-    }
-  } catch (error: unknown) {
-    console.error('송장입력 실패:', error)
-    analyticsClient.trackAction('material_delivery', 'create_delivery', 'fail')
-    const err = error as { response?: { data?: { message?: string } }; message?: string }
-    alert(err.response?.data?.message || err.message)
-  } finally {
-    isSavingDirect.value = false
+async function onDirectDeliverySubmitted(deliveryId: number) {
+  materialSpecs.value = []
+  loadOrders()
+  await loadDeliveries()
+  const newDelivery = deliveries.value.find(d => d.materialDeliveryId === deliveryId)
+  if (newDelivery) {
+    await toggleDelivery(newDelivery)
   }
 }
 
@@ -481,22 +402,10 @@ async function toggleDelivery(delivery: MaterialDeliverySummary) {
     // 라인 목록 + editState 초기화
     const lines = await materialOrderApi.getMaterialDeliveryLineList(id)
     deliveryLinesMap.value[id] = lines
-    deliveryEditState.value[id] = {
-      supplier: delivery.supplier,
-      deliveryDate: delivery.deliveryDate,
-      location: delivery.location ?? '',
-      noteDescriptions: delivery.noteFiles.map((f) => ({ noteId: f.noteId!, description: f.description })),
-      photoDescriptions: delivery.photoFiles.map((f) => ({ photoId: f.photoId!, description: f.description })),
-    }
-    deliveryImageIndex.value[id] = 0
-    deliveryImageScale.value[id] = 1
-    deliveryImageTranslate[id] = { x: 0, y: 0 }
-    deliveryImageDragging.value[id] = false
-    deliveryDragStart[id] = { x: 0, y: 0 }
-    deliveryTranslateStart[id] = { x: 0, y: 0 }
-
-    // materialSpecs 로드 (매번 해당 delivery의 materialType에 맞게)
+    // materialSpecs + 분류/공종 로드 (매번 해당 delivery의 materialType에 맞게)
     const order = orders.value.find((o) => o.id === delivery.materialOrderId)
+    let initDivisionId = ''
+    let initWorkTypeId = ''
     if (order?.materialTypeId) {
       currentMaterialTypeId.value = order.materialTypeId
       try {
@@ -507,6 +416,42 @@ async function toggleDelivery(delivery: MaterialDeliverySummary) {
     } else {
       materialSpecs.value = []
     }
+
+    // 분류/공종 목록 로드 + 현재 값 사전 선택
+    try {
+      editDivisions.value = await referenceApi.getDivisionList()
+      if (order?.workTypeId) {
+        const allWorkTypes = await Promise.all(
+          editDivisions.value.map((d) => referenceApi.getWorkTypeList(d.id)),
+        )
+        const flatWorkTypes = allWorkTypes.flat()
+        const currentWt = flatWorkTypes.find((wt) => wt.id === order.workTypeId)
+        if (currentWt) {
+          initDivisionId = String(currentWt.divisionId)
+          initWorkTypeId = String(currentWt.id)
+          editWorkTypes.value = await referenceApi.getWorkTypeList(currentWt.divisionId)
+        }
+      }
+    } catch {
+      editDivisions.value = []
+      editWorkTypes.value = []
+    }
+
+    deliveryEditState.value[id] = {
+      supplier: delivery.supplier,
+      deliveryDate: delivery.deliveryDate,
+      location: delivery.location ?? '',
+      divisionId: initDivisionId,
+      workTypeId: initWorkTypeId,
+      noteDescriptions: delivery.noteFiles.map((f) => ({ noteId: f.noteId!, description: f.description })),
+      photoDescriptions: delivery.photoFiles.map((f) => ({ photoId: f.photoId!, description: f.description })),
+    }
+    deliveryImageIndex.value[id] = 0
+    deliveryImageScale.value[id] = 1
+    deliveryImageTranslate[id] = { x: 0, y: 0 }
+    deliveryImageDragging.value[id] = false
+    deliveryDragStart[id] = { x: 0, y: 0 }
+    deliveryTranslateStart[id] = { x: 0, y: 0 }
 
     // noteFiles + photoFiles 기반 이미지 로드
     const allFileUrls = [
@@ -604,6 +549,7 @@ async function updateDelivery(delivery: MaterialDeliverySummary) {
       supplier: editState.supplier,
       deliveryDate: editState.deliveryDate,
       location: editState.location || null,
+      workTypeId: editState.workTypeId ? Number(editState.workTypeId) : undefined,
       deliveryLines: lines.map((line) => ({
         manufacturer: line.manufacturer,
         specId: line.materialSpecId,
@@ -655,6 +601,9 @@ function onWindowResize() {
 onMounted(() => {
   loadOrders()
   loadDeliveries()
+  referenceApi.getMaterialTypeList()
+    .then((list) => (filterMaterialTypes.value = list))
+    .catch(() => {})
   getMaterialInspectionRequests(materialInspectionRequestRepository)
     .then((list) => (mirList.value = list))
     .catch(() => {})
@@ -673,10 +622,28 @@ onUnmounted(() => {
 <template>
   <PageContainer title="반입자재">
     <AreaCard height="flex-1" min-height="1100px">
-      <!-- 상단 버튼 -->
-      <div class="flex justify-end gap-2 mb-4">
-        <Button variant="outline" size="sm" @click="openDirectDeliveryDialog">
-          발주서없이 반입자재 생성
+      <!-- 필터 -->
+      <div class="flex items-center justify-center gap-4 mb-4">
+        <Select v-model="filterMaterialTypeId">
+          <SelectTrigger class="w-[180px]">
+            <SelectValue placeholder="자재유형 전체" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all__">자재 전체</SelectItem>
+            <SelectItem v-for="mt in filterMaterialTypes" :key="mt.id" :value="String(mt.id)">
+              {{ mt.name }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+        <DateRangeFilter v-model="filterDateRange" :min-value="calendarMinDate" :max-value="calendarMaxDate" />
+        <Button
+          v-if="filterDateRange.start"
+          variant="ghost"
+          size="sm"
+          class="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+          @click="filterDateRange = { start: undefined, end: undefined }"
+        >
+          <X class="h-4 w-4" />
         </Button>
       </div>
 
@@ -685,18 +652,18 @@ onUnmounted(() => {
         반입자재 목록 로딩 중...
       </div>
 
-      <!-- 빈 상태 -->
-      <div
-        v-else-if="deliveries.length === 0"
-        class="flex items-center justify-center py-16 border border-dashed border-border rounded-lg"
-      >
-        <p class="text-muted-foreground">반입된 자재가 없습니다.</p>
-      </div>
-
       <!-- 반입자재 카드 목록 -->
       <div v-else class="space-y-4">
+        <!-- 새 반입자재 생성 카드 -->
         <div
-          v-for="delivery in deliveries"
+          class="create-delivery-card relative rounded-lg flex items-center justify-center cursor-pointer hover:bg-muted/30 transition-colors"
+          style="min-height: 80px"
+          @click="openDirectDeliveryDialog"
+        >
+          <span class="text-6xl text-muted-foreground/50 select-none leading-none">＋</span>
+        </div>
+        <div
+          v-for="delivery in filteredDeliveries"
           :key="delivery.materialDeliveryId"
           class="border border-border rounded-lg overflow-hidden"
         >
@@ -709,6 +676,9 @@ onUnmounted(() => {
               <span class="text-xs text-muted-foreground">{{ expandedDeliveries[delivery.materialDeliveryId] ? '▲' : '▼' }}</span>
               <span class="text-sm font-medium">{{ delivery.materialOrderNumber }}</span>
               <span v-if="delivery.location" class="text-sm text-muted-foreground">{{ delivery.location }}</span>
+              <span v-if="delivery.specQuantities?.length > 0" class="text-sm text-muted-foreground">
+                {{ delivery.specQuantities.reduce((sum, sq) => sum + sq.quantity, 0) }}{{ delivery.unit }}
+              </span>
               <span v-if="mirDeliveryIds.has(delivery.materialDeliveryId)" class="text-xs text-muted-foreground">
                 문서번호 : {{ getMirForDelivery(delivery.materialDeliveryId)?.documentNumber }}
               </span>
@@ -720,7 +690,7 @@ onUnmounted(() => {
                   :disabled="isGeneratingMir[delivery.materialDeliveryId]"
                   @click="generateMir(delivery.materialDeliveryId)"
                 >
-                  {{ isGeneratingMir[delivery.materialDeliveryId] ? '생성 중...' : '자재반입검수요청서' }}
+                  {{ isGeneratingMir[delivery.materialDeliveryId] ? '생성 중...' : '검수요청서 생성' }}
                 </Button>
                 <template v-else>
                   <Badge variant="secondary">검수요청 완료</Badge>
@@ -743,18 +713,6 @@ onUnmounted(() => {
                   <X class="h-4 w-4" />
                 </Button>
               </div>
-            </div>
-            <div v-if="delivery.specQuantities?.length > 0" class="flex items-center gap-2 flex-wrap px-4 pb-3">
-              <Badge
-                v-for="sq in delivery.specQuantities"
-                :key="sq.materialSpecId"
-                variant="outline"
-                class="text-sm px-2.5 py-1"
-              >
-                {{ sq.materialSpecName }}:
-                <span class="font-semibold ml-1">{{ sq.quantity }}</span>
-                <span class="text-muted-foreground ml-0.5">{{ delivery.unit }}</span>
-              </Badge>
             </div>
           </div>
 
@@ -831,6 +789,50 @@ onUnmounted(() => {
 
                 <!-- 우측: 수정 폼 -->
                 <div class="space-y-4 overflow-y-auto" :class="isPortrait ? 'w-full' : 'w-1/2'">
+                  <!-- 분류 / 공종 -->
+                  <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-1.5">
+                      <Label>분류</Label>
+                      <Select
+                        :model-value="deliveryEditState[delivery.materialDeliveryId]!.divisionId"
+                        @update:model-value="handleEditDivisionChange(delivery.materialDeliveryId, $event)"
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="분류 선택" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem
+                            v-for="div in editDivisions"
+                            :key="div.id"
+                            :value="String(div.id)"
+                          >
+                            {{ div.name }}
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div class="space-y-1.5">
+                      <Label>공종</Label>
+                      <Select
+                        v-model="deliveryEditState[delivery.materialDeliveryId]!.workTypeId"
+                        :disabled="!deliveryEditState[delivery.materialDeliveryId]!.divisionId || isLoadingEditWorkTypes"
+                      >
+                        <SelectTrigger>
+                          <SelectValue :placeholder="isLoadingEditWorkTypes ? '로딩중...' : '공종 선택'" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem
+                            v-for="wt in editWorkTypes"
+                            :key="wt.id"
+                            :value="String(wt.id)"
+                          >
+                            {{ wt.name }}
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
                   <!-- 공급업체 / 납품일 -->
                   <div class="grid grid-cols-2 gap-4">
                     <div class="space-y-1.5">
@@ -966,192 +968,11 @@ onUnmounted(() => {
     </AreaCard>
 
     <!-- 발주서없이 반입자재 생성 다이얼로그 -->
-    <Dialog v-model:open="directDeliveryDialogOpen">
-      <DialogContent class="sm:max-w-[520px]">
-        <DialogHeader>
-          <DialogTitle>발주서없이 반입자재 생성</DialogTitle>
-        </DialogHeader>
-
-        <div class="space-y-5 py-2">
-          <!-- 자재유형 -->
-          <div class="space-y-2">
-            <Label>자재유형</Label>
-            <div class="flex items-center gap-1">
-              <Select v-model="directSelectedMaterialTypeId" class="flex-1">
-                <SelectTrigger>
-                  <SelectValue placeholder="자재유형 선택" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem
-                    v-for="mt in directMaterialTypes"
-                    :key="mt.id"
-                    :value="String(mt.id)"
-                  >
-                    {{ mt.name }}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <ReferenceEditTrigger type="material" @refresh="reloadDirectMaterialTypes" />
-            </div>
-          </div>
-
-          <!-- 분류 (선택사항) -->
-          <div class="space-y-2">
-            <div class="flex items-center gap-1">
-              <Label>분류 (선택사항)</Label>
-              <ReferenceEditTrigger type="work-classification" @refresh="reloadDirectDivisions" />
-            </div>
-            <Select
-              :model-value="directSelectedDivisionId"
-              @update:model-value="handleDirectDivisionChange"
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="분류 선택" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem
-                  v-for="div in directDivisions"
-                  :key="div.id"
-                  :value="String(div.id)"
-                >
-                  {{ div.name }}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <!-- 공종 (선택사항) -->
-          <div class="space-y-2">
-            <Label>공종 (선택사항)</Label>
-            <Select
-              v-model="directSelectedWorkTypeId"
-              :disabled="!directSelectedDivisionId || isLoadingDirectWorkTypes"
-            >
-              <SelectTrigger>
-                <SelectValue :placeholder="isLoadingDirectWorkTypes ? '로딩중...' : '공종 선택'" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem
-                  v-for="wt in directWorkTypes"
-                  :key="wt.id"
-                  :value="String(wt.id)"
-                >
-                  {{ wt.name }}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <!-- 송장파일 -->
-          <div class="space-y-2">
-            <div class="flex items-center gap-2">
-              <Label>송장파일</Label>
-              <span class="text-xs text-muted-foreground">미입력 가능, 다시 눌러서 사진 재선택</span>
-            </div>
-            <input
-              type="file"
-              multiple
-              accept=".pdf,.png,.jpg,.jpeg"
-              class="block w-full text-sm text-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded file:border file:border-input file:bg-muted file:text-sm file:font-medium hover:file:bg-muted/80 cursor-pointer"
-              @change="onDirectDeliveryNotesChange"
-            />
-            <ImageRotatePreview v-model="directDeliveryNotes" />
-          </div>
-
-          <!-- 반입사진 -->
-          <div class="space-y-2">
-            <div class="flex items-center gap-2">
-              <Label>반입사진</Label>
-              <span class="text-xs text-muted-foreground">미입력 가능, 다시 눌러서 사진 재선택</span>
-            </div>
-            <input
-              type="file"
-              multiple
-              accept="image/*"
-              class="block w-full text-sm text-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded file:border file:border-input file:bg-muted file:text-sm file:font-medium hover:file:bg-muted/80 cursor-pointer"
-              @change="onDirectDeliveryPhotosChange"
-            />
-            <ImageRotatePreview v-model="directDeliveryPhotos" />
-          </div>
-
-          <!-- 위치정보 -->
-          <div v-if="directZones.length > 0" class="space-y-2">
-            <div class="flex items-center gap-1">
-              <Label>존</Label>
-              <ReferenceEditTrigger type="zone" @refresh="reloadDirectZones" />
-            </div>
-            <div class="flex flex-wrap gap-3">
-              <div v-for="zone in directZones" :key="zone.id" class="flex items-center gap-1.5">
-                <Checkbox
-                  :id="`direct-zone-${zone.id}`"
-                  :model-value="directSelectedZoneIds.includes(zone.id)"
-                  @update:model-value="directSelectedZoneIds = toggleId(directSelectedZoneIds, zone.id)"
-                />
-                <label :for="`direct-zone-${zone.id}`" class="text-sm cursor-pointer">{{ zone.name }}</label>
-              </div>
-            </div>
-          </div>
-
-          <div v-if="directFloors.length > 0" class="space-y-2">
-            <div class="flex items-center gap-1">
-              <Label>층</Label>
-              <ReferenceEditTrigger type="floor" @refresh="reloadDirectFloors" />
-            </div>
-            <div class="flex flex-wrap gap-3">
-              <div v-for="floor in directFloors" :key="floor.id" class="flex items-center gap-1.5">
-                <Checkbox
-                  :id="`direct-floor-${floor.id}`"
-                  :model-value="directSelectedFloorIds.includes(floor.id)"
-                  @update:model-value="directSelectedFloorIds = toggleId(directSelectedFloorIds, floor.id)"
-                />
-                <label :for="`direct-floor-${floor.id}`" class="text-sm cursor-pointer">{{ floor.name }}</label>
-              </div>
-            </div>
-          </div>
-
-          <!-- TODO: section/usage 임시 비활성화 -->
-          <!-- <div v-if="directSections.length > 0" class="space-y-2">
-            <Label>구역</Label>
-            <div class="flex flex-wrap gap-3">
-              <div v-for="section in directSections" :key="section.id" class="flex items-center gap-1.5">
-                <Checkbox
-                  :id="`direct-section-${section.id}`"
-                  :model-value="directSelectedSectionIds.includes(section.id)"
-                  @update:model-value="directSelectedSectionIds = toggleId(directSelectedSectionIds, section.id)"
-                />
-                <label :for="`direct-section-${section.id}`" class="text-sm cursor-pointer">{{ section.name }}</label>
-              </div>
-            </div>
-          </div>
-
-          <div v-if="directUsages.length > 0" class="space-y-2">
-            <Label>용도</Label>
-            <div class="flex flex-wrap gap-3">
-              <div v-for="usage in directUsages" :key="usage.id" class="flex items-center gap-1.5">
-                <Checkbox
-                  :id="`direct-usage-${usage.id}`"
-                  :model-value="directSelectedUsageIds.includes(usage.id)"
-                  @update:model-value="directSelectedUsageIds = toggleId(directSelectedUsageIds, usage.id)"
-                />
-                <label :for="`direct-usage-${usage.id}`" class="text-sm cursor-pointer">{{ usage.name }}</label>
-              </div>
-            </div>
-          </div> -->
-        </div>
-
-        <DialogFooter class="flex-col items-end gap-2">
-          <div class="flex gap-2">
-            <Button variant="outline" @click="directDeliveryDialogOpen = false">취소</Button>
-            <Button :disabled="isSavingDirect" @click="saveDirectDelivery">
-              {{ isSavingDirect ? '저장 중...' : '저장' }}
-            </Button>
-          </div>
-          <p v-if="isSavingDirect" class="text-sm text-muted-foreground">
-            시간이 좀 걸립니다. 기다려주세요.
-          </p>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <MaterialDeliveryCreateDialog
+      v-model:open="directDeliveryDialogOpen"
+      :default-material-type-id="filterMaterialTypeId !== '__all__' ? filterMaterialTypeId : undefined"
+      @submitted="onDirectDeliverySubmitted"
+    />
 
     <!-- 반입자재 삭제 확인 다이얼로그 -->
     <AlertDialog :open="showDeleteDialog" @update:open="showDeleteDialog = $event">
@@ -1256,3 +1077,17 @@ onUnmounted(() => {
     </Dialog>
   </PageContainer>
 </template>
+
+<style scoped>
+.create-delivery-card {
+  border: none;
+}
+.create-delivery-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100%25' height='100%25'%3E%3Crect width='100%25' height='100%25' fill='none' rx='8' ry='8' stroke='hsl(0 0%25 50%25 / 0.5)' stroke-width='3' stroke-dasharray='16 10' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+</style>

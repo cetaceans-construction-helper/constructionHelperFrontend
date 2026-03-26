@@ -11,7 +11,7 @@ import type { Project } from '@/shared/network-core/contracts/project'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 
-export function useWorkForm(onWorkCreated: (mutation: MutationResponse) => void) {
+export function useWorkForm(onWorkCreated: (mutation: MutationResponse) => void, getScheduleVersion?: () => number) {
   // 오늘 날짜 (YYYY-MM-DD 형식, 로컬 시간 기준)
   const now = new Date()
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
@@ -99,6 +99,7 @@ export function useWorkForm(onWorkCreated: (mutation: MutationResponse) => void)
         // sectionIds: section_ids,
         // usageIds: usage_ids,
         ...(annotation && { annotation }),
+        scheduleVersionId: getScheduleVersion?.() ?? 0,
       }
 
       const mutation = await workApi.createWork(payload)

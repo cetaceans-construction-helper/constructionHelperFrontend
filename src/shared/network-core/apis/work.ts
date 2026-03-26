@@ -1,5 +1,5 @@
 import apiClient from '@/shared/network-core/apiClient'
-import type { PathResponse } from './workPath'
+import type { WorkDepResponse } from './workDep'
 
 // 작업 생성 페이로드
 export interface CreateWorkPayload {
@@ -13,6 +13,7 @@ export interface CreateWorkPayload {
   workLeadTime: number
   isWorkingOnHoliday?: boolean
   annotation?: string
+  scheduleVersionId: number
 }
 
 // 작업 사진 응답 타입
@@ -48,12 +49,13 @@ export interface WorkResponse {
   componentTypeIds?: number[]
   annotation?: string
   photos?: WorkPhotoResponse[]
+  isSkipped?: boolean
 }
 
-// Mutation 응답 (Work/WorkPath 변경 시 공통 반환)
+// Mutation 응답 (Work/WorkDep 변경 시 공통 반환)
 export interface MutationResponse {
   updatedWorks: WorkResponse[]
-  updatedWorkPaths: PathResponse[]
+  updatedWorkDeps: WorkDepResponse[]
 }
 
 // 작업 수정 페이로드
@@ -89,6 +91,14 @@ export const workApi = {
   // 작업 목록 조회
   async getWorkList(): Promise<WorkResponse[]> {
     const { data } = await apiClient.get<WorkResponse[]>('/work/getWorkList')
+    return data
+  },
+
+  // 버전별 작업 목록 조회
+  async getWorkListByVersion(scheduleVersionId: number): Promise<WorkResponse[]> {
+    const { data } = await apiClient.get<WorkResponse[]>('/work/getWorkListByVersion', {
+      params: { scheduleVersionId },
+    })
     return data
   },
 
