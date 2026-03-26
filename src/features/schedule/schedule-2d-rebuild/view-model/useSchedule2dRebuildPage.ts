@@ -60,6 +60,21 @@ type ConnectionCreationState = {
   colorHex?: string
 }
 
+type WorkCreateDialogPreset = {
+  divisionName: string
+  workTypeName: string
+  subWorkTypeName: string
+  subWorkTypeId: number | null
+}
+
+type WorkCreateDialogState = {
+  open: boolean
+  mode: 'create' | 'edit'
+  workId: number | null
+  startDate: string
+  preset: WorkCreateDialogPreset | null
+}
+
 export function useSchedule2dRebuildPage() {
   const snapshot = ref<ScheduleSnapshot | null>(null)
   const workingRows = ref<ScheduleRow[]>([])
@@ -81,6 +96,13 @@ export function useSchedule2dRebuildPage() {
   const interactionSession = ref<MoveSession | ResizeSession | SummaryResizeSession | null>(null)
   const lanePreferenceByItemId = ref<Record<string, number>>({})
   const connectionCreationState = ref<ConnectionCreationState | null>(null)
+  const workCreateDialogState = ref<WorkCreateDialogState>({
+    open: false,
+    mode: 'create',
+    workId: null,
+    startDate: '',
+    preset: null,
+  })
 
   const rowById = computed(() => new Map(workingRows.value.map((row) => [row.id, row])))
   const currentZoomIndex = computed(() => {
@@ -189,6 +211,21 @@ export function useSchedule2dRebuildPage() {
     selectionState.value = createEmptyScheduleSelectionState()
     connectionCreationState.value = null
     closeContextMenu()
+  }
+
+  function closeWorkCreateDialog() {
+    workCreateDialogState.value = {
+      open: false,
+      mode: 'create',
+      workId: null,
+      startDate: '',
+      preset: null,
+    }
+  }
+
+  function setWorkCreateDialogOpen(nextOpen: boolean) {
+    if (nextOpen) return
+    closeWorkCreateDialog()
   }
 
   function addParentRow() {
@@ -386,6 +423,48 @@ export function useSchedule2dRebuildPage() {
       : [targetItemId]
   }
 
+  function openWorkCreateDialog(payload: { rowId: string; startDate: string }) {
+    const targetRow = rowById.value.get(payload.rowId)
+    const seedItem = workingItems.value.find((item) => item.rowId === payload.rowId)
+
+    workCreateDialogState.value = {
+      open: true,
+      mode: 'create',
+      workId: null,
+      startDate: payload.startDate,
+      preset: {
+        divisionName: seedItem?.division ?? '',
+        workTypeName: seedItem?.workType ?? targetRow?.source.workType ?? '',
+        subWorkTypeName: seedItem?.subWorkType ?? targetRow?.source.subWorkType ?? '',
+        subWorkTypeId: targetRow?.source.subWorkTypeId ?? null,
+      },
+    }
+    closeContextMenu()
+  }
+
+  function openWorkEditDialog(itemId: string) {
+    const targetItem = workingItems.value.find((item) => item.id === itemId)
+    if (!targetItem) {
+      closeContextMenu()
+      return
+    }
+
+    const targetRow = rowById.value.get(targetItem.rowId)
+    workCreateDialogState.value = {
+      open: true,
+      mode: 'edit',
+      workId: targetItem.workId,
+      startDate: targetItem.startDate,
+      preset: {
+        divisionName: targetItem.division ?? '',
+        workTypeName: targetItem.workType ?? targetRow?.source.workType ?? '',
+        subWorkTypeName: targetItem.subWorkType ?? targetRow?.source.subWorkType ?? '',
+        subWorkTypeId: targetRow?.source.subWorkTypeId ?? null,
+      },
+    }
+    closeContextMenu()
+  }
+
   const contextMenuItems = computed<ScheduleContextMenuItem[]>(() => {
     const target = contextMenuState.value.target
     if (!contextMenuState.value.open || !target) return []
@@ -531,11 +610,10 @@ export function useSchedule2dRebuildPage() {
     }
 
     if (command === 'create-item' && target.kind === 'canvas' && canCreateItemOnCanvasTarget(target) && target.rowId && target.date) {
-      workingItems.value = scheduleService.createItem(workingRows.value, workingItems.value, {
+      openWorkCreateDialog({
         rowId: target.rowId,
         startDate: target.date,
       })
-      closeContextMenu()
       return
     }
 
@@ -635,17 +713,8 @@ export function useSchedule2dRebuildPage() {
       }
 
       if (command === 'change-properties') {
-        const targetItem = workingItems.value.find((item) => item.id === target.itemId)
-        if (!targetItem) {
-          closeContextMenu()
-          return
-        }
-
-        const nextName = promptForName('작업명을 입력하세요.', targetItem.name)
-        if (nextName) {
-          workingItems.value = scheduleService.updateItemName(workingItems.value, target.itemId, nextName)
-        }
-        closeContextMenu()
+        openWorkEditDialog(target.itemId)
+        return
       }
     }
 
@@ -1007,6 +1076,7 @@ export function useSchedule2dRebuildPage() {
     summary,
     selectionState,
     contextMenuState,
+    workCreateDialogState,
     contextMenuItems,
     dayWidth,
     canZoomIn,
@@ -1033,6 +1103,8 @@ export function useSchedule2dRebuildPage() {
     openRowContextMenu,
     openCanvasContextMenu,
     executeContextMenuCommand,
+    closeWorkCreateDialog,
+    setWorkCreateDialogOpen,
     cancelConnectionCreation,
     completeConnectionCreation,
     activateMilestone,

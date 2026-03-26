@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import ScheduleChartBody from '@/features/schedule/schedule-2d-rebuild/ui/components/ScheduleChartBody.vue'
 import ScheduleRowPanel from '@/features/schedule/schedule-2d-rebuild/ui/components/ScheduleRowPanel.vue'
 import ScheduleTimelineHeader from '@/features/schedule/schedule-2d-rebuild/ui/components/ScheduleTimelineHeader.vue'
@@ -58,12 +58,20 @@ const emit = defineEmits<{
   'toggle-critical-paths': []
 }>()
 
+const hoveredRowId = ref<string | null>(null)
+const hoveredDate = ref<string | null>(null)
+
 function handleRowPanelScroll(scrollTop: number) {
   emit('scroll-sync', { top: scrollTop, left: props.scrollLeft })
 }
 
 function handleChartScroll(position: { top: number; left: number }) {
   emit('scroll-sync', position)
+}
+
+function handleHoverCell(payload: { rowId: string | null; date: string | null }) {
+  hoveredRowId.value = payload.rowId
+  hoveredDate.value = payload.date
 }
 
 const shellHeight = computed(() => Math.max(props.viewportHeight ?? 640, 320))
@@ -93,6 +101,7 @@ const milestoneDates = computed(() => Array.from(new Set(props.shellLayout.miles
           :rows="shellLayout.rows"
           :viewport-height="bodyViewportHeight"
           :scroll-top="scrollTop"
+          :hovered-row-id="hoveredRowId"
           @scroll-top-change="handleRowPanelScroll"
           @toggle-row-collapse="emit('toggle-row-collapse', $event)"
           @add-child-row="emit('add-child-row', $event)"
@@ -106,6 +115,7 @@ const milestoneDates = computed(() => Array.from(new Set(props.shellLayout.miles
             :timeline="timeline"
             :scroll-left="scrollLeft"
             :milestone-dates="milestoneDates"
+            :hovered-date="hoveredDate"
           />
 
           <div class="pointer-events-none absolute right-4 top-3 z-10 flex items-center gap-2">
@@ -176,6 +186,7 @@ const milestoneDates = computed(() => Array.from(new Set(props.shellLayout.miles
           @resize-start="emit('resize-start', $event)"
           @resize-preview="emit('resize-preview', $event)"
           @resize-end="emit('resize-end')"
+          @hover-cell="handleHoverCell"
         />
       </div>
     </div>

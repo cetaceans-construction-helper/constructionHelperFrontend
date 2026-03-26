@@ -4,6 +4,7 @@ import PageContainer from '@/shared/helper-ui/PageContainer.vue'
 import AreaCard from '@/shared/helper-ui/AreaCard.vue'
 import ScheduleContextMenu from '@/features/schedule/schedule-2d-rebuild/ui/components/ScheduleContextMenu.vue'
 import ScheduleGanttShell from '@/features/schedule/schedule-2d-rebuild/ui/components/ScheduleGanttShell.vue'
+import ScheduleWorkCreateDialog from '@/features/schedule/schedule-2d-rebuild/ui/components/ScheduleWorkCreateDialog.vue'
 import { scheduleService } from '@/features/schedule/schedule-2d-rebuild/use-cases/schedule-service'
 import { useSchedule2dRebuildPage } from '@/features/schedule/schedule-2d-rebuild/view-model/useSchedule2dRebuildPage'
 
@@ -14,6 +15,7 @@ const {
   errorMessage,
   selectionState,
   contextMenuState,
+  workCreateDialogState,
   contextMenuItems,
   timeline,
   shellLayout,
@@ -38,6 +40,7 @@ const {
   openRowContextMenu,
   openCanvasContextMenu,
   executeContextMenuCommand,
+  setWorkCreateDialogOpen,
   cancelConnectionCreation,
   completeConnectionCreation,
   activateMilestone,
@@ -68,6 +71,10 @@ function syncShellViewport() {
 
 async function reloadSnapshot() {
   shouldApplyInitialTimelineScroll.value = true
+  await loadSnapshot()
+}
+
+async function handleWorkSaved() {
   await loadSnapshot()
 }
 
@@ -173,6 +180,16 @@ watch(
           :items="contextMenuItems"
           @close="closeContextMenu"
           @select="executeContextMenuCommand"
+        />
+
+        <ScheduleWorkCreateDialog
+          :open="workCreateDialogState.open"
+          :mode="workCreateDialogState.mode"
+          :work-id="workCreateDialogState.workId"
+          :start-date="workCreateDialogState.startDate"
+          :preset="workCreateDialogState.preset"
+          @update:open="setWorkCreateDialogOpen"
+          @saved="handleWorkSaved"
         />
 
         <div

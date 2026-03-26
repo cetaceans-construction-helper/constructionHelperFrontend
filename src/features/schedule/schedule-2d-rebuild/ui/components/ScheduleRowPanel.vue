@@ -8,6 +8,7 @@ const props = defineProps<{
   rows: ScheduleShellRow[]
   viewportHeight: number
   scrollTop: number
+  hoveredRowId?: string | null
 }>()
 
 const emit = defineEmits<{
@@ -80,11 +81,13 @@ function handleRowContextMenu(row: ScheduleShellRow, event: MouseEvent) {
         :key="entry.key"
         class="absolute left-0 right-0 flex items-center gap-2 border-b border-border/70 px-3"
         :class="[
-          entry.row.kind === 'milestone'
-            ? 'bg-amber-50/70'
-            : entry.row.kind === 'parent-process'
-              ? 'bg-muted/25'
-              : 'bg-background',
+          entry.row.id === hoveredRowId
+            ? 'bg-sky-50/80 shadow-[inset_0_0_0_1px_rgba(125,211,252,0.9)]'
+            : entry.row.kind === 'milestone'
+              ? 'bg-amber-50/70'
+              : entry.row.kind === 'parent-process'
+                ? 'bg-muted/25'
+                : 'bg-background',
           entry.row.kind === 'parent-process' && entry.row.hasChildren ? 'cursor-pointer' : '',
         ]"
         :style="{

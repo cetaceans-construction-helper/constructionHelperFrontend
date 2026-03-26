@@ -6,30 +6,33 @@ const props = defineProps<{
   timeline: ScheduleTimelineLayout
   scrollLeft: number
   milestoneDates: string[]
+  hoveredDate?: string | null
 }>()
 
 const milestoneDateSet = computed(() => new Set(props.milestoneDates))
 
 function getDayCellClass(day: ScheduleTimelineLayout['days'][number]) {
+  const classes: Array<string | false> = []
+
   if (milestoneDateSet.value.has(day.date)) {
-    return [
+    classes.push(
       'bg-amber-100/70 text-amber-900',
       day.isToday ? 'font-semibold ring-1 ring-inset ring-blue-200/80' : '',
-    ]
-  }
-
-  if (day.isWeekend) {
-    return [
+    )
+  } else if (day.isWeekend) {
+    classes.push(
       'bg-rose-50/55 text-rose-600',
       day.isToday ? 'font-semibold ring-1 ring-inset ring-blue-200/80' : '',
-    ]
+    )
+  } else if (day.isToday) {
+    classes.push('bg-blue-50 font-semibold text-blue-700')
   }
 
-  if (day.isToday) {
-    return 'bg-blue-50 font-semibold text-blue-700'
+  if (day.date === props.hoveredDate) {
+    classes.push('shadow-[inset_0_0_0_1px_rgba(125,211,252,0.95)] font-semibold')
   }
 
-  return ''
+  return classes
 }
 </script>
 

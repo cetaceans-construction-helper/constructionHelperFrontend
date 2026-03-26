@@ -41,6 +41,11 @@ type PreviewDependencyPoint = {
   y: number
 }
 
+type HoveredCellState = {
+  rowId: string | null
+  date: string | null
+}
+
 type ConnectionCreationState = {
   kind: 'dependency' | 'link' | 'critical-path'
   sourceItemId: string
@@ -82,6 +87,7 @@ const emit = defineEmits<{
   'resize-start': [payload: { kind: 'item'; itemId: string; edge: 'left' | 'right' } | { kind: 'summary'; rowId: string; edge: 'left' | 'right' }]
   'resize-preview': [payload: { deltaDays: number }]
   'resize-end': []
+  'hover-cell': [payload: HoveredCellState]
 }>()
 
 const containerRef = ref<HTMLElement | null>(null)
@@ -94,6 +100,10 @@ const hoveredDependencyId = ref<string | null>(null)
 const hoveredLinkId = ref<string | null>(null)
 const hoveredConnectionTargetItemId = ref<string | null>(null)
 const previewConnectionPoint = ref<PreviewDependencyPoint | null>(null)
+const hoveredCell = ref<HoveredCellState>({
+  rowId: null,
+  date: null,
+})
 let syncingFromProp = false
 const LANE_GAP = 6
 const DRAG_ACTIVATION_THRESHOLD = 4
@@ -124,6 +134,16 @@ const criticalPathColorsByItemId = computed(() => {
 const connectionSourceBar = computed(() => (
   props.connectionCreationState?.sourceItemId
     ? props.shellLayout.bars.find((bar) => bar.kind === 'item' && bar.itemId === props.connectionCreationState?.sourceItemId) ?? null
+    : null
+))
+const hoveredTimelineDay = computed(() => (
+  hoveredCell.value.date
+    ? props.timeline.days.find((day) => day.date === hoveredCell.value.date) ?? null
+    : null
+))
+const hoveredShellRow = computed(() => (
+  hoveredCell.value.rowId
+    ? props.shellLayout.rows.find((row) => row.id === hoveredCell.value.rowId) ?? null
     : null
 ))
 
@@ -157,6 +177,37 @@ const marqueeRectStyle = computed(() => {
     top: `${top}px`,
     width: `${width}px`,
     height: `${height}px`,
+  }
+})
+
+const hoveredDayOverlayStyle = computed(() => {
+  if (!hoveredTimelineDay.value) return null
+
+  return {
+    left: `${hoveredTimelineDay.value.left}px`,
+    width: `${hoveredTimelineDay.value.width}px`,
+    height: `${props.shellLayout.chartHeight}px`,
+  }
+})
+
+const hoveredRowOverlayStyle = computed(() => {
+  if (!hoveredShellRow.value) return null
+
+  return {
+    top: `${hoveredShellRow.value.top}px`,
+    height: `${hoveredShellRow.value.height}px`,
+    width: `${props.timeline.chartWidth}px`,
+  }
+})
+
+const hoveredIntersectionStyle = computed(() => {
+  if (!hoveredTimelineDay.value || !hoveredShellRow.value) return null
+
+  return {
+    left: `${hoveredTimelineDay.value.left}px`,
+    top: `${hoveredShellRow.value.top}px`,
+    width: `${hoveredTimelineDay.value.width}px`,
+    height: `${hoveredShellRow.value.height}px`,
   }
 })
 
@@ -252,6 +303,38 @@ function handleScroll(event: Event) {
   emit('scroll-change', {
     top: target.scrollTop,
     left: target.scrollLeft,
+  })
+}
+
+function updateHoveredCell(nextHoveredCell: HoveredCellState) {
+  if (
+    hoveredCell.value.rowId === nextHoveredCell.rowId &&
+    hoveredCell.value.date === nextHoveredCell.date
+  ) {
+    return
+  }
+
+  hoveredCell.value = nextHoveredCell
+  emit('hover-cell', nextHoveredCell)
+}
+
+function clearHoveredCell() {
+  updateHoveredCell({
+    rowId: null,
+    date: null,
+  })
+}
+
+function handlePanePointerMove(event: PointerEvent) {
+  const point = getContentPoint(event)
+  if (!point) {
+    clearHoveredCell()
+    return
+  }
+
+  updateHoveredCell({
+    rowId: getRowIdAtContentY(point.y),
+    date: getDateAtContentX(point.x),
   })
 }
 
@@ -784,6 +867,8 @@ onUnmounted(() => {
     }"
     :style="{ height: `${viewportHeight}px` }"
     @scroll="handleScroll"
+    @pointermove="handlePanePointerMove"
+    @pointerleave="clearHoveredCell"
     @pointerdown="handlePanePointerDown"
     @contextmenu.prevent="handlePaneContextMenu"
   >
@@ -811,6 +896,24 @@ onUnmounted(() => {
         :style="{ top: `${row.top}px`, height: `${row.height}px` }"
         @pointerdown="handleRowPointerDown(row, $event)"
         @contextmenu.prevent.stop="handleRowContextMenu(row, $event)"
+      />
+
+      <div
+        v-if="hoveredDayOverlayStyle"
+        class="pointer-events-none absolute top-0 z-[1] bg-sky-100/45"
+        :style="hoveredDayOverlayStyle"
+      />
+
+      <div
+        v-if="hoveredRowOverlayStyle"
+        class="pointer-events-none absolute left-0 z-[1] bg-slate-200/35"
+        :style="hoveredRowOverlayStyle"
+      />
+
+      <div
+        v-if="hoveredIntersectionStyle"
+        class="pointer-events-none absolute z-[1] bg-sky-200/45 shadow-[inset_0_0_0_1px_rgba(125,211,252,0.8)]"
+        :style="hoveredIntersectionStyle"
       />
 
       <svg
@@ -918,7 +1021,7 @@ onUnmounted(() => {
       <div
         v-for="bar in shellLayout.bars"
         :key="bar.id"
-        class="group absolute z-[2] box-border flex items-center overflow-hidden rounded-md border px-2 shadow-sm transition-[box-shadow,border-color,border-width]"
+        class="group absolute z-[2] box-border flex items-center overflow-hidden rounded-md border px-2.5 shadow-sm transition-[box-shadow,border-color,border-width]"
         :class="bar.kind === 'summary'
           ? selectedRowIdSet.has(bar.rowId)
             ? 'z-10 cursor-pointer border-2 border-slate-950 bg-slate-100 text-slate-700 shadow-[0_0_0_1px_rgba(15,23,42,0.18)]'
@@ -959,11 +1062,11 @@ onUnmounted(() => {
             style="background-image: repeating-linear-gradient(-60deg, rgba(15, 23, 42, 0.42) 0, rgba(15, 23, 42, 0.42) 1px, transparent 1px, transparent 6px);"
             :style="{ left: `${segment.left}px`, width: `${segment.width}px` }"
           />
-          <div class="pointer-events-none absolute inset-0 flex items-center justify-center px-2 text-center">
-            <span class="truncate text-xs font-extrabold">{{ bar.name }}</span>
+          <div class="pointer-events-none absolute inset-0 flex items-center justify-center px-2.5 text-center">
+            <span class="truncate text-sm font-extrabold leading-none">{{ bar.name }}</span>
           </div>
         </template>
-        <span v-else class="block w-full truncate text-center text-xs font-medium">{{ bar.name }}</span>
+        <span v-else class="block w-full truncate text-center text-sm font-semibold leading-none">{{ bar.name }}</span>
 
         <button
           v-if="!connectionCreationState && (bar.kind === 'item' || bar.kind === 'summary')"

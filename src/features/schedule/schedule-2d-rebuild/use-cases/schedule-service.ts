@@ -90,8 +90,8 @@ export const SCHEDULE_TIMELINE_DEFAULTS = {
 export const SCHEDULE_TIMELINE_ZOOM_LEVELS = [20, 28, 36, 48, 64] as const
 
 export const SCHEDULE_SHELL_DEFAULTS = {
-  rowHeight: 44,
-  barHeight: 24,
+  rowHeight: 48,
+  barHeight: 28,
 } as const
 
 export const SCHEDULE_MILESTONE_ROW_ID = 'row:milestones'
