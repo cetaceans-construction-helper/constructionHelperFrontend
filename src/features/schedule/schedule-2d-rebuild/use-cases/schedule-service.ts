@@ -16,12 +16,18 @@ import type {
   ScheduleShellLayout,
   ScheduleShellRow,
   ScheduleSnapshot,
+  ScheduleSummaryBlock,
   ScheduleSourceBundle,
   ScheduleSourceTask,
   ScheduleTimelineCell,
   ScheduleTimelineGroup,
   ScheduleTimelineLayout,
 } from '@/features/schedule/schedule-2d-rebuild/model/schedule-rebuild-types'
+import {
+  getAutoProcessBaseColor,
+  getProcessToneColors,
+  normalizeHexColor,
+} from '@/features/schedule/schedule-2d-rebuild/model/schedule-process-colors'
 
 interface ParentRowDraft {
   id: string
@@ -70,6 +76,8 @@ interface RowBarDraft {
   laneIndex: number
   name: string
   colorHex: string | null
+  borderColorHex: string | null
+  textColorHex: string | null
   left: number
   width: number
   height: number
@@ -93,6 +101,8 @@ export const SCHEDULE_SHELL_DEFAULTS = {
   rowHeight: 48,
   barHeight: 28,
 } as const
+
+const DEFAULT_SUMMARY_BLOCK_DURATION_DAYS = 7
 
 export const SCHEDULE_MILESTONE_ROW_ID = 'row:milestones'
 
@@ -565,6 +575,7 @@ function buildRows(tasks: ScheduleSourceTask[]): ScheduleRow[] {
       colorHex: null,
       summaryStartDate: parentDraft.startDate,
       summaryEndDate: parentDraft.endDate,
+      summaryBlocks: [createInitialSummaryBlock(parentDraft.id, parentDraft.name, parentDraft.startDate, parentDraft.endDate)],
       order: rows.length,
       depth: 0,
       collapsed: false,
@@ -586,6 +597,7 @@ function buildRows(tasks: ScheduleSourceTask[]): ScheduleRow[] {
         colorHex: null,
         summaryStartDate: null,
         summaryEndDate: null,
+        summaryBlocks: [],
         order: rows.length,
         depth: 1,
         collapsed: false,
@@ -623,6 +635,120 @@ function createLocalItemId(): string {
   return `item:local:${Date.now()}-${Math.floor(Math.random() * 1_000_000).toString(36)}`
 }
 
+function createLocalSummaryBlockId(): string {
+  return `summary:local:${Date.now()}-${Math.floor(Math.random() * 1_000_000).toString(36)}`
+}
+
+function createInitialSummaryBlock(rowId: string, name: string, startDate: string, endDate: string): ScheduleSummaryBlock {
+  return {
+    id: `summary:${rowId}:0`,
+    name,
+    startDate,
+    endDate,
+  }
+}
+
+function buildLegacySummaryBlockId(rowId: string): string {
+  return `summary:${rowId}:legacy`
+}
+
+function sortSummaryBlocks(summaryBlocks: ScheduleSummaryBlock[]): ScheduleSummaryBlock[] {
+  return [...summaryBlocks].sort((a, b) => (
+    a.startDate.localeCompare(b.startDate) ||
+    a.endDate.localeCompare(b.endDate) ||
+    a.id.localeCompare(b.id)
+  ))
+}
+
+function getSummaryBounds(summaryBlocks: ScheduleSummaryBlock[]): { startDate: string | null; endDate: string | null } {
+  if (summaryBlocks.length === 0) {
+    return {
+      startDate: null,
+      endDate: null,
+    }
+  }
+
+  return {
+    startDate: summaryBlocks.reduce((min, block) => (block.startDate < min ? block.startDate : min), summaryBlocks[0]!.startDate),
+    endDate: summaryBlocks.reduce((max, block) => (block.endDate > max ? block.endDate : max), summaryBlocks[0]!.endDate),
+  }
+}
+
+function getResolvedSummaryBlocks(row: ScheduleRow): ScheduleSummaryBlock[] {
+  if (row.summaryBlocks.length > 0) {
+    return sortSummaryBlocks(row.summaryBlocks)
+  }
+
+  if (row.kind === 'parent-process' && row.summaryStartDate && row.summaryEndDate) {
+    return [{
+      id: buildLegacySummaryBlockId(row.id),
+      name: row.name,
+      startDate: row.summaryStartDate,
+      endDate: row.summaryEndDate,
+    }]
+  }
+
+  return []
+}
+
+function applySummaryBlocksToRow(row: ScheduleRow, summaryBlocks: ScheduleSummaryBlock[]): ScheduleRow {
+  const nextSummaryBlocks = sortSummaryBlocks(summaryBlocks)
+  const bounds = getSummaryBounds(nextSummaryBlocks)
+
+  return {
+    ...row,
+    summaryBlocks: nextSummaryBlocks,
+    summaryStartDate: bounds.startDate,
+    summaryEndDate: bounds.endDate,
+  }
+}
+
+function getDefaultSummaryBlockName(row: ScheduleRow, summaryBlocks: ScheduleSummaryBlock[]): string {
+  return summaryBlocks.length === 0 ? row.name : `${row.name} 블록 ${summaryBlocks.length + 1}`
+}
+
+function buildParentBaseColorById(rows: ScheduleRow[]): Map<string, string> {
+  const parentRows = [...rows]
+    .filter((row) => row.kind === 'parent-process')
+    .sort((a, b) => a.order - b.order)
+
+  return new Map(
+    parentRows.map((row, index) => [
+      row.id,
+      normalizeHexColor(row.colorHex) ?? getAutoProcessBaseColor(index),
+    ] as const),
+  )
+}
+
+function resolveRowBaseColor(row: ScheduleRow, parentBaseColorById: Map<string, string>): string | null {
+  const explicitColor = normalizeHexColor(row.colorHex)
+  if (explicitColor) return explicitColor
+
+  if (row.kind === 'parent-process') {
+    return parentBaseColorById.get(row.id) ?? null
+  }
+
+  return row.parentId ? parentBaseColorById.get(row.parentId) ?? null : null
+}
+
+function getResolvedRowBaseColor(rows: ScheduleRow[], rowId: string): string | null {
+  const orderedRows = [...rows].sort((a, b) => a.order - b.order)
+  const row = orderedRows.find((candidate) => candidate.id === rowId)
+  if (!row) return null
+
+  return resolveRowBaseColor(row, buildParentBaseColorById(orderedRows))
+}
+
+function getResolvedItemBaseColor(rows: ScheduleRow[], items: ScheduleItem[], itemId: string): string | null {
+  const item = items.find((candidate) => candidate.id === itemId)
+  if (!item) return null
+
+  const explicitColor = normalizeHexColor(item.colorHex)
+  if (explicitColor) return explicitColor
+
+  return getResolvedRowBaseColor(rows, item.rowId)
+}
+
 function addParentRow(rows: ScheduleRow[]): ScheduleRow[] {
   const nextParentIndex = rows.filter((row) => row.kind === 'parent-process').length + 1
 
@@ -636,6 +762,7 @@ function addParentRow(rows: ScheduleRow[]): ScheduleRow[] {
       colorHex: null,
       summaryStartDate: null,
       summaryEndDate: null,
+      summaryBlocks: [],
       order: rows.length,
       depth: 0,
       collapsed: false,
@@ -668,6 +795,7 @@ function addChildRow(rows: ScheduleRow[], parentRowId: string): ScheduleRow[] {
     colorHex: null,
     summaryStartDate: null,
     summaryEndDate: null,
+    summaryBlocks: [],
     order: insertAfterOrder + 1,
     depth: 1,
     collapsed: false,
@@ -1083,10 +1211,57 @@ function createItem(
   ]
 }
 
+function addSummaryBlock(
+  rows: ScheduleRow[],
+  payload: { rowId: string; startDate: string; durationDays?: number },
+): ScheduleRow[] {
+  const nextDurationDays = Math.max(payload.durationDays ?? DEFAULT_SUMMARY_BLOCK_DURATION_DAYS, 1)
+
+  return rows.map((row) => {
+    if (row.id !== payload.rowId || row.kind !== 'parent-process') {
+      return row
+    }
+
+    const currentSummaryBlocks = getResolvedSummaryBlocks(row)
+    const nextSummaryBlocks = [
+      ...currentSummaryBlocks,
+      {
+        id: createLocalSummaryBlockId(),
+        name: getDefaultSummaryBlockName(row, currentSummaryBlocks),
+        startDate: payload.startDate,
+        endDate: shiftDateString(payload.startDate, nextDurationDays - 1),
+      },
+    ]
+
+    return applySummaryBlocksToRow(row, nextSummaryBlocks)
+  })
+}
+
+function deleteSummaryBlocks(rows: ScheduleRow[], summaryBlockIds: string[]): ScheduleRow[] {
+  if (summaryBlockIds.length === 0) return rows
+
+  const summaryBlockIdSet = new Set(summaryBlockIds)
+  return rows.map((row) => {
+    if (row.kind !== 'parent-process') return row
+
+    const currentSummaryBlocks = getResolvedSummaryBlocks(row)
+    if (!currentSummaryBlocks.some((summaryBlock) => summaryBlockIdSet.has(summaryBlock.id))) {
+      return row
+    }
+
+    return applySummaryBlocksToRow(
+      row,
+      currentSummaryBlocks.filter((summaryBlock) => !summaryBlockIdSet.has(summaryBlock.id)),
+    )
+  })
+}
+
 function updateRowColor(rows: ScheduleRow[], rowId: string, colorHex: string | null): ScheduleRow[] {
+  const normalizedColorHex = normalizeHexColor(colorHex) ?? null
+
   return rows.map((row) => (
     row.id === rowId
-      ? { ...row, colorHex }
+      ? { ...row, colorHex: normalizedColorHex }
       : row
   ))
 }
@@ -1102,13 +1277,44 @@ function updateRowName(rows: ScheduleRow[], rowId: string, name: string): Schedu
   ))
 }
 
+function updateSummaryBlockName(
+  rows: ScheduleRow[],
+  rowId: string,
+  summaryBlockId: string,
+  name: string,
+): ScheduleRow[] {
+  const trimmedName = name.trim()
+  if (!trimmedName) return rows
+
+  return rows.map((row) => {
+    if (row.id !== rowId || row.kind !== 'parent-process') {
+      return row
+    }
+
+    const currentSummaryBlocks = getResolvedSummaryBlocks(row)
+    if (!currentSummaryBlocks.some((summaryBlock) => summaryBlock.id === summaryBlockId)) {
+      return row
+    }
+
+    return applySummaryBlocksToRow(
+      row,
+      currentSummaryBlocks.map((summaryBlock) => (
+        summaryBlock.id === summaryBlockId
+          ? { ...summaryBlock, name: trimmedName }
+          : summaryBlock
+      )),
+    )
+  })
+}
+
 function updateItemColor(items: ScheduleItem[], itemIds: string[], colorHex: string | null): ScheduleItem[] {
   if (itemIds.length === 0) return items
 
+  const normalizedColorHex = normalizeHexColor(colorHex) ?? null
   const itemIdSet = new Set(itemIds)
   return items.map((item) => (
     itemIdSet.has(item.id)
-      ? { ...item, colorHex }
+      ? { ...item, colorHex: normalizedColorHex }
       : item
   ))
 }
@@ -1235,19 +1441,25 @@ async function loadSnapshot(repository: ScheduleSnapshotRepository): Promise<Sch
   return repository.getScheduleSnapshot()
 }
 
-function buildTimeline(items: ScheduleItem[], options: TimelineOptions = {}): ScheduleTimelineLayout {
+function buildTimeline(items: ScheduleItem[], rows: ScheduleRow[], options: TimelineOptions = {}): ScheduleTimelineLayout {
   const dayWidth = options.dayWidth ?? SCHEDULE_TIMELINE_DEFAULTS.dayWidth
   const paddingBeforeDays = options.paddingBeforeDays ?? SCHEDULE_TIMELINE_DEFAULTS.paddingBeforeDays
   const paddingAfterDays = options.paddingAfterDays ?? SCHEDULE_TIMELINE_DEFAULTS.paddingAfterDays
 
   const itemDates = items.flatMap((item) => [item.startDate, item.endDate])
+  const summaryBlockDates = rows.flatMap((row) => (
+    row.kind === 'parent-process'
+      ? getResolvedSummaryBlocks(row).flatMap((summaryBlock) => [summaryBlock.startDate, summaryBlock.endDate])
+      : []
+  ))
+  const timelineDates = [...itemDates, ...summaryBlockDates]
   const todayString = formatLocalDate(new Date())
 
-  const baseStartDate = itemDates.length > 0
-    ? itemDates.reduce((min, value) => (value < min ? value : min), itemDates[0]!)
+  const baseStartDate = timelineDates.length > 0
+    ? timelineDates.reduce((min, value) => (value < min ? value : min), timelineDates[0]!)
     : todayString
-  const baseEndDate = itemDates.length > 0
-    ? itemDates.reduce((max, value) => (value > max ? value : max), itemDates[0]!)
+  const baseEndDate = timelineDates.length > 0
+    ? timelineDates.reduce((max, value) => (value > max ? value : max), timelineDates[0]!)
     : todayString
 
   const startDate = formatLocalDate(addDays(parseLocalDate(baseStartDate), -paddingBeforeDays))
@@ -1394,6 +1606,16 @@ function buildShellLayout(
   const milestones = options.milestones ?? []
   const orderedRows = [...rowsSource].sort((a, b) => a.order - b.order)
   const rowById = new Map(orderedRows.map((row) => [row.id, row]))
+  const parentBaseColorById = buildParentBaseColorById(orderedRows)
+  const rowToneById = new Map(
+    orderedRows.map((row) => {
+      const baseColorHex = resolveRowBaseColor(row, parentBaseColorById) ?? getAutoProcessBaseColor(row.order)
+      return [
+        row.id,
+        getProcessToneColors(baseColorHex, row.kind === 'parent-process' ? 'parent' : 'child'),
+      ] as const
+    }),
+  )
 
   items.forEach((item) => {
     itemCountByRow.set(item.rowId, (itemCountByRow.get(item.rowId) ?? 0) + 1)
@@ -1447,13 +1669,20 @@ function buildShellLayout(
     function buildBarDraft(item: ScheduleItem, laneIndex: number): RowBarDraft {
       const left = diffDays(timeline.startDate, item.startDate) * timeline.dayWidth
       const width = Math.max(item.durationDays * timeline.dayWidth, timeline.dayWidth)
+      const explicitColorHex = normalizeHexColor(item.colorHex)
+      const colorTone = explicitColorHex
+        ? getProcessToneColors(explicitColorHex, 'child')
+        : rowToneById.get(item.rowId)
+
       return {
         id: `bar:${item.id}`,
         itemId: item.id,
         rowId: item.rowId,
         laneIndex,
         name: item.name,
-        colorHex: item.colorHex ?? null,
+        colorHex: colorTone?.fillColorHex ?? null,
+        borderColorHex: colorTone?.borderColorHex ?? null,
+        textColorHex: colorTone?.textColorHex ?? null,
         left,
         width,
         height: barHeight,
@@ -1550,12 +1779,17 @@ function buildShellLayout(
     top: 0,
     height: milestoneLayoutResult.rowHeight,
     itemCount: milestones.length,
+    colorHex: null,
+    surfaceColorHex: null,
+    borderColorHex: null,
+    textColorHex: null,
   }
 
   let accumulatedTop = milestoneLayoutResult.rowHeight
   const processRows: ScheduleShellRow[] = visibleRows.map((row) => {
     const nextRowHeight = rowHeightById.get(row.id) ?? rowHeight
     rowTopById.set(row.id, accumulatedTop)
+    const rowTone = rowToneById.get(row.id)
 
     const shellRow = {
       id: row.id,
@@ -1571,6 +1805,10 @@ function buildShellLayout(
       itemCount: row.kind === 'parent-process'
         ? descendantItemCountByParentId.get(row.id) ?? 0
         : itemCountByRow.get(row.id) ?? 0,
+      colorHex: rowTone?.fillColorHex ?? null,
+      surfaceColorHex: rowTone?.surfaceColorHex ?? null,
+      borderColorHex: rowTone?.borderColorHex ?? null,
+      textColorHex: rowTone?.textColorHex ?? null,
     }
     accumulatedTop += nextRowHeight
     return shellRow
@@ -1589,6 +1827,8 @@ function buildShellLayout(
       laneIndex: barDraft.laneIndex,
       name: barDraft.name,
       colorHex: barDraft.colorHex,
+      borderColorHex: barDraft.borderColorHex,
+      textColorHex: barDraft.textColorHex,
       left: barDraft.left,
       top: rowTop + verticalPadding + barDraft.laneIndex * (barHeight + laneGap),
       width: barDraft.width,
@@ -1605,6 +1845,7 @@ function buildShellLayout(
 
     const rowTop = rowTopById.get(row.id)
     const parentItems = childItemsByParentId.get(row.id) ?? []
+    const summaryBlocks = getResolvedSummaryBlocks(row)
     if (rowTop === undefined) return []
 
     const childStartDate = parentItems.length > 0
@@ -1613,47 +1854,55 @@ function buildShellLayout(
     const childEndDate = parentItems.length > 0
       ? parentItems.reduce((max, item) => (item.endDate > max ? item.endDate : max), parentItems[0]!.endDate)
       : null
-    const actualStartDate = row.summaryStartDate ?? childStartDate
-    const actualEndDate = row.summaryEndDate ?? childEndDate
-    if (!actualStartDate || !actualEndDate) return []
+    if (summaryBlocks.length === 0) return []
 
-    const left = diffDays(timeline.startDate, actualStartDate) * timeline.dayWidth
-    const durationDays = diffDays(actualStartDate, actualEndDate) + 1
-    const absoluteMismatchSegments = childStartDate !== null && childEndDate !== null
-      ? buildRangeMismatchSegments(
-          timeline,
-          { startDate: actualStartDate, endDate: actualEndDate },
-          { startDate: childStartDate, endDate: childEndDate },
-        )
-      : []
-    const rangeMismatchSegments = absoluteMismatchSegments
-      .filter((segment) => segment.left >= left && segment.left + segment.width <= left + durationDays * timeline.dayWidth)
-      .map((segment) => ({
-        left: segment.left - left,
-        width: segment.width,
-      }))
-    const overflowRangeSegments = absoluteMismatchSegments
-      .filter((segment) => segment.left < left || segment.left + segment.width > left + durationDays * timeline.dayWidth)
+    return summaryBlocks.map((summaryBlock) => {
+      const rowTone = rowToneById.get(row.id)
+      const left = diffDays(timeline.startDate, summaryBlock.startDate) * timeline.dayWidth
+      const durationDays = diffDays(summaryBlock.startDate, summaryBlock.endDate) + 1
+      const absoluteMismatchSegments = (
+        summaryBlocks.length === 1 &&
+        childStartDate !== null &&
+        childEndDate !== null
+      )
+        ? buildRangeMismatchSegments(
+            timeline,
+            { startDate: summaryBlock.startDate, endDate: summaryBlock.endDate },
+            { startDate: childStartDate, endDate: childEndDate },
+          )
+        : []
+      const rangeMismatchSegments = absoluteMismatchSegments
+        .filter((segment) => segment.left >= left && segment.left + segment.width <= left + durationDays * timeline.dayWidth)
+        .map((segment) => ({
+          left: segment.left - left,
+          width: segment.width,
+        }))
+      const overflowRangeSegments = absoluteMismatchSegments
+        .filter((segment) => segment.left < left || segment.left + segment.width > left + durationDays * timeline.dayWidth)
 
-    return [{
-      id: `bar:summary:${row.id}`,
-      itemId: `summary:${row.id}`,
-      rowId: row.id,
-      kind: 'summary',
-      laneIndex: 0,
-      name: row.name,
-      colorHex: row.colorHex ?? null,
-      rangeMismatchSegments,
-      overflowRangeSegments,
-      left,
-      top: rowTop + (rowHeight - summaryBarHeight) / 2,
-      width: Math.max(durationDays * timeline.dayWidth, timeline.dayWidth),
-      height: summaryBarHeight,
-      startDate: actualStartDate,
-      endDate: actualEndDate,
-      durationDays: diffDays(actualStartDate, actualEndDate) + 1,
-      appearance: 'standard',
-    }]
+      return {
+        id: `bar:summary:${row.id}:${summaryBlock.id}`,
+        itemId: `summary:${row.id}:${summaryBlock.id}`,
+        rowId: row.id,
+        summaryBlockId: summaryBlock.id,
+        kind: 'summary',
+        laneIndex: 0,
+        name: summaryBlock.name,
+        colorHex: rowTone?.fillColorHex ?? null,
+        borderColorHex: rowTone?.borderColorHex ?? null,
+        textColorHex: rowTone?.textColorHex ?? null,
+        rangeMismatchSegments,
+        overflowRangeSegments,
+        left,
+        top: rowTop + (rowHeight - summaryBarHeight) / 2,
+        width: Math.max(durationDays * timeline.dayWidth, timeline.dayWidth),
+        height: summaryBarHeight,
+        startDate: summaryBlock.startDate,
+        endDate: summaryBlock.endDate,
+        durationDays,
+        appearance: 'standard',
+      }
+    })
   })
 
   const connections = buildConnectionLayouts(itemBars, dependencies, links, criticalPaths)
@@ -1802,24 +2051,36 @@ function moveItems(
   return applyRelationshipConstraints(baseItems, itemsById, itemIds, dependencies, links)
 }
 
-function moveSummaryRows(
+function moveSummaryBlocks(
   baseRows: ScheduleRow[],
-  rowIds: string[],
+  summaryBlockIds: string[],
   deltaDays: number,
 ): ScheduleRow[] {
-  if (rowIds.length === 0) return baseRows
+  if (summaryBlockIds.length === 0) return baseRows
 
-  const rowIdSet = new Set(rowIds)
+  const summaryBlockIdSet = new Set(summaryBlockIds)
   return baseRows.map((row) => {
-    if (!rowIdSet.has(row.id) || row.kind !== 'parent-process' || !row.summaryStartDate || !row.summaryEndDate) {
+    if (row.kind !== 'parent-process') {
       return row
     }
 
-    return {
-      ...row,
-      summaryStartDate: shiftDateString(row.summaryStartDate, deltaDays),
-      summaryEndDate: shiftDateString(row.summaryEndDate, deltaDays),
+    const currentSummaryBlocks = getResolvedSummaryBlocks(row)
+    if (!currentSummaryBlocks.some((summaryBlock) => summaryBlockIdSet.has(summaryBlock.id))) {
+      return row
     }
+
+    return applySummaryBlocksToRow(
+      row,
+      currentSummaryBlocks.map((summaryBlock) => (
+        summaryBlockIdSet.has(summaryBlock.id)
+          ? {
+              ...summaryBlock,
+              startDate: shiftDateString(summaryBlock.startDate, deltaDays),
+              endDate: shiftDateString(summaryBlock.endDate, deltaDays),
+            }
+          : summaryBlock
+      )),
+    )
   })
 }
 
@@ -1856,34 +2117,45 @@ function resizeItem(
   return applyRelationshipConstraints(baseItems, itemsById, [itemId], dependencies, links)
 }
 
-function resizeSummaryRow(
+function resizeSummaryBlock(
   baseRows: ScheduleRow[],
   rowId: string,
+  summaryBlockId: string,
   edge: ResizeEdge,
   deltaDays: number,
 ): ScheduleRow[] {
   return baseRows.map((row) => {
-    if (row.id !== rowId || row.kind !== 'parent-process' || !row.summaryStartDate || !row.summaryEndDate) {
+    if (row.id !== rowId || row.kind !== 'parent-process') {
       return row
     }
 
-    const summaryDurationDays = diffDays(row.summaryStartDate, row.summaryEndDate) + 1
+    const currentSummaryBlocks = getResolvedSummaryBlocks(row)
+    const targetSummaryBlock = currentSummaryBlocks.find((summaryBlock) => summaryBlock.id === summaryBlockId)
+    if (!targetSummaryBlock) return row
 
-    if (edge === 'left') {
-      const clampedDelta = Math.min(deltaDays, summaryDurationDays - 1)
-      return {
-        ...row,
-        summaryStartDate: shiftDateString(row.summaryStartDate, clampedDelta),
+    const nextSummaryBlocks = currentSummaryBlocks.map((summaryBlock) => {
+      if (summaryBlock.id !== summaryBlockId) return summaryBlock
+
+      const summaryDurationDays = diffDays(summaryBlock.startDate, summaryBlock.endDate) + 1
+
+      if (edge === 'left') {
+        const clampedDelta = Math.min(deltaDays, summaryDurationDays - 1)
+        return {
+          ...summaryBlock,
+          startDate: shiftDateString(summaryBlock.startDate, clampedDelta),
+        }
       }
-    }
 
-    const nextDurationDays = Math.max(summaryDurationDays + deltaDays, 1)
-    const endDateDelta = nextDurationDays - summaryDurationDays
+      const nextDurationDays = Math.max(summaryDurationDays + deltaDays, 1)
+      const endDateDelta = nextDurationDays - summaryDurationDays
 
-    return {
-      ...row,
-      summaryEndDate: shiftDateString(row.summaryEndDate, endDateDelta),
-    }
+      return {
+        ...summaryBlock,
+        endDate: shiftDateString(summaryBlock.endDate, endDateDelta),
+      }
+    })
+
+    return applySummaryBlocksToRow(row, nextSummaryBlocks)
   })
 }
 
@@ -1916,14 +2188,19 @@ export const scheduleService = {
   ungroupItems,
   upsertMilestone,
   createItem,
+  addSummaryBlock,
+  deleteSummaryBlocks,
   updateRowColor,
   updateRowName,
+  updateSummaryBlockName,
+  getResolvedRowBaseColor,
+  getResolvedItemBaseColor,
   updateItemColor,
   updateItemName,
   getScrollLeftForZoom,
   getInitialScrollLeftForYesterday,
   moveItems,
-  moveSummaryRows,
+  moveSummaryBlocks,
   resizeItem,
-  resizeSummaryRow,
+  resizeSummaryBlock,
 }

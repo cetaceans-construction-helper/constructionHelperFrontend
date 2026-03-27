@@ -1,6 +1,7 @@
 export interface ScheduleSelectionState {
   rowIds: string[]
   itemIds: string[]
+  summaryBlockIds: string[]
   dependencyIds: string[]
   linkIds: string[]
   criticalPathIds: string[]
@@ -10,6 +11,7 @@ export interface ScheduleSelectionState {
 
 export type ScheduleContextMenuTarget =
   | { kind: 'row'; rowId: string }
+  | { kind: 'summary-block'; rowId: string; summaryBlockId: string }
   | { kind: 'item'; itemId: string }
   | { kind: 'dependency'; dependencyId: string }
   | { kind: 'link'; linkId: string }
@@ -21,7 +23,9 @@ export type ScheduleContextMenuTarget =
 export type ScheduleContextMenuCommand =
   | 'create-milestone'
   | 'create-item'
+  | 'create-summary-block'
   | 'delete-item'
+  | 'delete-summary-block'
   | 'toggle-dependency'
   | 'remove-dependency'
   | 'toggle-link'
@@ -60,6 +64,7 @@ export function createEmptyScheduleSelectionState(): ScheduleSelectionState {
   return {
     rowIds: [],
     itemIds: [],
+    summaryBlockIds: [],
     dependencyIds: [],
     linkIds: [],
     criticalPathIds: [],

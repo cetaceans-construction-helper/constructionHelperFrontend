@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import type { ScheduleShellRow } from '@/features/schedule/schedule-2d-rebuild/model/schedule-rebuild-types'
+import { toAlphaColor } from '@/features/schedule/schedule-2d-rebuild/model/schedule-process-colors'
 
 type RowPanelEntry = { kind: 'row'; key: string; row: ScheduleShellRow }
 
@@ -9,6 +10,7 @@ const props = defineProps<{
   viewportHeight: number
   scrollTop: number
   hoveredRowId?: string | null
+  bottomInset?: number
 }>()
 
 const emit = defineEmits<{
@@ -31,7 +33,7 @@ const panelEntries = computed<RowPanelEntry[]>(() => {
 
 const contentHeight = computed(() => {
   const lastRow = props.rows[props.rows.length - 1]
-  return lastRow ? lastRow.top + lastRow.height : 0
+  return (lastRow ? lastRow.top + lastRow.height : 0) + (props.bottomInset ?? 0)
 })
 
 watch(
@@ -66,6 +68,36 @@ function handleRowContextMenu(row: ScheduleShellRow, event: MouseEvent) {
     y: event.clientY,
   })
 }
+
+function getRowContainerStyle(row: ScheduleShellRow, isHovered: boolean) {
+  const style: Record<string, string> = {
+    top: `${row.top}px`,
+    height: `${row.height}px`,
+    paddingLeft: `${16 + row.depth * 20}px`,
+  }
+
+  if (row.surfaceColorHex) {
+    style.backgroundColor = row.surfaceColorHex
+  }
+
+  if (row.borderColorHex) {
+    style.borderColor = row.borderColorHex
+  }
+
+  if (row.colorHex && row.kind !== 'milestone') {
+    style.boxShadow = isHovered
+      ? `inset 0 0 0 1px ${toAlphaColor(row.colorHex, 0.45)}, inset 4px 0 0 ${row.colorHex}`
+      : `inset 4px 0 0 ${row.colorHex}`
+  } else if (isHovered) {
+    style.boxShadow = 'inset 0 0 0 1px rgba(125,211,252,0.9)'
+  }
+
+  return style
+}
+
+function getRowTextStyle(row: ScheduleShellRow) {
+  return row.textColorHex ? { color: row.textColorHex } : undefined
+}
 </script>
 
 <template>
@@ -81,20 +113,12 @@ function handleRowContextMenu(row: ScheduleShellRow, event: MouseEvent) {
         :key="entry.key"
         class="absolute left-0 right-0 flex items-center gap-2 border-b border-border/70 px-3"
         :class="[
-          entry.row.id === hoveredRowId
-            ? 'bg-sky-50/80 shadow-[inset_0_0_0_1px_rgba(125,211,252,0.9)]'
-            : entry.row.kind === 'milestone'
+          entry.row.kind === 'milestone'
               ? 'bg-amber-50/70'
-              : entry.row.kind === 'parent-process'
-                ? 'bg-muted/25'
-                : 'bg-background',
+              : '',
           entry.row.kind === 'parent-process' && entry.row.hasChildren ? 'cursor-pointer' : '',
         ]"
-        :style="{
-          top: `${entry.row.top}px`,
-          height: `${entry.row.height}px`,
-          paddingLeft: `${16 + entry.row.depth * 20}px`,
-        }"
+        :style="getRowContainerStyle(entry.row, entry.row.id === hoveredRowId)"
         @click="entry.row.kind === 'parent-process' && entry.row.hasChildren && emit('toggle-row-collapse', entry.row.id)"
         @contextmenu="handleRowContextMenu(entry.row, $event)"
       >
@@ -103,7 +127,8 @@ function handleRowContextMenu(row: ScheduleShellRow, event: MouseEvent) {
             <button
               v-if="entry.row.hasChildren"
               type="button"
-              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-2xl leading-none text-muted-foreground hover:bg-background hover:text-foreground"
+              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-2xl leading-none hover:bg-white/60"
+              :style="getRowTextStyle(entry.row)"
               @click.stop="emit('toggle-row-collapse', entry.row.id)"
             >
               {{ entry.row.collapsed ? '▸' : '▾' }}
@@ -116,8 +141,9 @@ function handleRowContextMenu(row: ScheduleShellRow, event: MouseEvent) {
             :class="entry.row.kind === 'milestone'
               ? 'font-semibold text-amber-700'
               : entry.row.kind === 'parent-process'
-                ? 'font-extrabold text-foreground'
-                : 'font-medium text-muted-foreground'"
+                ? 'font-extrabold'
+                : 'font-medium'"
+            :style="entry.row.kind === 'milestone' ? undefined : getRowTextStyle(entry.row)"
           >
             {{ entry.row.name }}
           </p>
@@ -126,7 +152,8 @@ function handleRowContextMenu(row: ScheduleShellRow, event: MouseEvent) {
         <template v-if="entry.row.kind === 'parent-process'">
           <button
             type="button"
-            class="flex h-8 min-w-8 items-center justify-center rounded-md px-2 text-xl leading-none text-muted-foreground hover:bg-background hover:text-foreground"
+            class="flex h-8 min-w-8 items-center justify-center rounded-md px-2 text-xl leading-none hover:bg-white/60"
+            :style="getRowTextStyle(entry.row)"
             @click.stop="emit('add-child-row', entry.row.id)"
           >
             +

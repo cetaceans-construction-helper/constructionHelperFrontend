@@ -29,7 +29,7 @@ type MoveSession = {
   type: 'move'
   anchor: 'item' | 'summary'
   itemIds: string[]
-  rowIds: string[]
+  summaryBlockIds: string[]
   baseItems: ScheduleItem[]
   baseRows: ScheduleRow[]
   baseLaneByItemId: Record<string, number>
@@ -49,6 +49,7 @@ type SummaryResizeSession = {
   type: 'resize'
   target: 'summary'
   rowId: string
+  summaryBlockId: string
   edge: 'left' | 'right'
   baseRows: ScheduleRow[]
 }
@@ -75,6 +76,46 @@ type WorkCreateDialogState = {
   preset: WorkCreateDialogPreset | null
 }
 
+type ColorPaletteTarget =
+  | { kind: 'row'; rowId: string }
+  | { kind: 'summary-block'; rowId: string; summaryBlockId: string }
+  | { kind: 'item'; itemId: string }
+
+type ColorPaletteState = {
+  open: boolean
+  x: number
+  y: number
+  title: string
+  subtitle: string
+  selectedColorHex: string | null
+  resetActive: boolean
+  showReset: boolean
+  resetLabel: string
+  target: ColorPaletteTarget | null
+}
+
+function cloneRows(rows: ScheduleRow[]): ScheduleRow[] {
+  return rows.map((row) => ({
+    ...row,
+    summaryBlocks: row.summaryBlocks.map((summaryBlock) => ({ ...summaryBlock })),
+  }))
+}
+
+function createClosedColorPaletteState(): ColorPaletteState {
+  return {
+    open: false,
+    x: 0,
+    y: 0,
+    title: '색상 선택',
+    subtitle: '',
+    selectedColorHex: null,
+    resetActive: false,
+    showReset: false,
+    resetLabel: '자동 색 사용',
+    target: null,
+  }
+}
+
 export function useSchedule2dRebuildPage() {
   const snapshot = ref<ScheduleSnapshot | null>(null)
   const workingRows = ref<ScheduleRow[]>([])
@@ -90,6 +131,7 @@ export function useSchedule2dRebuildPage() {
   const chartScrollLeft = ref(0)
   const selectionState = ref(createEmptyScheduleSelectionState())
   const contextMenuState = ref(createClosedScheduleContextMenuState())
+  const colorPaletteState = ref(createClosedColorPaletteState())
   const dayWidth = ref<number>(SCHEDULE_TIMELINE_DEFAULTS.dayWidth)
   const rowHeight = ref<number>(SCHEDULE_SHELL_DEFAULTS.rowHeight)
   const showCriticalPaths = ref(true)
@@ -145,7 +187,7 @@ export function useSchedule2dRebuildPage() {
 
   const timeline = computed(() => (
     snapshot.value
-      ? scheduleService.buildTimeline(workingItems.value, { dayWidth: dayWidth.value })
+      ? scheduleService.buildTimeline(workingItems.value, workingRows.value, { dayWidth: dayWidth.value })
       : null
   ))
   const shellLayout = computed(() => (
@@ -165,8 +207,17 @@ export function useSchedule2dRebuildPage() {
       : null
   ))
 
-  function closeContextMenu() {
+  function closeContextMenuOnly() {
     contextMenuState.value = createClosedScheduleContextMenuState()
+  }
+
+  function closeColorPalette() {
+    colorPaletteState.value = createClosedColorPaletteState()
+  }
+
+  function closeContextMenu() {
+    closeContextMenuOnly()
+    closeColorPalette()
   }
 
   async function loadSnapshot() {
@@ -175,7 +226,7 @@ export function useSchedule2dRebuildPage() {
 
     try {
       snapshot.value = await scheduleService.loadSnapshot(schedule2dRebuildRepository)
-      workingRows.value = snapshot.value.rows.map((row) => ({ ...row }))
+      workingRows.value = cloneRows(snapshot.value.rows)
       workingItems.value = snapshot.value.items.map((item) => ({ ...item }))
       workingDependencies.value = snapshot.value.dependencies.map((dependency) => ({ ...dependency }))
       workingLinks.value = snapshot.value.links.map((link) => ({ ...link }))
@@ -243,11 +294,12 @@ export function useSchedule2dRebuildPage() {
     closeContextMenu()
   }
 
-  function selectBars(payload: { itemIds: string[]; rowIds: string[] }) {
+  function selectBars(payload: { itemIds: string[]; summaryBlockIds: string[] }) {
     selectionState.value = {
       ...selectionState.value,
-      rowIds: payload.rowIds,
+      rowIds: [],
       itemIds: payload.itemIds,
+      summaryBlockIds: payload.summaryBlockIds,
       dependencyIds: [],
       linkIds: [],
       criticalPathIds: [],
@@ -263,18 +315,68 @@ export function useSchedule2dRebuildPage() {
     return rowById.value.get(target.rowId)?.kind === 'child-process'
   }
 
+  function canCreateSummaryBlockOnCanvasTarget(target: Extract<ScheduleContextMenuTarget, { kind: 'canvas' }>): boolean {
+    if (!target.rowId || !target.date) return false
+
+    return rowById.value.get(target.rowId)?.kind === 'parent-process'
+  }
+
   function canCreateMilestoneOnCanvasTarget(target: Extract<ScheduleContextMenuTarget, { kind: 'canvas' }>): boolean {
     return target.rowId === SCHEDULE_MILESTONE_ROW_ID && !!target.date
   }
 
-  function promptForColor(currentColor: string | null | undefined): string | null {
-    if (typeof window === 'undefined') return null
+  function openColorPalette(target: ColorPaletteTarget) {
+    const paletteX = contextMenuState.value.x
+    const paletteY = contextMenuState.value.y
 
-    const nextColor = window.prompt('색상 코드를 입력하세요. 예) #0ea5e9', currentColor ?? '#0ea5e9')
-    if (nextColor === null) return null
+    if (target.kind === 'item') {
+      const targetItem = workingItems.value.find((item) => item.id === target.itemId)
+      closeContextMenuOnly()
+      colorPaletteState.value = {
+        open: true,
+        x: paletteX,
+        y: paletteY,
+        title: '작업 색상 선택',
+        subtitle: '개별 색상을 지우면 공정 기본색을 따라갑니다.',
+        selectedColorHex: scheduleService.getResolvedItemBaseColor(workingRows.value, workingItems.value, target.itemId),
+        resetActive: !targetItem?.colorHex,
+        showReset: true,
+        resetLabel: '공정색 따라가기',
+        target,
+      }
+      return
+    }
 
-    const trimmedColor = nextColor.trim()
-    return trimmedColor.length > 0 ? trimmedColor : null
+    const targetRow = rowById.value.get(target.rowId)
+    closeContextMenuOnly()
+    colorPaletteState.value = {
+      open: true,
+      x: paletteX,
+      y: paletteY,
+      title: '공정 색상 선택',
+      subtitle: '상위 공정은 조금 더 짙게, 하위 공정은 같은 톤으로 더 연하게 반영됩니다.',
+      selectedColorHex: scheduleService.getResolvedRowBaseColor(workingRows.value, target.rowId),
+      resetActive: !targetRow?.colorHex,
+      showReset: true,
+      resetLabel: '자동 공정색 사용',
+      target,
+    }
+  }
+
+  function applyColorPalette(colorHex: string | null) {
+    const paletteTarget = colorPaletteState.value.target
+    if (!paletteTarget) {
+      closeColorPalette()
+      return
+    }
+
+    if (paletteTarget.kind === 'item') {
+      workingItems.value = scheduleService.updateItemColor(workingItems.value, [paletteTarget.itemId], colorHex)
+    } else {
+      workingRows.value = scheduleService.updateRowColor(workingRows.value, paletteTarget.rowId, colorHex)
+    }
+
+    closeColorPalette()
   }
 
   function promptForName(label: string, currentName: string): string | null {
@@ -318,6 +420,8 @@ export function useSchedule2dRebuildPage() {
   }
 
   function openItemContextMenu(payload: { itemId: string; x: number; y: number }) {
+    closeColorPalette()
+
     const nextSelectedItemIds = selectionState.value.itemIds.includes(payload.itemId)
       ? selectionState.value.itemIds
       : [payload.itemId]
@@ -337,7 +441,28 @@ export function useSchedule2dRebuildPage() {
     }
   }
 
+  function openSummaryBlockContextMenu(payload: { rowId: string; summaryBlockId: string; x: number; y: number }) {
+    closeColorPalette()
+
+    selectionState.value = {
+      ...createEmptyScheduleSelectionState(),
+      summaryBlockIds: [payload.summaryBlockId],
+    }
+    contextMenuState.value = {
+      open: true,
+      x: payload.x,
+      y: payload.y,
+      target: {
+        kind: 'summary-block',
+        rowId: payload.rowId,
+        summaryBlockId: payload.summaryBlockId,
+      },
+    }
+  }
+
   function openDependencyContextMenu(payload: { dependencyId: string; x: number; y: number }) {
+    closeColorPalette()
+
     selectionState.value = {
       ...createEmptyScheduleSelectionState(),
       dependencyIds: [payload.dependencyId],
@@ -354,6 +479,8 @@ export function useSchedule2dRebuildPage() {
   }
 
   function openLinkContextMenu(payload: { linkId: string; x: number; y: number }) {
+    closeColorPalette()
+
     selectionState.value = {
       ...createEmptyScheduleSelectionState(),
       linkIds: [payload.linkId],
@@ -370,6 +497,8 @@ export function useSchedule2dRebuildPage() {
   }
 
   function openCriticalPathContextMenu(payload: { criticalPathId: string; x: number; y: number }) {
+    closeColorPalette()
+
     selectionState.value = {
       ...createEmptyScheduleSelectionState(),
       criticalPathIds: [payload.criticalPathId],
@@ -387,6 +516,7 @@ export function useSchedule2dRebuildPage() {
 
   function openRowContextMenu(payload: { rowId: string; x: number; y: number }) {
     if (!rowById.value.has(payload.rowId)) return
+    closeColorPalette()
 
     selectionState.value = {
       ...createEmptyScheduleSelectionState(),
@@ -404,6 +534,8 @@ export function useSchedule2dRebuildPage() {
   }
 
   function openCanvasContextMenu(payload: { x: number; y: number; rowId: string | null; date: string | null }) {
+    closeColorPalette()
+
     selectionState.value = createEmptyScheduleSelectionState()
     contextMenuState.value = {
       open: true,
@@ -574,6 +706,33 @@ export function useSchedule2dRebuildPage() {
       ]
     }
 
+    if (target.kind === 'summary-block') {
+      const row = rowById.value.get(target.rowId)
+      if (!row || row.kind !== 'parent-process') return []
+
+      return [
+        {
+          id: 'delete-summary-block',
+          label: '상위 블록 삭제',
+          command: 'delete-summary-block',
+          icon: 'trash',
+          danger: true,
+        },
+        {
+          id: 'change-summary-parent-color',
+          label: '색상 변경',
+          command: 'change-color',
+          icon: 'palette',
+        },
+        {
+          id: 'change-summary-parent-properties',
+          label: '속성 변경',
+          command: 'change-properties',
+          icon: 'pencil',
+        },
+      ]
+    }
+
     if (target.kind === 'canvas') {
       if (canCreateMilestoneOnCanvasTarget(target)) {
         return [
@@ -581,6 +740,17 @@ export function useSchedule2dRebuildPage() {
             id: 'create-milestone',
             label: '마일스톤 생성',
             command: 'create-milestone',
+            icon: 'plus',
+          },
+        ]
+      }
+
+      if (canCreateSummaryBlockOnCanvasTarget(target)) {
+        return [
+          {
+            id: 'create-summary-block',
+            label: '상위 블록 생성',
+            command: 'create-summary-block',
             icon: 'plus',
           },
         ]
@@ -617,7 +787,16 @@ export function useSchedule2dRebuildPage() {
       return
     }
 
-    if (target.kind === 'row') {
+    if (command === 'create-summary-block' && target.kind === 'canvas' && canCreateSummaryBlockOnCanvasTarget(target) && target.rowId && target.date) {
+      workingRows.value = scheduleService.addSummaryBlock(workingRows.value, {
+        rowId: target.rowId,
+        startDate: target.date,
+      })
+      closeContextMenu()
+      return
+    }
+
+    if (target.kind === 'row' || target.kind === 'summary-block') {
       const targetRow = rowById.value.get(target.rowId)
       if (!targetRow || targetRow.kind !== 'parent-process') {
         closeContextMenu()
@@ -625,19 +804,30 @@ export function useSchedule2dRebuildPage() {
       }
 
       if (command === 'change-color') {
-        const nextColor = promptForColor(targetRow.colorHex)
-        if (nextColor !== null) {
-          workingRows.value = scheduleService.updateRowColor(workingRows.value, target.rowId, nextColor)
+        openColorPalette(target)
+        return
+      }
+
+      if (command === 'change-properties') {
+        const currentName = target.kind === 'summary-block'
+          ? targetRow.summaryBlocks.find((summaryBlock) => summaryBlock.id === target.summaryBlockId)?.name ?? targetRow.name
+          : targetRow.name
+        const nextName = promptForName(
+          target.kind === 'summary-block' ? '상위 블록명을 입력하세요.' : '상위 공정명을 입력하세요.',
+          currentName,
+        )
+        if (nextName) {
+          workingRows.value = target.kind === 'summary-block'
+            ? scheduleService.updateSummaryBlockName(workingRows.value, target.rowId, target.summaryBlockId, nextName)
+            : scheduleService.updateRowName(workingRows.value, target.rowId, nextName)
         }
         closeContextMenu()
         return
       }
 
-      if (command === 'change-properties') {
-        const nextName = promptForName('상위 공정명을 입력하세요.', targetRow.name)
-        if (nextName) {
-          workingRows.value = scheduleService.updateRowName(workingRows.value, target.rowId, nextName)
-        }
+      if (target.kind === 'summary-block' && command === 'delete-summary-block') {
+        workingRows.value = scheduleService.deleteSummaryBlocks(workingRows.value, [target.summaryBlockId])
+        selectionState.value = createEmptyScheduleSelectionState()
         closeContextMenu()
         return
       }
@@ -703,12 +893,7 @@ export function useSchedule2dRebuildPage() {
       }
 
       if (command === 'change-color') {
-        const targetItem = workingItems.value.find((item) => item.id === target.itemId)
-        const nextColor = promptForColor(targetItem?.colorHex)
-        if (nextColor !== null) {
-          workingItems.value = scheduleService.updateItemColor(workingItems.value, [target.itemId], nextColor)
-        }
-        closeContextMenu()
+        openColorPalette(target)
         return
       }
 
@@ -835,20 +1020,24 @@ export function useSchedule2dRebuildPage() {
     }
   }
 
-  function startMoveSession(payload: { kind: 'item'; itemId: string } | { kind: 'summary'; rowId: string }) {
+  function startMoveSession(
+    payload:
+      | { kind: 'item'; itemId: string }
+      | { kind: 'summary'; rowId: string; summaryBlockId: string },
+  ) {
     const selectedItemIds = payload.kind === 'item' && selectionState.value.itemIds.includes(payload.itemId)
       ? selectionState.value.itemIds
       : payload.kind === 'item'
         ? [payload.itemId]
-        : selectionState.value.rowIds.includes(payload.rowId)
+        : selectionState.value.summaryBlockIds.includes(payload.summaryBlockId)
           ? selectionState.value.itemIds
           : []
-    const selectedRowIds = payload.kind === 'summary' && selectionState.value.rowIds.includes(payload.rowId)
-      ? selectionState.value.rowIds
+    const selectedSummaryBlockIds = payload.kind === 'summary' && selectionState.value.summaryBlockIds.includes(payload.summaryBlockId)
+      ? selectionState.value.summaryBlockIds
       : payload.kind === 'summary'
-        ? [payload.rowId]
+        ? [payload.summaryBlockId]
         : selectionState.value.itemIds.includes(payload.itemId)
-          ? selectionState.value.rowIds
+          ? selectionState.value.summaryBlockIds
           : []
     const baseLaneByItemId = Object.fromEntries(
       (shellLayout.value?.bars ?? [])
@@ -866,15 +1055,15 @@ export function useSchedule2dRebuildPage() {
 
     selectBars({
       itemIds: selectedItemIds,
-      rowIds: selectedRowIds,
+      summaryBlockIds: selectedSummaryBlockIds,
     })
     interactionSession.value = {
       type: 'move',
       anchor: payload.kind,
       itemIds: selectedItemIds,
-      rowIds: selectedRowIds,
+      summaryBlockIds: selectedSummaryBlockIds,
       baseItems: workingItems.value.map((item) => ({ ...item })),
-      baseRows: workingRows.value.map((row) => ({ ...row })),
+      baseRows: cloneRows(workingRows.value),
       baseLaneByItemId,
       maxLaneIndexByRowId,
       pinnedLaneByItemId: baseLaneByItemId,
@@ -885,10 +1074,10 @@ export function useSchedule2dRebuildPage() {
     const session = interactionSession.value
     if (!session || session.type !== 'move') return
 
-    if (session.rowIds.length > 0) {
-      workingRows.value = scheduleService.moveSummaryRows(
+    if (session.summaryBlockIds.length > 0) {
+      workingRows.value = scheduleService.moveSummaryBlocks(
         session.baseRows,
-        session.rowIds,
+        session.summaryBlockIds,
         payload.deltaDays,
       )
     }
@@ -978,23 +1167,28 @@ export function useSchedule2dRebuildPage() {
   function startResizeSession(
     payload:
       | { kind: 'item'; itemId: string; edge: 'left' | 'right' }
-      | { kind: 'summary'; rowId: string; edge: 'left' | 'right' },
+      | { kind: 'summary'; rowId: string; summaryBlockId: string; edge: 'left' | 'right' },
   ) {
     if (payload.kind === 'summary') {
-      clearSelection()
+      selectionState.value = {
+        ...createEmptyScheduleSelectionState(),
+        summaryBlockIds: [payload.summaryBlockId],
+      }
+      closeContextMenu()
       interactionSession.value = {
         type: 'resize',
         target: 'summary',
         rowId: payload.rowId,
+        summaryBlockId: payload.summaryBlockId,
         edge: payload.edge,
-        baseRows: workingRows.value.map((row) => ({ ...row })),
+        baseRows: cloneRows(workingRows.value),
       }
       return
     }
 
     selectBars({
       itemIds: [payload.itemId],
-      rowIds: [],
+      summaryBlockIds: [],
     })
     interactionSession.value = {
       type: 'resize',
@@ -1010,9 +1204,10 @@ export function useSchedule2dRebuildPage() {
     if (!session || session.type !== 'resize') return
 
     if (session.target === 'summary') {
-      workingRows.value = scheduleService.resizeSummaryRow(
+      workingRows.value = scheduleService.resizeSummaryBlock(
         session.baseRows,
         session.rowId,
+        session.summaryBlockId,
         session.edge,
         payload.deltaDays,
       )
@@ -1076,6 +1271,7 @@ export function useSchedule2dRebuildPage() {
     summary,
     selectionState,
     contextMenuState,
+    colorPaletteState,
     workCreateDialogState,
     contextMenuItems,
     dayWidth,
@@ -1092,17 +1288,20 @@ export function useSchedule2dRebuildPage() {
     loadSnapshot,
     clearSelection,
     closeContextMenu,
+    closeColorPalette,
     addParentRow,
     addChildRow,
     toggleRowCollapse,
     selectBars,
     openItemContextMenu,
+    openSummaryBlockContextMenu,
     openDependencyContextMenu,
     openLinkContextMenu,
     openCriticalPathContextMenu,
     openRowContextMenu,
     openCanvasContextMenu,
     executeContextMenuCommand,
+    applyColorPalette,
     closeWorkCreateDialog,
     setWorkCreateDialogOpen,
     cancelConnectionCreation,

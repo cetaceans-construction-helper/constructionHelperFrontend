@@ -33,6 +33,7 @@ export type {
   ScheduleSourceBundle,
   ScheduleSourceLink,
   ScheduleSourceTask,
+  ScheduleSummaryBlock,
 } from '@/features/schedule/schedule-2d-rebuild/model/schedule-rebuild-types'
 export type { ScheduleSnapshotRepository } from '@/features/schedule/schedule-2d-rebuild/use-cases/schedule-service'
 

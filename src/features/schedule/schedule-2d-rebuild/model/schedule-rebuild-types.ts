@@ -21,6 +21,13 @@ export interface ScheduleRowSource {
   subWorkTypeId?: number
 }
 
+export interface ScheduleSummaryBlock {
+  id: string
+  name: string
+  startDate: string
+  endDate: string
+}
+
 export interface ScheduleRow {
   id: string
   kind: ScheduleRowKind
@@ -29,6 +36,7 @@ export interface ScheduleRow {
   colorHex?: string | null
   summaryStartDate?: string | null
   summaryEndDate?: string | null
+  summaryBlocks: ScheduleSummaryBlock[]
   order: number
   depth: number
   collapsed: boolean
@@ -196,6 +204,10 @@ export interface ScheduleShellRow {
   top: number
   height: number
   itemCount: number
+  colorHex?: string | null
+  surfaceColorHex?: string | null
+  borderColorHex?: string | null
+  textColorHex?: string | null
 }
 
 export interface ScheduleMilestoneLayout {
@@ -213,10 +225,13 @@ export interface ScheduleBarLayout {
   id: string
   itemId: string
   rowId: string
+  summaryBlockId?: string | null
   kind: ScheduleBarKind
   laneIndex: number
   name: string
   colorHex?: string | null
+  borderColorHex?: string | null
+  textColorHex?: string | null
   rangeMismatchSegments?: Array<{ left: number; width: number }>
   overflowRangeSegments?: Array<{ left: number; width: number }>
   left: number

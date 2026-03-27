@@ -2,19 +2,22 @@
 import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import PageContainer from '@/shared/helper-ui/PageContainer.vue'
 import AreaCard from '@/shared/helper-ui/AreaCard.vue'
+import ScheduleColorPalettePopover from '@/features/schedule/schedule-2d-rebuild/ui/components/ScheduleColorPalettePopover.vue'
 import ScheduleContextMenu from '@/features/schedule/schedule-2d-rebuild/ui/components/ScheduleContextMenu.vue'
 import ScheduleGanttShell from '@/features/schedule/schedule-2d-rebuild/ui/components/ScheduleGanttShell.vue'
 import ScheduleWorkCreateDialog from '@/features/schedule/schedule-2d-rebuild/ui/components/ScheduleWorkCreateDialog.vue'
 import { scheduleService } from '@/features/schedule/schedule-2d-rebuild/use-cases/schedule-service'
 import { useSchedule2dRebuildPage } from '@/features/schedule/schedule-2d-rebuild/view-model/useSchedule2dRebuildPage'
 
-const ROW_PANEL_WIDTH = 320
+const DEFAULT_ROW_PANEL_WIDTH = 320
+const ROW_PANEL_HANDLE_WIDTH = 10
 
 const {
   isLoading,
   errorMessage,
   selectionState,
   contextMenuState,
+  colorPaletteState,
   workCreateDialogState,
   contextMenuItems,
   timeline,
@@ -29,17 +32,20 @@ const {
   loadSnapshot,
   clearSelection,
   closeContextMenu,
+  closeColorPalette,
   addParentRow,
   addChildRow,
   toggleRowCollapse,
   selectBars,
   openItemContextMenu,
+  openSummaryBlockContextMenu,
   openDependencyContextMenu,
   openLinkContextMenu,
   openCriticalPathContextMenu,
   openRowContextMenu,
   openCanvasContextMenu,
   executeContextMenuCommand,
+  applyColorPalette,
   setWorkCreateDialogOpen,
   cancelConnectionCreation,
   completeConnectionCreation,
@@ -59,6 +65,8 @@ const {
 const shellHostRef = ref<HTMLElement | null>(null)
 const shellViewportHeight = ref(640)
 const chartViewportWidth = ref(0)
+const rowPanelWidth = ref(DEFAULT_ROW_PANEL_WIDTH)
+const rowPanelOpen = ref(true)
 const shouldApplyInitialTimelineScroll = ref(true)
 let resizeObserver: ResizeObserver | null = null
 
@@ -66,7 +74,10 @@ function syncShellViewport() {
   if (!shellHostRef.value) return
 
   shellViewportHeight.value = Math.max(shellHostRef.value.clientHeight, 320)
-  chartViewportWidth.value = Math.max(shellHostRef.value.clientWidth - ROW_PANEL_WIDTH, 0)
+  chartViewportWidth.value = Math.max(
+    shellHostRef.value.clientWidth - (rowPanelOpen.value ? rowPanelWidth.value + ROW_PANEL_HANDLE_WIDTH : 0),
+    0,
+  )
 }
 
 async function reloadSnapshot() {
@@ -86,6 +97,16 @@ function handleZoomOut() {
   zoomOut(chartViewportWidth.value)
 }
 
+function handleRowPanelWidthChange(nextWidth: number) {
+  rowPanelWidth.value = nextWidth
+  syncShellViewport()
+}
+
+function handleRowPanelOpenChange(nextOpen: boolean) {
+  rowPanelOpen.value = nextOpen
+  syncShellViewport()
+}
+
 onMounted(() => {
   void reloadSnapshot()
 
@@ -102,6 +123,13 @@ onUnmounted(() => {
   resizeObserver?.disconnect()
   resizeObserver = null
 })
+
+watch(
+  () => [rowPanelWidth.value, rowPanelOpen.value] as const,
+  () => {
+    syncShellViewport()
+  },
+)
 
 watch(
   () => [timeline.value, chartViewportWidth.value] as const,
@@ -128,9 +156,11 @@ watch(
           :timeline="timeline"
           :shell-layout="shellLayout"
           :viewport-height="shellViewportHeight"
+          :row-panel-width="rowPanelWidth"
+          :row-panel-open="rowPanelOpen"
           :scroll-top="chartScrollTop"
           :scroll-left="chartScrollLeft"
-          :selected-row-ids="selectionState.rowIds"
+          :selected-summary-block-ids="selectionState.summaryBlockIds"
           :selected-item-ids="selectionState.itemIds"
           :selected-dependency-ids="selectionState.dependencyIds"
           :selected-link-ids="selectionState.linkIds"
@@ -147,6 +177,7 @@ watch(
           @toggle-row-collapse="toggleRowCollapse"
           @select-bars="selectBars"
           @item-context-menu="openItemContextMenu"
+          @summary-block-context-menu="openSummaryBlockContextMenu"
           @dependency-context-menu="openDependencyContextMenu"
           @link-context-menu="openLinkContextMenu"
           @critical-path-context-menu="openCriticalPathContextMenu"
@@ -164,6 +195,8 @@ watch(
           @zoom-in="handleZoomIn"
           @zoom-out="handleZoomOut"
           @toggle-critical-paths="toggleCriticalPaths"
+          @row-panel-width-change="handleRowPanelWidthChange"
+          @row-panel-open-change="handleRowPanelOpenChange"
         />
 
         <div
@@ -180,6 +213,20 @@ watch(
           :items="contextMenuItems"
           @close="closeContextMenu"
           @select="executeContextMenuCommand"
+        />
+
+        <ScheduleColorPalettePopover
+          :open="colorPaletteState.open"
+          :x="colorPaletteState.x"
+          :y="colorPaletteState.y"
+          :title="colorPaletteState.title"
+          :subtitle="colorPaletteState.subtitle"
+          :selected-color-hex="colorPaletteState.selectedColorHex"
+          :show-reset="colorPaletteState.showReset"
+          :reset-active="colorPaletteState.resetActive"
+          :reset-label="colorPaletteState.resetLabel"
+          @close="closeColorPalette"
+          @select="applyColorPalette"
         />
 
         <ScheduleWorkCreateDialog

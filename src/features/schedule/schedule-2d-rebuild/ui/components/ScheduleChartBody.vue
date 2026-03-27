@@ -7,6 +7,10 @@ import type {
   ScheduleShellLayout,
   ScheduleTimelineLayout,
 } from '@/features/schedule/schedule-2d-rebuild/model/schedule-rebuild-types'
+import {
+  getContrastingTextColor,
+  toAlphaColor,
+} from '@/features/schedule/schedule-2d-rebuild/model/schedule-process-colors'
 
 type MarqueeState = {
   startX: number
@@ -59,7 +63,7 @@ const props = defineProps<{
   viewportHeight: number
   scrollTop: number
   scrollLeft: number
-  selectedRowIds: string[]
+  selectedSummaryBlockIds: string[]
   selectedItemIds: string[]
   selectedDependencyIds: string[]
   selectedLinkIds: string[]
@@ -71,8 +75,9 @@ const emit = defineEmits<{
   'scroll-change': [position: { top: number; left: number }]
   'clear-selection': []
   'toggle-row-collapse': [rowId: string]
-  'select-bars': [payload: { itemIds: string[]; rowIds: string[] }]
+  'select-bars': [payload: { itemIds: string[]; summaryBlockIds: string[] }]
   'item-context-menu': [payload: { itemId: string; x: number; y: number }]
+  'summary-block-context-menu': [payload: { rowId: string; summaryBlockId: string; x: number; y: number }]
   'dependency-context-menu': [payload: { dependencyId: string; x: number; y: number }]
   'link-context-menu': [payload: { linkId: string; x: number; y: number }]
   'critical-path-context-menu': [payload: { criticalPathId: string; x: number; y: number }]
@@ -81,10 +86,10 @@ const emit = defineEmits<{
   'cancel-connection-create': []
   'complete-connection-create': [targetItemId: string]
   'milestone-activate': [payload: { date: string; milestoneId?: string }]
-  'move-start': [payload: { kind: 'item'; itemId: string } | { kind: 'summary'; rowId: string }]
+  'move-start': [payload: { kind: 'item'; itemId: string } | { kind: 'summary'; rowId: string; summaryBlockId: string }]
   'move-preview': [payload: { deltaDays: number; deltaLanes: number }]
   'move-end': []
-  'resize-start': [payload: { kind: 'item'; itemId: string; edge: 'left' | 'right' } | { kind: 'summary'; rowId: string; edge: 'left' | 'right' }]
+  'resize-start': [payload: { kind: 'item'; itemId: string; edge: 'left' | 'right' } | { kind: 'summary'; rowId: string; summaryBlockId: string; edge: 'left' | 'right' }]
   'resize-preview': [payload: { deltaDays: number }]
   'resize-end': []
   'hover-cell': [payload: HoveredCellState]
@@ -109,7 +114,7 @@ const LANE_GAP = 6
 const DRAG_ACTIVATION_THRESHOLD = 4
 
 const selectedItemIdSet = computed(() => new Set(props.selectedItemIds))
-const selectedRowIdSet = computed(() => new Set(props.selectedRowIds))
+const selectedSummaryBlockIdSet = computed(() => new Set(props.selectedSummaryBlockIds))
 const selectedDependencyIdSet = computed(() => new Set(props.selectedDependencyIds))
 const selectedLinkIdSet = computed(() => new Set(props.selectedLinkIds))
 const selectedCriticalPathIdSet = computed(() => new Set(props.selectedCriticalPathIds))
@@ -197,6 +202,9 @@ const hoveredRowOverlayStyle = computed(() => {
     top: `${hoveredShellRow.value.top}px`,
     height: `${hoveredShellRow.value.height}px`,
     width: `${props.timeline.chartWidth}px`,
+    backgroundColor: hoveredShellRow.value.colorHex
+      ? toAlphaColor(hoveredShellRow.value.colorHex, 0.18)
+      : 'rgba(226, 232, 240, 0.35)',
   }
 })
 
@@ -208,6 +216,9 @@ const hoveredIntersectionStyle = computed(() => {
     top: `${hoveredShellRow.value.top}px`,
     width: `${hoveredTimelineDay.value.width}px`,
     height: `${hoveredShellRow.value.height}px`,
+    backgroundColor: hoveredShellRow.value.colorHex
+      ? toAlphaColor(hoveredShellRow.value.colorHex, 0.24)
+      : 'rgba(125, 211, 252, 0.45)',
   }
 })
 
@@ -283,13 +294,13 @@ function selectBarsInMarquee() {
   const selectedItemIds = selectedBars
     .filter((bar) => bar.kind === 'item')
     .map((bar) => bar.itemId)
-  const selectedRowIds = selectedBars
-    .filter((bar) => bar.kind === 'summary')
-    .map((bar) => bar.rowId)
+  const selectedSummaryBlockIds = selectedBars
+    .filter((bar) => bar.kind === 'summary' && !!bar.summaryBlockId)
+    .map((bar) => bar.summaryBlockId!)
 
   emit('select-bars', {
     itemIds: selectedItemIds,
-    rowIds: selectedRowIds,
+    summaryBlockIds: selectedSummaryBlockIds,
   })
 }
 
@@ -398,7 +409,9 @@ function handleBarPointerDown(bar: ScheduleBarLayout, event: PointerEvent) {
   }
 
   if (bar.kind === 'summary') {
-    emit('move-start', { kind: 'summary', rowId: bar.rowId })
+    if (!bar.summaryBlockId) return
+
+    emit('move-start', { kind: 'summary', rowId: bar.rowId, summaryBlockId: bar.summaryBlockId })
     moveState.value = {
       target: 'summary',
       rowId: bar.rowId,
@@ -450,7 +463,9 @@ function handleResizePointerDown(bar: ScheduleBarLayout, edge: 'left' | 'right',
   if (event.button !== 0 || isSpacePressed.value) return
   event.stopPropagation()
   if (bar.kind === 'summary') {
-    emit('resize-start', { kind: 'summary', rowId: bar.rowId, edge })
+    if (!bar.summaryBlockId) return
+
+    emit('resize-start', { kind: 'summary', rowId: bar.rowId, summaryBlockId: bar.summaryBlockId, edge })
   } else {
     emit('resize-start', { kind: 'item', itemId: bar.itemId, edge })
   }
@@ -493,10 +508,12 @@ function handleRowContextMenu(row: ScheduleShellLayout['rows'][number], event: M
     return
   }
 
-  emit('row-context-menu', {
-    rowId: row.id,
+  const point = getContentPoint(event)
+  emit('canvas-context-menu', {
     x: event.clientX,
     y: event.clientY,
+    rowId: row.id,
+    date: point ? getDateAtContentX(point.x) : null,
   })
 }
 
@@ -526,8 +543,11 @@ function handleMilestoneClick(milestoneId: string, date: string) {
 
 function handleBarContextMenu(bar: ScheduleBarLayout, event: MouseEvent) {
   if (bar.kind === 'summary') {
-    emit('row-context-menu', {
+    if (!bar.summaryBlockId) return
+
+    emit('summary-block-context-menu', {
       rowId: bar.rowId,
+      summaryBlockId: bar.summaryBlockId,
       x: event.clientX,
       y: event.clientY,
     })
@@ -542,6 +562,12 @@ function handleBarContextMenu(bar: ScheduleBarLayout, event: MouseEvent) {
 }
 
 function getBarInlineStyle(bar: ScheduleBarLayout) {
+  const isSummarySelected = !!bar.summaryBlockId && selectedSummaryBlockIdSet.value.has(bar.summaryBlockId)
+  const isItemSelected = selectedItemIdSet.value.has(bar.itemId)
+  const isConnectionSource = props.connectionCreationState?.sourceItemId === bar.itemId
+  const isConnectionTarget = hoveredConnectionTargetItemId.value === bar.itemId
+  const isEmphasized = isSummarySelected || isItemSelected || isConnectionSource || isConnectionTarget
+
   const style: Record<string, string> = {
     left: `${bar.left}px`,
     top: `${bar.top}px`,
@@ -550,11 +576,18 @@ function getBarInlineStyle(bar: ScheduleBarLayout) {
   }
 
   if (bar.colorHex) {
-    style.backgroundColor = bar.colorHex
-    style.color = '#ffffff'
+    style.backgroundColor = bar.kind === 'item' && bar.appearance === 'holiday-off'
+      ? toAlphaColor(bar.colorHex, 0.72)
+      : bar.colorHex
+    style.color = bar.textColorHex ?? getContrastingTextColor(bar.colorHex)
+    style.borderWidth = isEmphasized ? '2px' : '1.25px'
 
-    if (!(bar.kind === 'item' && selectedItemIdSet.value.has(bar.itemId))) {
-      style.borderColor = bar.colorHex
+    if (!isEmphasized) {
+      style.borderColor = bar.borderColorHex ?? bar.colorHex
+    }
+
+    if (!isEmphasized) {
+      style.boxShadow = `inset 0 0 0 1px ${toAlphaColor(bar.borderColorHex ?? bar.colorHex, 0.34)}`
     }
   }
 
@@ -582,8 +615,32 @@ function getBarInlineStyle(bar: ScheduleBarLayout) {
         )
       }
 
-      style.boxShadow = nextShadowLayers.join(', ')
+      style.boxShadow = style.boxShadow
+        ? [style.boxShadow, ...nextShadowLayers].join(', ')
+        : nextShadowLayers.join(', ')
     }
+  }
+
+  return style
+}
+
+function getRowBandStyle(row: ScheduleShellLayout['rows'][number]) {
+  const style: Record<string, string> = {
+    top: `${row.top}px`,
+    height: `${row.height}px`,
+  }
+
+  if (row.borderColorHex) {
+    style.borderColor = row.kind === 'parent-process'
+      ? toAlphaColor(row.borderColorHex, 0.5)
+      : toAlphaColor(row.borderColorHex, 0.3)
+  }
+
+  if (row.colorHex && row.kind !== 'milestone') {
+    style.backgroundColor = row.kind === 'parent-process'
+      ? toAlphaColor(row.colorHex, 0.1)
+      : toAlphaColor(row.colorHex, 0.06)
+    style.boxShadow = `inset 2px 0 0 ${toAlphaColor(row.colorHex, row.kind === 'parent-process' ? 0.46 : 0.3)}`
   }
 
   return style
@@ -603,25 +660,6 @@ function getDayColumnClass(day: ScheduleTimelineLayout['days'][number]) {
   }
 
   return ''
-}
-
-function normalizeHexColor(colorHex: string) {
-  const sanitized = colorHex.trim().replace('#', '')
-  if (/^[0-9a-fA-F]{3}$/.test(sanitized)) {
-    return sanitized.split('').map((character) => `${character}${character}`).join('')
-  }
-
-  return /^[0-9a-fA-F]{6}$/.test(sanitized) ? sanitized : null
-}
-
-function toAlphaColor(colorHex: string, alpha: number) {
-  const normalizedHex = normalizeHexColor(colorHex)
-  if (!normalizedHex) return colorHex
-
-  const red = Number.parseInt(normalizedHex.slice(0, 2), 16)
-  const green = Number.parseInt(normalizedHex.slice(2, 4), 16)
-  const blue = Number.parseInt(normalizedHex.slice(4, 6), 16)
-  return `rgba(${red}, ${green}, ${blue}, ${alpha})`
 }
 
 function getConnectionStroke(connection: ScheduleConnectionLayout) {
@@ -888,12 +926,8 @@ onUnmounted(() => {
         v-for="row in shellLayout.rows"
         :key="`row-${row.id}`"
         class="absolute left-0 right-0 border-b border-border/70"
-        :class="row.kind === 'milestone'
-          ? 'bg-amber-50/70'
-          : row.kind === 'parent-process'
-            ? 'bg-slate-50/80'
-            : 'bg-transparent'"
-        :style="{ top: `${row.top}px`, height: `${row.height}px` }"
+        :class="row.kind === 'milestone' ? 'bg-amber-50/70' : ''"
+        :style="getRowBandStyle(row)"
         @pointerdown="handleRowPointerDown(row, $event)"
         @contextmenu.prevent.stop="handleRowContextMenu(row, $event)"
       />
@@ -906,13 +940,13 @@ onUnmounted(() => {
 
       <div
         v-if="hoveredRowOverlayStyle"
-        class="pointer-events-none absolute left-0 z-[1] bg-slate-200/35"
+        class="pointer-events-none absolute left-0 z-[1]"
         :style="hoveredRowOverlayStyle"
       />
 
       <div
         v-if="hoveredIntersectionStyle"
-        class="pointer-events-none absolute z-[1] bg-sky-200/45 shadow-[inset_0_0_0_1px_rgba(125,211,252,0.8)]"
+        class="pointer-events-none absolute z-[1] shadow-[inset_0_0_0_1px_rgba(125,211,252,0.8)]"
         :style="hoveredIntersectionStyle"
       />
 
@@ -1023,7 +1057,7 @@ onUnmounted(() => {
         :key="bar.id"
         class="group absolute z-[2] box-border flex items-center overflow-hidden rounded-md border px-2.5 shadow-sm transition-[box-shadow,border-color,border-width]"
         :class="bar.kind === 'summary'
-          ? selectedRowIdSet.has(bar.rowId)
+          ? !!bar.summaryBlockId && selectedSummaryBlockIdSet.has(bar.summaryBlockId)
             ? 'z-10 cursor-pointer border-2 border-slate-950 bg-slate-100 text-slate-700 shadow-[0_0_0_1px_rgba(15,23,42,0.18)]'
             : 'cursor-pointer border-slate-400 bg-slate-100 text-slate-700'
           : connectionCreationState
