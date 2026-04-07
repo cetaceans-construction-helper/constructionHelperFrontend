@@ -48,26 +48,44 @@ export interface DeliveryFileInfo {
   description: string
 }
 
-export interface DeliverySpecQuantity {
-  materialSpecId: number
-  materialSpecName: string
-  quantity: number
-}
-
 export interface MaterialDeliverySummary {
   materialDeliveryId: number
+  materialTypeId: number
   materialTypeName: string
-  workTypeName: string
-  supplier: string
   deliveryDate: string
-  location: string
+  unit: string
+  mirDocumentNumber: string | null
+  totalQuantity: number
+}
+
+export interface MaterialDeliveryDetailZone {
+  id: number
+  name: string
+}
+
+export interface MaterialDeliveryDetailFloor {
+  id: number
+  name: string
+}
+
+export interface MaterialDeliveryDetailComponentType {
+  componentTypeId: number
+  componentTypeName: string
+  componentDivisionId: number
+  componentDivisionName: string
+}
+
+export interface MaterialDeliveryDetail {
+  materialDeliveryId: number
+  supplier: string
+  workTypeId: number | null
+  workTypeName: string | null
+  zones: MaterialDeliveryDetailZone[]
+  floors: MaterialDeliveryDetailFloor[]
+  componentTypes: MaterialDeliveryDetailComponentType[]
   noteFiles: DeliveryFileInfo[]
   photoFiles: DeliveryFileInfo[]
-  unit: string
-  zoneIds: number[]
-  floorIds: number[]
-  mirDocumentNumber: string | null
-  specQuantities: DeliverySpecQuantity[]
+  deliveryLines: DeliveryLineResponse[]
 }
 
 export interface CreateDeliveryResponse {

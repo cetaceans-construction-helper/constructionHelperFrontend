@@ -185,6 +185,7 @@ async function saveDelivery() {
       deliveryPhotos: deliveryPhotos.value,
       zoneIds: selectedZoneIds.value,
       floorIds: selectedFloorIds.value,
+      componentTypeIds: [],
     })
     deliveryDialogOpen.value = false
     analyticsClient.trackAction('material_delivery', 'create_delivery', 'success')

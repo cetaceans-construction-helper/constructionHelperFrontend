@@ -50,6 +50,7 @@ import MaterialDeliveryCreateDialog from '@/features/material/ui/components/Mate
 import { materialOrderApi } from '@/features/material/infra/material-order-api'
 import type {
   DeliveryLineResponse,
+  MaterialDeliveryDetail,
   MaterialDeliverySummary,
 } from '@/features/material/model/material-order-types'
 import { useMaterialOrder } from '@/features/material/view-model/useMaterialOrder'
@@ -103,7 +104,6 @@ const filterMaterialTypes = ref<MaterialTypeResponse[]>([])
 // 반입자재 상태
 const deliveries = ref<MaterialDeliverySummary[]>([])
 const isLoadingDeliveries = ref(false)
-const totalQuantityMap = ref<Record<number, { totalQuantity: number; unit: string | null }>>({})
 
 // 필터 적용된 목록
 const filteredDeliveries = computed(() => {
@@ -124,6 +124,7 @@ const filteredDeliveries = computed(() => {
 // 반입자재 펼치기/접기 + 인라인 수정 상태
 const expandedDeliveries = reactive<Record<number, boolean>>({})
 const deliveryLinesMap = ref<Record<number, DeliveryLineResponse[]>>({})
+const deliveryDetailMap = ref<Record<number, MaterialDeliveryDetail>>({})
 const deliveryEditState = ref<Record<number, {
   supplier: string
   deliveryDate: string
@@ -131,6 +132,7 @@ const deliveryEditState = ref<Record<number, {
   workTypeId: string
   selectedZoneIds: number[]
   selectedFloorIds: number[]
+  selectedComponentTypeIds: number[]
   noteDescriptions: { noteId: number; description: string }[]
   photoDescriptions: { photoId: number; description: string }[]
 }>>({})
@@ -147,6 +149,10 @@ const editWorkTypes = ref<WorkTypeResponse[]>([])
 const isLoadingEditWorkTypes = ref(false)
 const editZones = ref<IdNameResponse[]>([])
 const editFloors = ref<IdNameResponse[]>([])
+const editComponentDivisions = ref<IdNameResponse[]>([])
+const editComponentTypes = ref<IdNameResponse[]>([])
+const isLoadingEditComponentTypes = ref(false)
+const selectedEditComponentDivisionId = ref('')
 
 function toggleId(list: number[], id: number): number[] {
   return list.includes(id) ? list.filter((v) => v !== id) : [...list, id]
@@ -304,12 +310,13 @@ function screenToImageCropRect(
   return { x: Math.round(imgX), y: Math.round(imgY), width: Math.round(imgW), height: Math.round(imgH) }
 }
 
-/** 모든 이미지의 회전/크롭 편집 사항을 수집하여 replace 데이터로 반환 */
 /** 모든 이미지의 회전/크롭 편집을 수집. 기존 파일은 replace 데이터로, 새 파일은 직접 편집 적용. */
-async function collectImageEdits(delivery: MaterialDeliverySummary) {
-  const id = delivery.materialDeliveryId
-  const noteLen = delivery.noteFiles.length
-  const photoLen = delivery.photoFiles.length
+async function collectImageEdits(deliveryId: number) {
+  const id = deliveryId
+  const detail = deliveryDetailMap.value[id]
+  if (!detail) return { replaceNotes: [], replacePhotos: [], replaceNoteFiles: [] as File[], replacePhotoFiles: [] as File[] }
+  const noteLen = detail.noteFiles.length
+  const photoLen = detail.photoFiles.length
   const existingLen = noteLen + photoLen
   const addedNotes = newDeliveryNotes.value[id] ?? []
   const addedPhotos = newDeliveryPhotos.value[id] ?? []
@@ -348,7 +355,7 @@ async function collectImageEdits(delivery: MaterialDeliverySummary) {
       // 기존 송장
       const edited = await applyEdits(imgIdx, null)
       if (edited) {
-        const noteFile = delivery.noteFiles[imgIdx]
+        const noteFile = detail.noteFiles[imgIdx]
         if (noteFile.noteId) {
           replaceNotes.push({ noteId: noteFile.noteId, fileIndex: replaceNoteFiles.length })
           replaceNoteFiles.push(edited)
@@ -358,7 +365,7 @@ async function collectImageEdits(delivery: MaterialDeliverySummary) {
       // 기존 사진
       const edited = await applyEdits(imgIdx, null)
       if (edited) {
-        const photoFile = delivery.photoFiles[imgIdx - noteLen]
+        const photoFile = detail.photoFiles[imgIdx - noteLen]
         if (photoFile.photoId) {
           replacePhotos.push({ photoId: photoFile.photoId, fileIndex: replacePhotoFiles.length })
           replacePhotoFiles.push(edited)
@@ -432,29 +439,30 @@ function removeDeliveryLine(deliveryId: number, lineIdx: number) {
   deliveryLinesMap.value[deliveryId] = lines.filter((_, i) => i !== lineIdx)
 }
 
-function deleteCurrentImage(delivery: MaterialDeliverySummary) {
-  const id = delivery.materialDeliveryId
+function deleteCurrentImage(deliveryId: number) {
+  const id = deliveryId
+  const detail = deliveryDetailMap.value[id]
+  if (!detail) return
   const imgIdx = deliveryImageIndex.value[id] ?? 0
-  const noteLen = delivery.noteFiles.length
+  const noteLen = detail.noteFiles.length
 
   if (imgIdx < noteLen) {
-    const noteFile = delivery.noteFiles[imgIdx]
+    const noteFile = detail.noteFiles[imgIdx]
     if (noteFile.noteId) {
       if (!deletedNoteIds.value[id]) deletedNoteIds.value[id] = []
       deletedNoteIds.value[id].push(noteFile.noteId)
     }
-    delivery.noteFiles.splice(imgIdx, 1)
-    // editState에서도 제거
+    detail.noteFiles.splice(imgIdx, 1)
     const editState = deliveryEditState.value[id]
     if (editState) editState.noteDescriptions.splice(imgIdx, 1)
   } else {
     const photoIdx = imgIdx - noteLen
-    const photoFile = delivery.photoFiles[photoIdx]
+    const photoFile = detail.photoFiles[photoIdx]
     if (photoFile.photoId) {
       if (!deletedPhotoIds.value[id]) deletedPhotoIds.value[id] = []
       deletedPhotoIds.value[id].push(photoFile.photoId)
     }
-    delivery.photoFiles.splice(photoIdx, 1)
+    detail.photoFiles.splice(photoIdx, 1)
     const editState = deliveryEditState.value[id]
     if (editState) editState.photoDescriptions.splice(photoIdx, 1)
   }
@@ -521,6 +529,21 @@ async function loadWorkClassifications(delivery: MaterialDeliverySummary) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function handleEditComponentDivisionChange(divisionId: any) {
+  selectedEditComponentDivisionId.value = String(divisionId ?? '')
+  editComponentTypes.value = []
+  if (!divisionId) return
+  isLoadingEditComponentTypes.value = true
+  try {
+    editComponentTypes.value = await referenceApi.getComponentTypeList(Number(divisionId))
+  } catch {
+    editComponentTypes.value = []
+  } finally {
+    isLoadingEditComponentTypes.value = false
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function handleEditDivisionChange(deliveryId: number, divisionId: any) {
   const editState = deliveryEditState.value[deliveryId]
   if (!editState) return
@@ -565,7 +588,7 @@ async function confirmDeleteDelivery() {
     deliveries.value = deliveries.value.filter((d) => d.materialDeliveryId !== deletedId)
     // 관련 상태 정리
     delete expandedDeliveries[deletedId]
-    deliveryImageUrls.value[deletedId]?.forEach((url) => URL.revokeObjectURL(url))
+    delete deliveryDetailMap.value[deletedId]
     delete deliveryLinesMap.value[deletedId]
     delete deliveryEditState.value[deletedId]
     delete deliveryImageUrls.value[deletedId]
@@ -669,6 +692,7 @@ async function toggleDelivery(delivery: MaterialDeliverySummary) {
     // 접기: 상태 정리 + 이미지 URL revoke
     expandedDeliveries[id] = false
     deliveryImageUrls.value[id]?.forEach((url) => URL.revokeObjectURL(url))
+    delete deliveryDetailMap.value[id]
     delete deliveryLinesMap.value[id]
     delete deliveryEditState.value[id]
     delete deliveryImageUrls.value[id]
@@ -687,6 +711,7 @@ async function toggleDelivery(delivery: MaterialDeliverySummary) {
     if (expandedDeliveries[otherId]) {
       expandedDeliveries[otherId] = false
       deliveryImageUrls.value[otherId]?.forEach((url) => URL.revokeObjectURL(url))
+      delete deliveryDetailMap.value[otherId]
       delete deliveryLinesMap.value[otherId]
       delete deliveryEditState.value[otherId]
       delete deliveryImageUrls.value[otherId]
@@ -704,10 +729,12 @@ async function toggleDelivery(delivery: MaterialDeliverySummary) {
   isLoadingLines.value[id] = true
 
   try {
-    // 라인 목록 + editState 초기화
-    const lines = await materialOrderApi.getMaterialDeliveryLineList(id)
-    deliveryLinesMap.value[id] = lines
-    // materialSpecs + 분류/공종 로드 (delivery의 materialTypeName으로 매핑)
+    // 상세 정보 로드
+    const detail = await materialOrderApi.getMaterialDeliveryDetail(id)
+    deliveryDetailMap.value[id] = detail
+    deliveryLinesMap.value[id] = detail.deliveryLines
+
+    // materialSpecs 로드
     const matchedType = filterMaterialTypes.value.find((t) => t.name === delivery.materialTypeName)
     let initDivisionId = ''
     let initWorkTypeId = ''
@@ -725,12 +752,12 @@ async function toggleDelivery(delivery: MaterialDeliverySummary) {
     // 분류/공종 목록 로드 + 현재 값 사전 선택
     try {
       editDivisions.value = await referenceApi.getDivisionList()
-      if (delivery.workTypeName) {
+      if (detail.workTypeName) {
         const allWorkTypes = await Promise.all(
           editDivisions.value.map((d) => referenceApi.getWorkTypeList(d.id)),
         )
         const flatWorkTypes = allWorkTypes.flat()
-        const currentWt = flatWorkTypes.find((wt) => wt.name === delivery.workTypeName)
+        const currentWt = flatWorkTypes.find((wt) => wt.name === detail.workTypeName)
         if (currentWt) {
           initDivisionId = String(currentWt.divisionId)
           initWorkTypeId = String(currentWt.id)
@@ -742,28 +769,43 @@ async function toggleDelivery(delivery: MaterialDeliverySummary) {
       editWorkTypes.value = []
     }
 
-    // 존/층 목록 로드
+    // 존/층/부재분류 목록 로드
     try {
-      const [zoneList, floorList] = await Promise.all([
+      const [zoneList, floorList, compDivList] = await Promise.all([
         referenceApi.getZoneList(),
         referenceApi.getFloorList(),
+        referenceApi.getComponentDivisionList(),
       ])
       editZones.value = zoneList
       editFloors.value = floorList
+      editComponentDivisions.value = compDivList
+
+      // 부재타입: detail에 componentTypes가 있으면 첫번째의 divisionId로 로드
+      if (detail.componentTypes.length > 0) {
+        const firstDivId = detail.componentTypes[0].componentDivisionId
+        selectedEditComponentDivisionId.value = String(firstDivId)
+        editComponentTypes.value = await referenceApi.getComponentTypeList(firstDivId)
+      } else {
+        selectedEditComponentDivisionId.value = ''
+        editComponentTypes.value = []
+      }
     } catch {
       editZones.value = []
       editFloors.value = []
+      editComponentDivisions.value = []
+      editComponentTypes.value = []
     }
 
     deliveryEditState.value[id] = {
-      supplier: delivery.supplier,
+      supplier: detail.supplier,
       deliveryDate: delivery.deliveryDate,
       divisionId: initDivisionId,
       workTypeId: initWorkTypeId,
-      selectedZoneIds: delivery.zoneIds ?? [],
-      selectedFloorIds: delivery.floorIds ?? [],
-      noteDescriptions: delivery.noteFiles.map((f) => ({ noteId: f.noteId!, description: f.description })),
-      photoDescriptions: delivery.photoFiles.map((f) => ({ photoId: f.photoId!, description: f.description })),
+      selectedZoneIds: detail.zones.map((z) => z.id),
+      selectedFloorIds: detail.floors.map((f) => f.id),
+      selectedComponentTypeIds: detail.componentTypes.map((c) => c.componentTypeId),
+      noteDescriptions: detail.noteFiles.map((f) => ({ noteId: f.noteId!, description: f.description })),
+      photoDescriptions: detail.photoFiles.map((f) => ({ photoId: f.photoId!, description: f.description })),
     }
     deletedLineIds.value[id] = []
     deletedNoteIds.value[id] = []
@@ -777,27 +819,16 @@ async function toggleDelivery(delivery: MaterialDeliverySummary) {
     deliveryDragStart[id] = { x: 0, y: 0 }
     deliveryTranslateStart[id] = { x: 0, y: 0 }
 
-    // noteFiles + photoFiles 기반 이미지 로드
+    // noteFiles + photoFiles 기반 이미지 로드 (public URL 직접 사용)
     const allFileUrls = [
-      ...delivery.noteFiles.map((f) => f.url),
-      ...delivery.photoFiles.map((f) => f.url),
+      ...detail.noteFiles.map((f) => f.url),
+      ...detail.photoFiles.map((f) => f.url),
     ]
     if (allFileUrls.length > 0) {
-      isLoadingDeliveryImages.value[id] = true
-      try {
-        const blobUrls = await Promise.all(
-          allFileUrls.map((url) => materialOrderApi.getDeliveryNoteImage(url)),
-        )
-        deliveryImageUrls.value[id] = blobUrls
-      } catch (error) {
-        console.error('송장 이미지 로드 실패:', error)
-        deliveryImageUrls.value[id] = []
-      } finally {
-        isLoadingDeliveryImages.value[id] = false
-      }
+      deliveryImageUrls.value[id] = allFileUrls
     }
   } catch (error: unknown) {
-    console.error('반입자재 라인 로드 실패:', error)
+    console.error('반입자재 상세 로드 실패:', error)
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     alert(err.response?.data?.message || err.message)
     expandedDeliveries[id] = false
@@ -888,7 +919,7 @@ async function updateDelivery(delivery: MaterialDeliverySummary) {
       }))
 
     // 이미지 회전/크롭 편집 수집
-    const imageEdits = await collectImageEdits(delivery)
+    const imageEdits = await collectImageEdits(id)
 
     await materialOrderApi.updateMaterialDelivery(
       id,
@@ -898,6 +929,7 @@ async function updateDelivery(delivery: MaterialDeliverySummary) {
         workTypeId: editState.workTypeId ? Number(editState.workTypeId) : undefined,
         zoneIds: editState.selectedZoneIds,
         floorIds: editState.selectedFloorIds,
+        componentTypeIds: editState.selectedComponentTypeIds,
         addLines: addLines.length > 0 ? addLines : undefined,
         updateLines: updateLines.length > 0 ? updateLines : undefined,
         deleteLineIds: deletedLineIds.value[id]?.length ? deletedLineIds.value[id] : undefined,
@@ -917,7 +949,7 @@ async function updateDelivery(delivery: MaterialDeliverySummary) {
     )
     // 성공 시 접기 + 목록 새로고침
     expandedDeliveries[id] = false
-    deliveryImageUrls.value[id]?.forEach((url) => URL.revokeObjectURL(url))
+    delete deliveryDetailMap.value[id]
     delete deliveryLinesMap.value[id]
     delete deliveryEditState.value[id]
     delete deliveryImageUrls.value[id]
@@ -944,16 +976,7 @@ async function updateDelivery(delivery: MaterialDeliverySummary) {
 async function loadDeliveries() {
   isLoadingDeliveries.value = true
   try {
-    const [list, totals] = await Promise.all([
-      materialOrderApi.getMaterialDeliveryList(),
-      materialOrderApi.getMaterialDeliveryTotalQuantityList(),
-    ])
-    deliveries.value = list
-    const map: Record<number, { totalQuantity: number; unit: string | null }> = {}
-    for (const t of totals) {
-      map[t.materialDeliveryId] = { totalQuantity: t.totalQuantity, unit: t.unit }
-    }
-    totalQuantityMap.value = map
+    deliveries.value = await materialOrderApi.getMaterialDeliveryList()
   } catch (error: unknown) {
     console.error('반입자재 목록 로딩 실패:', error)
     const err = error as { response?: { data?: { message?: string } }; message?: string }
@@ -1047,9 +1070,8 @@ onUnmounted(() => {
                   <ReferenceEditTrigger type="material" @refresh="loadDeliveries" />
                 </span>
               </span>
-              <span v-if="delivery.location" class="text-sm text-muted-foreground">{{ delivery.location }}</span>
-              <span v-if="totalQuantityMap[delivery.materialDeliveryId]" class="text-sm text-muted-foreground">
-                {{ totalQuantityMap[delivery.materialDeliveryId].totalQuantity }}{{ totalQuantityMap[delivery.materialDeliveryId].unit ?? delivery.unit }}
+              <span v-if="delivery.totalQuantity" class="text-sm text-muted-foreground">
+                {{ delivery.totalQuantity }}{{ delivery.unit }}
               </span>
               <span v-if="mirDeliveryIds.has(delivery.materialDeliveryId)" class="text-xs text-muted-foreground">
                 문서번호 : {{ getMirForDelivery(delivery.materialDeliveryId)?.documentNumber }}
@@ -1162,16 +1184,16 @@ onUnmounted(() => {
                     </div>
                     <!-- 현재 이미지의 설명 -->
                     <div v-if="deliveryEditState[delivery.materialDeliveryId]" class="shrink-0">
-                      <template v-if="(deliveryImageIndex[delivery.materialDeliveryId] ?? 0) < delivery.noteFiles.length">
+                      <template v-if="deliveryDetailMap[delivery.materialDeliveryId] && (deliveryImageIndex[delivery.materialDeliveryId] ?? 0) < deliveryDetailMap[delivery.materialDeliveryId]!.noteFiles.length">
                         <Input
                           v-model="deliveryEditState[delivery.materialDeliveryId]!.noteDescriptions[(deliveryImageIndex[delivery.materialDeliveryId] ?? 0)]!.description"
                           class="h-8 text-sm"
                           placeholder="송장 설명"
                         />
                       </template>
-                      <template v-else>
+                      <template v-else-if="deliveryDetailMap[delivery.materialDeliveryId]">
                         <Input
-                          v-model="deliveryEditState[delivery.materialDeliveryId]!.photoDescriptions[(deliveryImageIndex[delivery.materialDeliveryId] ?? 0) - delivery.noteFiles.length]!.description"
+                          v-model="deliveryEditState[delivery.materialDeliveryId]!.photoDescriptions[(deliveryImageIndex[delivery.materialDeliveryId] ?? 0) - deliveryDetailMap[delivery.materialDeliveryId]!.noteFiles.length]!.description"
                           class="h-8 text-sm"
                           placeholder="사진 설명"
                         />
@@ -1202,7 +1224,7 @@ onUnmounted(() => {
                         variant="outline"
                         size="sm"
                         class="text-destructive hover:text-destructive"
-                        @click="deleteCurrentImage(delivery)"
+                        @click="deleteCurrentImage(delivery.materialDeliveryId)"
                       >
                         현재 이미지 삭제
                       </Button>
@@ -1327,6 +1349,42 @@ onUnmounted(() => {
                         {{ floor.name }}
                       </button>
                     </div>
+                  </div>
+
+                  <!-- 부재 -->
+                  <div v-if="editComponentDivisions.length > 0" class="space-y-1.5">
+                    <Label class="inline-flex items-center gap-1">
+                      부재
+                      <ReferenceEditTrigger type="component" @refresh="async () => { editComponentDivisions = await referenceApi.getComponentDivisionList() }" />
+                    </Label>
+                    <Select
+                      :model-value="selectedEditComponentDivisionId"
+                      @update:model-value="handleEditComponentDivisionChange"
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="부재 분류 선택" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem
+                          v-for="div in editComponentDivisions"
+                          :key="div.id"
+                          :value="String(div.id)"
+                        >
+                          {{ div.name }}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <div v-if="editComponentTypes.length > 0" class="flex flex-wrap gap-1.5">
+                      <button
+                        v-for="ct in editComponentTypes" :key="ct.id"
+                        class="px-3 py-1 text-sm rounded-md border transition-colors"
+                        :class="deliveryEditState[delivery.materialDeliveryId]!.selectedComponentTypeIds.includes(ct.id) ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-background border-border text-foreground hover:bg-muted'"
+                        @click="deliveryEditState[delivery.materialDeliveryId]!.selectedComponentTypeIds = toggleId(deliveryEditState[delivery.materialDeliveryId]!.selectedComponentTypeIds, ct.id)"
+                      >
+                        {{ ct.name }}
+                      </button>
+                    </div>
+                    <p v-else-if="isLoadingEditComponentTypes" class="text-xs text-muted-foreground">로딩 중...</p>
                   </div>
 
                   <!-- 행 추가 버튼 -->

@@ -1,8 +1,8 @@
 import apiClient from '@/shared/network-core/apiClient'
 import type {
   CreateDeliveryResponse,
-  DeliveryLineResponse,
   DeliveryQuantityByDate,
+  MaterialDeliveryDetail,
   MaterialDeliverySummary,
   MaterialOrderResponse,
 } from '@/features/material/model/material-order-types'
@@ -53,6 +53,7 @@ export const materialOrderApi = {
     deliveryPhotos: File[]
     zoneIds: number[]
     floorIds: number[]
+    componentTypeIds: number[]
   }): Promise<CreateDeliveryResponse> {
     const formData = new FormData()
     formData.append(
@@ -63,6 +64,7 @@ export const materialOrderApi = {
           workTypeId: params.workTypeId,
           zoneIds: params.zoneIds,
           floorIds: params.floorIds,
+          componentTypeIds: params.componentTypeIds,
         })],
         { type: 'application/json' },
       ),
@@ -92,12 +94,11 @@ export const materialOrderApi = {
     return data
   },
 
-  async getMaterialDeliveryLineList(
+  async getMaterialDeliveryDetail(
     materialDeliveryId: number,
-  ): Promise<DeliveryLineResponse[]> {
-    const { data } = await apiClient.get<DeliveryLineResponse[]>(
-      '/materialDelivery/getMaterialDeliveryLineList',
-      { params: { materialDeliveryId } },
+  ): Promise<MaterialDeliveryDetail> {
+    const { data } = await apiClient.get<MaterialDeliveryDetail>(
+      `/materialDelivery/getMaterialDeliveryDetail/${materialDeliveryId}`,
     )
     return data
   },
@@ -110,7 +111,7 @@ export const materialOrderApi = {
       workTypeId?: number
       zoneIds?: number[]
       floorIds?: number[]
-      sectionIds?: number[]
+      componentTypeIds?: number[]
       addLines?: { manufacturer?: string; specId?: number; quantity?: string }[]
       updateLines?: { deliveryLineId: number; manufacturer?: string; specId?: number; quantity?: string }[]
       deleteLineIds?: number[]
@@ -145,21 +146,5 @@ export const materialOrderApi = {
         timeout: 60000,
       },
     )
-  },
-
-  async getMaterialDeliveryTotalQuantityList(): Promise<
-    { materialDeliveryId: number; totalQuantity: number; unit: string | null }[]
-  > {
-    const { data } = await apiClient.get<
-      { materialDeliveryId: number; totalQuantity: number; unit: string | null }[]
-    >('/materialDelivery/getMaterialDeliveryTotalQuantityList')
-    return data
-  },
-
-  async getDeliveryNoteImage(url: string): Promise<string> {
-    const { data } = await apiClient.get<{ url: string }>('/file/downloadFile', {
-      params: { url },
-    })
-    return data.url
   },
 }

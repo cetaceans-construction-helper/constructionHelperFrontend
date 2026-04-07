@@ -42,9 +42,30 @@ const zones = ref<IdNameResponse[]>([])
 const floors = ref<IdNameResponse[]>([])
 const selectedZoneIds = ref<number[]>([])
 const selectedFloorIds = ref<number[]>([])
+const componentDivisions = ref<IdNameResponse[]>([])
+const componentTypes = ref<IdNameResponse[]>([])
+const selectedComponentDivisionId = ref('')
+const selectedComponentTypeIds = ref<number[]>([])
+const isLoadingComponentTypes = ref(false)
 
 function toggleId(list: number[], id: number): number[] {
   return list.includes(id) ? list.filter((v) => v !== id) : [...list, id]
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function handleComponentDivisionChange(divisionId: any) {
+  selectedComponentDivisionId.value = String(divisionId ?? '')
+  selectedComponentTypeIds.value = []
+  componentTypes.value = []
+  if (!divisionId) return
+  isLoadingComponentTypes.value = true
+  try {
+    componentTypes.value = await referenceApi.getComponentTypeList(Number(divisionId))
+  } catch {
+    componentTypes.value = []
+  } finally {
+    isLoadingComponentTypes.value = false
+  }
 }
 
 async function reloadMaterialTypes() {
@@ -78,16 +99,21 @@ watch(() => props.open, async (opened) => {
     selectedMaterialTypeId.value = props.defaultMaterialTypeId ?? ''
     selectedZoneIds.value = []
     selectedFloorIds.value = []
+    selectedComponentDivisionId.value = ''
+    selectedComponentTypeIds.value = []
+    componentTypes.value = []
 
     try {
-      const [mtList, zoneList, floorList] = await Promise.all([
+      const [mtList, zoneList, floorList, compDivList] = await Promise.all([
         referenceApi.getMaterialTypeList(),
         referenceApi.getZoneList(),
         referenceApi.getFloorList(),
+        referenceApi.getComponentDivisionList(),
       ])
       materialTypes.value = mtList
       zones.value = zoneList
       floors.value = floorList
+      componentDivisions.value = compDivList
     } catch (error: unknown) {
       console.error('기초 데이터 로드 실패:', error)
       const err = error as { response?: { data?: { message?: string } }; message?: string }
@@ -151,6 +177,7 @@ async function handleSave() {
       deliveryPhotos: deliveryPhotos.value,
       zoneIds: selectedZoneIds.value,
       floorIds: selectedFloorIds.value,
+      componentTypeIds: selectedComponentTypeIds.value,
     })
     analyticsClient.trackAction('material_delivery', 'create_delivery', 'success')
     emit('update:open', false)
@@ -269,6 +296,42 @@ async function handleSave() {
               {{ floor.name }}
             </button>
           </div>
+        </div>
+
+        <!-- 부재 -->
+        <div v-if="componentDivisions.length > 0" class="space-y-2">
+          <div class="flex items-center gap-1">
+            <Label>부재</Label>
+            <ReferenceEditTrigger type="component" @refresh="async () => { componentDivisions = await referenceApi.getComponentDivisionList() }" />
+          </div>
+          <Select
+            :model-value="selectedComponentDivisionId"
+            @update:model-value="handleComponentDivisionChange"
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="부재 분류 선택" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem
+                v-for="div in componentDivisions"
+                :key="div.id"
+                :value="String(div.id)"
+              >
+                {{ div.name }}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+          <div v-if="componentTypes.length > 0" class="flex flex-wrap gap-1.5">
+            <button
+              v-for="ct in componentTypes" :key="ct.id"
+              class="px-3 py-1 text-sm rounded-md border transition-colors"
+              :class="selectedComponentTypeIds.includes(ct.id) ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-background border-border text-foreground hover:bg-muted'"
+              @click="selectedComponentTypeIds = toggleId(selectedComponentTypeIds, ct.id)"
+            >
+              {{ ct.name }}
+            </button>
+          </div>
+          <p v-else-if="isLoadingComponentTypes" class="text-xs text-muted-foreground">로딩 중...</p>
         </div>
       </div>
 
