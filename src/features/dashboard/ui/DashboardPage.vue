@@ -28,7 +28,7 @@ import {
 import WorkPhotoDialog from '@/features/dashboard/ui/components/WorkPhotoDialog.vue'
 import DailyReportExcludeDialog from '@/features/dashboard/ui/components/DailyReportExcludeDialog.vue'
 import { LaborInputDialog, EquipmentInputDialog } from '@/features/attendance/public'
-import { MaterialDeliveryCreateDialog } from '@/features/material/public'
+// import { MaterialDeliveryCreateDialog } from '@/features/material/public'
 import WorkCreateDialog from '@/shared/helper-ui/WorkCreateDialog.vue'
 import { useDashboardPage } from '@/features/dashboard/view-model/useDashboardPage'
 
@@ -305,11 +305,8 @@ const materialDeliveryDialogOpen = ref(false)
 
           <!-- 반입 자재 -->
           <div class="border border-border rounded-lg p-3">
-            <h4
-              class="text-sm font-semibold mb-2 text-foreground inline-flex items-center gap-1 cursor-pointer hover:text-primary transition-colors"
-              @click="materialDeliveryDialogOpen = true"
-            >
-              반입 자재 <Plus class="w-3.5 h-3.5" />
+            <h4 class="text-sm font-semibold mb-2 text-foreground">
+              반입 자재
             </h4>
             <div v-if="deliveryByWorkType.size === 0" class="text-sm text-muted-foreground">
               오늘 반입된 자재가 없습니다.
@@ -632,10 +629,10 @@ const materialDeliveryDialogOpen = ref(false)
       :selected-date="selectedDateString"
       @submitted="loadData"
     />
-    <MaterialDeliveryCreateDialog
+    <!-- <MaterialDeliveryCreateDialog
       v-model:open="materialDeliveryDialogOpen"
       @submitted="router.push('/helper/material/delivery')"
-    />
+    /> -->
     <WorkCreateDialog
       v-model:open="workCreateDialogOpen"
       :default-start-date="workCreateDate"

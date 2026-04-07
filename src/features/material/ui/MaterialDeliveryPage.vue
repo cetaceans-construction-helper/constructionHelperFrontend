@@ -46,7 +46,7 @@ import { dateRangeToStrings, toCalendarDate } from '@/shared/utils/date-convert'
 import { useCalendarStore } from '@/app/context/stores/calendarStore'
 import { today, getLocalTimeZone } from '@internationalized/date'
 import ReferenceEditTrigger from '@/shared/helper-ui/ReferenceEditTrigger.vue'
-import MaterialDeliveryCreateDialog from '@/features/material/ui/components/MaterialDeliveryCreateDialog.vue'
+// import MaterialDeliveryCreateDialog from '@/features/material/ui/components/MaterialDeliveryCreateDialog.vue'
 import { materialOrderApi } from '@/features/material/infra/material-order-api'
 import type {
   DeliveryLineResponse,
@@ -84,8 +84,8 @@ const calendarMaxDate = computed(() =>
   calendarStore.calendarData?.projectEndDate ? toCalendarDate(calendarStore.calendarData.projectEndDate) : undefined,
 )
 
-// 발주서 없이 송장입력 다이얼로그 상태
-const directDeliveryDialogOpen = ref(false)
+// // 발주서 없이 송장입력 다이얼로그 상태
+// const directDeliveryDialogOpen = ref(false)
 
 
 // 삭제 다이얼로그 상태
@@ -512,9 +512,9 @@ function onNewPhotosChange(deliveryId: number, event: Event) {
   input.value = ''
 }
 
-function openDirectDeliveryDialog() {
-  directDeliveryDialogOpen.value = true
-}
+// function openDirectDeliveryDialog() {
+//   directDeliveryDialogOpen.value = true
+// }
 
 async function loadWorkClassifications(delivery: MaterialDeliverySummary) {
   try {
@@ -562,15 +562,15 @@ async function handleEditDivisionChange(deliveryId: number, divisionId: any) {
   }
 }
 
-async function onDirectDeliverySubmitted(deliveryId: number) {
-  materialSpecs.value = []
-  loadOrders()
-  await loadDeliveries()
-  const newDelivery = deliveries.value.find(d => d.materialDeliveryId === deliveryId)
-  if (newDelivery) {
-    await toggleDelivery(newDelivery)
-  }
-}
+// async function onDirectDeliverySubmitted(deliveryId: number) {
+//   materialSpecs.value = []
+//   loadOrders()
+//   await loadDeliveries()
+//   const newDelivery = deliveries.value.find(d => d.materialDeliveryId === deliveryId)
+//   if (newDelivery) {
+//     await toggleDelivery(newDelivery)
+//   }
+// }
 
 function openDeleteDialog(deliveryId: number, deliveryName: string) {
   deleteTargetId.value = deliveryId
@@ -1044,14 +1044,14 @@ onUnmounted(() => {
 
       <!-- 반입자재 카드 목록 -->
       <div v-else class="space-y-4">
-        <!-- 새 반입자재 생성 카드 -->
-        <div
+        <!-- 새 반입자재 생성 카드 (비활성) -->
+        <!-- <div
           class="create-delivery-card relative rounded-lg flex items-center justify-center cursor-pointer hover:bg-muted/30 transition-colors"
           style="min-height: 80px"
           @click="openDirectDeliveryDialog"
         >
           <span class="text-6xl text-muted-foreground/50 select-none leading-none">＋</span>
-        </div>
+        </div> -->
         <div
           v-for="delivery in filteredDeliveries"
           :key="delivery.materialDeliveryId"
@@ -1494,12 +1494,12 @@ onUnmounted(() => {
       </div>
     </AreaCard>
 
-    <!-- 발주서없이 반입자재 생성 다이얼로그 -->
-    <MaterialDeliveryCreateDialog
+    <!-- 발주서없이 반입자재 생성 다이얼로그 (비활성) -->
+    <!-- <MaterialDeliveryCreateDialog
       v-model:open="directDeliveryDialogOpen"
       :default-material-type-id="filterMaterialTypeId !== '__all__' ? filterMaterialTypeId : undefined"
       @submitted="onDirectDeliverySubmitted"
-    />
+    /> -->
 
     <!-- 반입자재 삭제 확인 다이얼로그 -->
     <AlertDialog :open="showDeleteDialog" @update:open="showDeleteDialog = $event">
@@ -1605,7 +1605,7 @@ onUnmounted(() => {
   </PageContainer>
 </template>
 
-<style scoped>
+<!-- <style scoped>
 .create-delivery-card {
   border: none;
 }
@@ -1617,4 +1617,4 @@ onUnmounted(() => {
   pointer-events: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100%25' height='100%25'%3E%3Crect width='100%25' height='100%25' fill='none' rx='8' ry='8' stroke='hsl(0 0%25 50%25 / 0.5)' stroke-width='3' stroke-dasharray='16 10' stroke-linecap='round'/%3E%3C/svg%3E");
 }
-</style>
+</style> -->
