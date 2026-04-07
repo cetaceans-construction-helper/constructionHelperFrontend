@@ -40,12 +40,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/shared/ui/alert-dialog'
-import { X } from 'lucide-vue-next'
+import { X, RotateCcw, Crop } from 'lucide-vue-next'
 import { DateRangeFilter } from '@/shared/ui/date-range-picker'
 import { dateRangeToStrings, toCalendarDate } from '@/shared/utils/date-convert'
 import { useCalendarStore } from '@/app/context/stores/calendarStore'
 import { today, getLocalTimeZone } from '@internationalized/date'
-import ImageRotatePreview from '@/shared/helper-ui/ImageRotatePreview.vue'
 import ReferenceEditTrigger from '@/shared/helper-ui/ReferenceEditTrigger.vue'
 import MaterialDeliveryCreateDialog from '@/features/material/ui/components/MaterialDeliveryCreateDialog.vue'
 import { materialOrderApi } from '@/features/material/infra/material-order-api'
@@ -71,6 +70,8 @@ import type {
   WorkTypeResponse,
 } from '@/shared/network-core/apis/reference'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
+import { rotateImageFile } from '@/shared/utils/rotateImage'
+import { cropImageFile } from '@/shared/utils/cropImage'
 
 const router = useRouter()
 const { orders, loadOrders } = useMaterialOrder()
@@ -102,22 +103,14 @@ const filterMaterialTypes = ref<MaterialTypeResponse[]>([])
 // 반입자재 상태
 const deliveries = ref<MaterialDeliverySummary[]>([])
 const isLoadingDeliveries = ref(false)
-
-// 발주서 기반 자재유형 매핑 (delivery → materialType)
-const orderMaterialTypeMap = computed(() => {
-  const map = new Map<number, number>()
-  for (const order of orders.value) {
-    map.set(order.id, order.materialTypeId)
-  }
-  return map
-})
+const totalQuantityMap = ref<Record<number, { totalQuantity: number; unit: string | null }>>({})
 
 // 필터 적용된 목록
 const filteredDeliveries = computed(() => {
   let list = deliveries.value
   if (filterMaterialTypeId.value && filterMaterialTypeId.value !== '__all__') {
-    const typeId = Number(filterMaterialTypeId.value)
-    list = list.filter((d) => orderMaterialTypeMap.value.get(d.materialOrderId) === typeId)
+    const typeName = filterMaterialTypes.value.find(t => String(t.id) === filterMaterialTypeId.value)?.name
+    list = list.filter((d) => d.materialTypeName === typeName)
   }
   const range = dateRangeToStrings(filterDateRange.value)
   if (range.start && range.end) {
@@ -134,17 +127,30 @@ const deliveryLinesMap = ref<Record<number, DeliveryLineResponse[]>>({})
 const deliveryEditState = ref<Record<number, {
   supplier: string
   deliveryDate: string
-  location: string
   divisionId: string
   workTypeId: string
+  selectedZoneIds: number[]
+  selectedFloorIds: number[]
   noteDescriptions: { noteId: number; description: string }[]
   photoDescriptions: { photoId: number; description: string }[]
 }>>({})
 const isLoadingLines = ref<Record<number, boolean>>({})
 const isUpdatingDelivery = ref<Record<number, boolean>>({})
+// 라인 삭제 추적
+const deletedLineIds = ref<Record<number, number[]>>({})
+// 파일 삭제/추가 추적
+const deletedNoteIds = ref<Record<number, number[]>>({})
+const deletedPhotoIds = ref<Record<number, number[]>>({})
+const newDeliveryPhotos = ref<Record<number, File[]>>({})
 const editDivisions = ref<IdNameResponse[]>([])
 const editWorkTypes = ref<WorkTypeResponse[]>([])
 const isLoadingEditWorkTypes = ref(false)
+const editZones = ref<IdNameResponse[]>([])
+const editFloors = ref<IdNameResponse[]>([])
+
+function toggleId(list: number[], id: number): number[] {
+  return list.includes(id) ? list.filter((v) => v !== id) : [...list, id]
+}
 const materialSpecs = ref<MaterialSpecResponse[]>([])
 const currentMaterialTypeId = ref<number | null>(null)
 
@@ -167,6 +173,221 @@ const deliveryImageDragging = ref<Record<number, boolean>>({})
 const deliveryDragStart = reactive<Record<number, { x: number; y: number }>>({})
 const deliveryTranslateStart = reactive<Record<number, { x: number; y: number }>>({})
 
+// 이미지 편집 상태 (회전/크롭)
+const deliveryImageRotation = ref<Record<string, number>>({}) // key: `${deliveryId}-${imgIdx}`
+const deliveryImageCropMode = ref<Record<number, boolean>>({})
+const deliveryImageCropRect = reactive<Record<number, { startX: number; startY: number; endX: number; endY: number } | null>>({})
+const isCropDragging = ref<Record<number, boolean>>({})
+const deliveryImageRefs = ref<Record<number, HTMLImageElement | null>>({})
+const deliveryImageContainerRefs = ref<Record<number, HTMLElement | null>>({})
+
+function imageEditKey(deliveryId: number) {
+  const idx = deliveryImageIndex.value[deliveryId] ?? 0
+  return `${deliveryId}-${idx}`
+}
+
+function hasImageEdits(deliveryId: number): boolean {
+  const key = imageEditKey(deliveryId)
+  const rotation = deliveryImageRotation.value[key] ?? 0
+  const cropRect = deliveryImageCropRect[deliveryId]
+  return rotation !== 0 || cropRect != null
+}
+
+function rotateImage(deliveryId: number, direction: 'cw' | 'ccw') {
+  const key = imageEditKey(deliveryId)
+  const current = deliveryImageRotation.value[key] ?? 0
+  const delta = direction === 'cw' ? 90 : -90
+  deliveryImageRotation.value[key] = ((current + delta) % 360 + 360) % 360
+}
+
+function toggleCropMode(deliveryId: number) {
+  const active = deliveryImageCropMode.value[deliveryId]
+  if (active) {
+    deliveryImageCropMode.value[deliveryId] = false
+    deliveryImageCropRect[deliveryId] = null
+  } else {
+    deliveryImageCropMode.value[deliveryId] = true
+    deliveryImageCropRect[deliveryId] = null
+    // 크롭 모드에서는 zoom/pan 초기화
+    resetDeliveryImageTransform(deliveryId)
+  }
+}
+
+function onCropPointerDown(deliveryId: number, e: PointerEvent) {
+  const container = deliveryImageContainerRefs.value[deliveryId]
+  if (!container) return
+  const rect = container.getBoundingClientRect()
+  const x = e.clientX - rect.left
+  const y = e.clientY - rect.top
+  deliveryImageCropRect[deliveryId] = { startX: x, startY: y, endX: x, endY: y }
+  isCropDragging.value[deliveryId] = true
+  ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+}
+
+function onCropPointerMove(deliveryId: number, e: PointerEvent) {
+  if (!isCropDragging.value[deliveryId]) return
+  const container = deliveryImageContainerRefs.value[deliveryId]
+  if (!container) return
+  const rect = container.getBoundingClientRect()
+  const crop = deliveryImageCropRect[deliveryId]
+  if (!crop) return
+  crop.endX = Math.max(0, Math.min(e.clientX - rect.left, rect.width))
+  crop.endY = Math.max(0, Math.min(e.clientY - rect.top, rect.height))
+}
+
+function onCropPointerUp(deliveryId: number) {
+  isCropDragging.value[deliveryId] = false
+  // 너무 작은 크롭 영역은 무시
+  const crop = deliveryImageCropRect[deliveryId]
+  if (crop) {
+    const w = Math.abs(crop.endX - crop.startX)
+    const h = Math.abs(crop.endY - crop.startY)
+    if (w < 10 || h < 10) {
+      deliveryImageCropRect[deliveryId] = null
+    }
+  }
+}
+
+function getCropStyle(deliveryId: number) {
+  const crop = deliveryImageCropRect[deliveryId]
+  if (!crop) return {}
+  const left = Math.min(crop.startX, crop.endX)
+  const top = Math.min(crop.startY, crop.endY)
+  const width = Math.abs(crop.endX - crop.startX)
+  const height = Math.abs(crop.endY - crop.startY)
+  return { left: `${left}px`, top: `${top}px`, width: `${width}px`, height: `${height}px` }
+}
+
+function screenToImageCropRect(
+  deliveryId: number,
+): { x: number; y: number; width: number; height: number } | null {
+  const crop = deliveryImageCropRect[deliveryId]
+  const imgEl = deliveryImageRefs.value[deliveryId]
+  const container = deliveryImageContainerRefs.value[deliveryId]
+  if (!crop || !imgEl || !container) return null
+
+  const natW = imgEl.naturalWidth
+  const natH = imgEl.naturalHeight
+  const containerRect = container.getBoundingClientRect()
+  const cW = containerRect.width
+  const cH = containerRect.height
+
+  // object-contain 렌더링 영역 계산
+  const imgAspect = natW / natH
+  const containerAspect = cW / cH
+  let renderedW: number, renderedH: number, offsetX: number, offsetY: number
+  if (imgAspect > containerAspect) {
+    renderedW = cW
+    renderedH = cW / imgAspect
+    offsetX = 0
+    offsetY = (cH - renderedH) / 2
+  } else {
+    renderedH = cH
+    renderedW = cH * imgAspect
+    offsetX = (cW - renderedW) / 2
+    offsetY = 0
+  }
+
+  const left = Math.min(crop.startX, crop.endX)
+  const top = Math.min(crop.startY, crop.endY)
+  const width = Math.abs(crop.endX - crop.startX)
+  const height = Math.abs(crop.endY - crop.startY)
+
+  // 스크린 좌표 → 이미지 좌표
+  const scale = natW / renderedW
+  const imgX = Math.max(0, (left - offsetX) * scale)
+  const imgY = Math.max(0, (top - offsetY) * scale)
+  const imgW = Math.min(natW - imgX, width * scale)
+  const imgH = Math.min(natH - imgY, height * scale)
+
+  if (imgW <= 0 || imgH <= 0) return null
+  return { x: Math.round(imgX), y: Math.round(imgY), width: Math.round(imgW), height: Math.round(imgH) }
+}
+
+/** 모든 이미지의 회전/크롭 편집 사항을 수집하여 replace 데이터로 반환 */
+/** 모든 이미지의 회전/크롭 편집을 수집. 기존 파일은 replace 데이터로, 새 파일은 직접 편집 적용. */
+async function collectImageEdits(delivery: MaterialDeliverySummary) {
+  const id = delivery.materialDeliveryId
+  const noteLen = delivery.noteFiles.length
+  const photoLen = delivery.photoFiles.length
+  const existingLen = noteLen + photoLen
+  const addedNotes = newDeliveryNotes.value[id] ?? []
+  const addedPhotos = newDeliveryPhotos.value[id] ?? []
+  const urls = deliveryImageUrls.value[id] ?? []
+
+  const replaceNotes: { noteId: number; fileIndex: number }[] = []
+  const replacePhotos: { photoId: number; fileIndex: number }[] = []
+  const replaceNoteFiles: File[] = []
+  const replacePhotoFiles: File[] = []
+
+  async function applyEdits(imgIdx: number, sourceFile: File | null) {
+    const key = `${id}-${imgIdx}`
+    const rotation = deliveryImageRotation.value[key] ?? 0
+    const cropRect = imgIdx === (deliveryImageIndex.value[id] ?? 0) ? screenToImageCropRect(id) : null
+    if (rotation === 0 && !cropRect) return null
+
+    let file: File
+    if (sourceFile) {
+      file = sourceFile
+    } else {
+      const response = await fetch(urls[imgIdx])
+      const blob = await response.blob()
+      file = new File([blob], 'image.jpg', { type: blob.type || 'image/jpeg' })
+    }
+    if (rotation !== 0) {
+      file = await rotateImageFile(file, rotation as 90 | 180 | 270)
+    }
+    if (cropRect) {
+      file = await cropImageFile(file, cropRect)
+    }
+    return file
+  }
+
+  for (let imgIdx = 0; imgIdx < urls.length; imgIdx++) {
+    if (imgIdx < noteLen) {
+      // 기존 송장
+      const edited = await applyEdits(imgIdx, null)
+      if (edited) {
+        const noteFile = delivery.noteFiles[imgIdx]
+        if (noteFile.noteId) {
+          replaceNotes.push({ noteId: noteFile.noteId, fileIndex: replaceNoteFiles.length })
+          replaceNoteFiles.push(edited)
+        }
+      }
+    } else if (imgIdx < existingLen) {
+      // 기존 사진
+      const edited = await applyEdits(imgIdx, null)
+      if (edited) {
+        const photoFile = delivery.photoFiles[imgIdx - noteLen]
+        if (photoFile.photoId) {
+          replacePhotos.push({ photoId: photoFile.photoId, fileIndex: replacePhotoFiles.length })
+          replacePhotoFiles.push(edited)
+        }
+      }
+    } else if (imgIdx < existingLen + addedNotes.length) {
+      // 새로 추가한 송장
+      const addedIdx = imgIdx - existingLen
+      const edited = await applyEdits(imgIdx, addedNotes[addedIdx])
+      if (edited) {
+        addedNotes[addedIdx] = edited
+      }
+    } else {
+      // 새로 추가한 사진
+      const addedIdx = imgIdx - existingLen - addedNotes.length
+      const edited = await applyEdits(imgIdx, addedPhotos[addedIdx])
+      if (edited) {
+        addedPhotos[addedIdx] = edited
+      }
+    }
+  }
+
+  // 편집된 새 파일을 반영
+  if (addedNotes.length > 0) newDeliveryNotes.value[id] = [...addedNotes]
+  if (addedPhotos.length > 0) newDeliveryPhotos.value[id] = [...addedPhotos]
+
+  return { replaceNotes, replacePhotos, replaceNoteFiles, replacePhotoFiles }
+}
+
 // 자재반입검수요청서 상태
 const mirList = ref<MaterialInspectionRequestResponse[]>([])
 const mirDeliveryIds = computed(() => new Set(mirList.value.map((m) => m.materialDeliveryId)))
@@ -185,10 +406,6 @@ const mirValidationDeliveryId = ref<number | null>(null)
 const mirExcludedIndices = ref<number[]>([])
 const isCreatingMirAfterValidation = ref(false)
 
-function toggleId(list: number[], id: number): number[] {
-  return list.includes(id) ? list.filter((v) => v !== id) : [...list, id]
-}
-
 function addDeliveryLine(deliveryId: number) {
   const lines = deliveryLinesMap.value[deliveryId]
   if (!lines) return
@@ -196,10 +413,9 @@ function addDeliveryLine(deliveryId: number) {
     ...lines,
     {
       deliveryLineId: 0,
-      manufacturer: null,
-      materialSpecId: null,
-      materialSpecName: null,
-      specValidation: false,
+      manufacturer: '',
+      materialSpecId: 0,
+      materialSpecName: '',
       quantity: 0,
     },
   ]
@@ -208,11 +424,100 @@ function addDeliveryLine(deliveryId: number) {
 function removeDeliveryLine(deliveryId: number, lineIdx: number) {
   const lines = deliveryLinesMap.value[deliveryId]
   if (!lines) return
+  const removed = lines[lineIdx]
+  if (removed && removed.deliveryLineId > 0) {
+    if (!deletedLineIds.value[deliveryId]) deletedLineIds.value[deliveryId] = []
+    deletedLineIds.value[deliveryId].push(removed.deliveryLineId)
+  }
   deliveryLinesMap.value[deliveryId] = lines.filter((_, i) => i !== lineIdx)
+}
+
+function deleteCurrentImage(delivery: MaterialDeliverySummary) {
+  const id = delivery.materialDeliveryId
+  const imgIdx = deliveryImageIndex.value[id] ?? 0
+  const noteLen = delivery.noteFiles.length
+
+  if (imgIdx < noteLen) {
+    const noteFile = delivery.noteFiles[imgIdx]
+    if (noteFile.noteId) {
+      if (!deletedNoteIds.value[id]) deletedNoteIds.value[id] = []
+      deletedNoteIds.value[id].push(noteFile.noteId)
+    }
+    delivery.noteFiles.splice(imgIdx, 1)
+    // editState에서도 제거
+    const editState = deliveryEditState.value[id]
+    if (editState) editState.noteDescriptions.splice(imgIdx, 1)
+  } else {
+    const photoIdx = imgIdx - noteLen
+    const photoFile = delivery.photoFiles[photoIdx]
+    if (photoFile.photoId) {
+      if (!deletedPhotoIds.value[id]) deletedPhotoIds.value[id] = []
+      deletedPhotoIds.value[id].push(photoFile.photoId)
+    }
+    delivery.photoFiles.splice(photoIdx, 1)
+    const editState = deliveryEditState.value[id]
+    if (editState) editState.photoDescriptions.splice(photoIdx, 1)
+  }
+
+  // 이미지 URL도 제거
+  const urls = deliveryImageUrls.value[id]
+  if (urls) {
+    urls.splice(imgIdx, 1)
+    const newTotal = urls.length
+    if (newTotal === 0) {
+      deliveryImageIndex.value[id] = 0
+    } else if ((deliveryImageIndex.value[id] ?? 0) >= newTotal) {
+      deliveryImageIndex.value[id] = newTotal - 1
+    }
+  }
+}
+
+const newDeliveryNotes = ref<Record<number, File[]>>({})
+const noteInputRefs = ref<Record<number, HTMLInputElement | null>>({})
+const photoInputRefs = ref<Record<number, HTMLInputElement | null>>({})
+
+function triggerNoteInput(deliveryId: number) {
+  noteInputRefs.value[deliveryId]?.click()
+}
+
+function triggerPhotoInput(deliveryId: number) {
+  photoInputRefs.value[deliveryId]?.click()
+}
+
+function onNewNotesChange(deliveryId: number, event: Event) {
+  const input = event.target as HTMLInputElement
+  const files = input.files ? Array.from(input.files) : []
+  newDeliveryNotes.value[deliveryId] = [...(newDeliveryNotes.value[deliveryId] ?? []), ...files]
+  // 미리보기에 추가
+  const urls = deliveryImageUrls.value[deliveryId] ?? []
+  deliveryImageUrls.value[deliveryId] = [...urls, ...files.map((f) => URL.createObjectURL(f))]
+  input.value = ''
+}
+
+function onNewPhotosChange(deliveryId: number, event: Event) {
+  const input = event.target as HTMLInputElement
+  const files = input.files ? Array.from(input.files) : []
+  newDeliveryPhotos.value[deliveryId] = [...(newDeliveryPhotos.value[deliveryId] ?? []), ...files]
+  // 미리보기에 추가
+  const urls = deliveryImageUrls.value[deliveryId] ?? []
+  deliveryImageUrls.value[deliveryId] = [...urls, ...files.map((f) => URL.createObjectURL(f))]
+  input.value = ''
 }
 
 function openDirectDeliveryDialog() {
   directDeliveryDialogOpen.value = true
+}
+
+async function loadWorkClassifications(delivery: MaterialDeliverySummary) {
+  try {
+    editDivisions.value = await referenceApi.getDivisionList()
+    const editState = deliveryEditState.value[delivery.materialDeliveryId]
+    if (editState?.divisionId) {
+      editWorkTypes.value = await referenceApi.getWorkTypeList(Number(editState.divisionId))
+    }
+  } catch {
+    // ignore
+  }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -402,14 +707,14 @@ async function toggleDelivery(delivery: MaterialDeliverySummary) {
     // 라인 목록 + editState 초기화
     const lines = await materialOrderApi.getMaterialDeliveryLineList(id)
     deliveryLinesMap.value[id] = lines
-    // materialSpecs + 분류/공종 로드 (매번 해당 delivery의 materialType에 맞게)
-    const order = orders.value.find((o) => o.id === delivery.materialOrderId)
+    // materialSpecs + 분류/공종 로드 (delivery의 materialTypeName으로 매핑)
+    const matchedType = filterMaterialTypes.value.find((t) => t.name === delivery.materialTypeName)
     let initDivisionId = ''
     let initWorkTypeId = ''
-    if (order?.materialTypeId) {
-      currentMaterialTypeId.value = order.materialTypeId
+    if (matchedType) {
+      currentMaterialTypeId.value = matchedType.id
       try {
-        materialSpecs.value = await referenceApi.getMaterialSpecList(order.materialTypeId)
+        materialSpecs.value = await referenceApi.getMaterialSpecList(matchedType.id)
       } catch {
         materialSpecs.value = []
       }
@@ -420,12 +725,12 @@ async function toggleDelivery(delivery: MaterialDeliverySummary) {
     // 분류/공종 목록 로드 + 현재 값 사전 선택
     try {
       editDivisions.value = await referenceApi.getDivisionList()
-      if (order?.workTypeId) {
+      if (delivery.workTypeName) {
         const allWorkTypes = await Promise.all(
           editDivisions.value.map((d) => referenceApi.getWorkTypeList(d.id)),
         )
         const flatWorkTypes = allWorkTypes.flat()
-        const currentWt = flatWorkTypes.find((wt) => wt.id === order.workTypeId)
+        const currentWt = flatWorkTypes.find((wt) => wt.name === delivery.workTypeName)
         if (currentWt) {
           initDivisionId = String(currentWt.divisionId)
           initWorkTypeId = String(currentWt.id)
@@ -437,15 +742,34 @@ async function toggleDelivery(delivery: MaterialDeliverySummary) {
       editWorkTypes.value = []
     }
 
+    // 존/층 목록 로드
+    try {
+      const [zoneList, floorList] = await Promise.all([
+        referenceApi.getZoneList(),
+        referenceApi.getFloorList(),
+      ])
+      editZones.value = zoneList
+      editFloors.value = floorList
+    } catch {
+      editZones.value = []
+      editFloors.value = []
+    }
+
     deliveryEditState.value[id] = {
       supplier: delivery.supplier,
       deliveryDate: delivery.deliveryDate,
-      location: delivery.location ?? '',
       divisionId: initDivisionId,
       workTypeId: initWorkTypeId,
+      selectedZoneIds: delivery.zoneIds ?? [],
+      selectedFloorIds: delivery.floorIds ?? [],
       noteDescriptions: delivery.noteFiles.map((f) => ({ noteId: f.noteId!, description: f.description })),
       photoDescriptions: delivery.photoFiles.map((f) => ({ photoId: f.photoId!, description: f.description })),
     }
+    deletedLineIds.value[id] = []
+    deletedNoteIds.value[id] = []
+    deletedPhotoIds.value[id] = []
+    newDeliveryNotes.value[id] = []
+    newDeliveryPhotos.value[id] = []
     deliveryImageIndex.value[id] = 0
     deliveryImageScale.value[id] = 1
     deliveryImageTranslate[id] = { x: 0, y: 0 }
@@ -491,6 +815,7 @@ function resetDeliveryImageTransform(deliveryId: number) {
 }
 
 function onDeliveryImageWheel(deliveryId: number, e: WheelEvent) {
+  if (deliveryImageCropMode.value[deliveryId]) return
   e.preventDefault()
   const delta = e.deltaY > 0 ? -0.1 : 0.1
   const current = deliveryImageScale.value[deliveryId] ?? 1
@@ -498,6 +823,7 @@ function onDeliveryImageWheel(deliveryId: number, e: WheelEvent) {
 }
 
 function onDeliveryImagePointerDown(deliveryId: number, e: PointerEvent) {
+  if (deliveryImageCropMode.value[deliveryId]) return
   const scale = deliveryImageScale.value[deliveryId] ?? 1
   if (scale <= 1) return
   deliveryImageDragging.value[deliveryId] = true
@@ -545,19 +871,50 @@ async function updateDelivery(delivery: MaterialDeliverySummary) {
 
   isUpdatingDelivery.value[id] = true
   try {
-    await materialOrderApi.updateMaterialDelivery(id, {
-      supplier: editState.supplier,
-      deliveryDate: editState.deliveryDate,
-      location: editState.location || null,
-      workTypeId: editState.workTypeId ? Number(editState.workTypeId) : undefined,
-      deliveryLines: lines.map((line) => ({
-        manufacturer: line.manufacturer,
-        specId: line.materialSpecId,
+    const addLines = lines
+      .filter((line) => line.deliveryLineId === 0)
+      .map((line) => ({
+        manufacturer: line.manufacturer || undefined,
+        specId: line.materialSpecId || undefined,
         quantity: String(line.quantity),
-      })),
-      noteDescriptions: editState.noteDescriptions,
-      photoDescriptions: editState.photoDescriptions,
-    })
+      }))
+    const updateLines = lines
+      .filter((line) => line.deliveryLineId > 0)
+      .map((line) => ({
+        deliveryLineId: line.deliveryLineId,
+        manufacturer: line.manufacturer || undefined,
+        specId: line.materialSpecId || undefined,
+        quantity: String(line.quantity),
+      }))
+
+    // 이미지 회전/크롭 편집 수집
+    const imageEdits = await collectImageEdits(delivery)
+
+    await materialOrderApi.updateMaterialDelivery(
+      id,
+      {
+        supplier: editState.supplier,
+        deliveryDate: editState.deliveryDate,
+        workTypeId: editState.workTypeId ? Number(editState.workTypeId) : undefined,
+        zoneIds: editState.selectedZoneIds,
+        floorIds: editState.selectedFloorIds,
+        addLines: addLines.length > 0 ? addLines : undefined,
+        updateLines: updateLines.length > 0 ? updateLines : undefined,
+        deleteLineIds: deletedLineIds.value[id]?.length ? deletedLineIds.value[id] : undefined,
+        noteDescriptions: editState.noteDescriptions,
+        photoDescriptions: editState.photoDescriptions,
+        deleteNoteIds: deletedNoteIds.value[id]?.length ? deletedNoteIds.value[id] : undefined,
+        deletePhotoIds: deletedPhotoIds.value[id]?.length ? deletedPhotoIds.value[id] : undefined,
+        replaceNotes: imageEdits.replaceNotes.length > 0 ? imageEdits.replaceNotes : undefined,
+        replacePhotos: imageEdits.replacePhotos.length > 0 ? imageEdits.replacePhotos : undefined,
+      },
+      {
+        deliveryNotes: newDeliveryNotes.value[id]?.length ? newDeliveryNotes.value[id] : undefined,
+        deliveryPhotos: newDeliveryPhotos.value[id]?.length ? newDeliveryPhotos.value[id] : undefined,
+        replaceNoteFiles: imageEdits.replaceNoteFiles.length > 0 ? imageEdits.replaceNoteFiles : undefined,
+        replacePhotoFiles: imageEdits.replacePhotoFiles.length > 0 ? imageEdits.replacePhotoFiles : undefined,
+      },
+    )
     // 성공 시 접기 + 목록 새로고침
     expandedDeliveries[id] = false
     deliveryImageUrls.value[id]?.forEach((url) => URL.revokeObjectURL(url))
@@ -567,6 +924,11 @@ async function updateDelivery(delivery: MaterialDeliverySummary) {
     delete deliveryImageIndex.value[id]
     delete deliveryImageScale.value[id]
     delete deliveryImageTranslate[id]
+    delete deletedLineIds.value[id]
+    delete deletedNoteIds.value[id]
+    delete deletedPhotoIds.value[id]
+    delete newDeliveryNotes.value[id]
+    delete newDeliveryPhotos.value[id]
     analyticsClient.trackAction('material_delivery', 'update_delivery', 'success')
     loadDeliveries()
   } catch (error: unknown) {
@@ -582,7 +944,16 @@ async function updateDelivery(delivery: MaterialDeliverySummary) {
 async function loadDeliveries() {
   isLoadingDeliveries.value = true
   try {
-    deliveries.value = await materialOrderApi.getMaterialDeliveryList()
+    const [list, totals] = await Promise.all([
+      materialOrderApi.getMaterialDeliveryList(),
+      materialOrderApi.getMaterialDeliveryTotalQuantityList(),
+    ])
+    deliveries.value = list
+    const map: Record<number, { totalQuantity: number; unit: string | null }> = {}
+    for (const t of totals) {
+      map[t.materialDeliveryId] = { totalQuantity: t.totalQuantity, unit: t.unit }
+    }
+    totalQuantityMap.value = map
   } catch (error: unknown) {
     console.error('반입자재 목록 로딩 실패:', error)
     const err = error as { response?: { data?: { message?: string } }; message?: string }
@@ -611,10 +982,6 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  // 열린 delivery 이미지 URL 정리
-  Object.values(deliveryImageUrls.value).forEach((urls) => {
-    urls.forEach((url) => URL.revokeObjectURL(url))
-  })
   window.removeEventListener('resize', onWindowResize)
 })
 </script>
@@ -674,10 +1041,15 @@ onUnmounted(() => {
           >
             <div class="flex items-center gap-3 px-4 py-3">
               <span class="text-xs text-muted-foreground">{{ expandedDeliveries[delivery.materialDeliveryId] ? '▲' : '▼' }}</span>
-              <span class="text-sm font-medium">{{ delivery.materialOrderNumber }}</span>
+              <span class="text-sm font-medium inline-flex items-center gap-1">
+                {{ delivery.materialTypeName }}
+                <span @click.stop>
+                  <ReferenceEditTrigger type="material" @refresh="loadDeliveries" />
+                </span>
+              </span>
               <span v-if="delivery.location" class="text-sm text-muted-foreground">{{ delivery.location }}</span>
-              <span v-if="delivery.specQuantities?.length > 0" class="text-sm text-muted-foreground">
-                {{ delivery.specQuantities.reduce((sum, sq) => sum + sq.quantity, 0) }}{{ delivery.unit }}
+              <span v-if="totalQuantityMap[delivery.materialDeliveryId]" class="text-sm text-muted-foreground">
+                {{ totalQuantityMap[delivery.materialDeliveryId].totalQuantity }}{{ totalQuantityMap[delivery.materialDeliveryId].unit ?? delivery.unit }}
               </span>
               <span v-if="mirDeliveryIds.has(delivery.materialDeliveryId)" class="text-xs text-muted-foreground">
                 문서번호 : {{ getMirForDelivery(delivery.materialDeliveryId)?.documentNumber }}
@@ -698,7 +1070,7 @@ onUnmounted(() => {
                     variant="ghost"
                     size="sm"
                     class="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
-                    @click="openMirDeleteDialog(getMirForDelivery(delivery.materialDeliveryId)!.id, delivery.materialOrderNumber)"
+                    @click="openMirDeleteDialog(getMirForDelivery(delivery.materialDeliveryId)!.id, delivery.materialTypeName)"
                   >
                     <X class="h-3 w-3" />
                   </Button>
@@ -708,7 +1080,7 @@ onUnmounted(() => {
                   size="sm"
                   class="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
                   :disabled="mirDeliveryIds.has(delivery.materialDeliveryId)"
-                  @click="openDeleteDialog(delivery.materialDeliveryId, delivery.materialOrderNumber)"
+                  @click="openDeleteDialog(delivery.materialDeliveryId, delivery.materialTypeName)"
                 >
                   <X class="h-4 w-4" />
                 </Button>
@@ -732,19 +1104,55 @@ onUnmounted(() => {
                   </div>
                   <template v-else-if="(deliveryImageUrls[delivery.materialDeliveryId] ?? []).length > 0">
                     <div
+                      :ref="(el) => { deliveryImageContainerRefs[delivery.materialDeliveryId] = el as HTMLElement }"
                       class="h-[720px] border border-border rounded-lg overflow-hidden bg-muted/20 relative"
+                      @wheel="onDeliveryImageWheel(delivery.materialDeliveryId, $event)"
+                      @pointerdown="onDeliveryImagePointerDown(delivery.materialDeliveryId, $event)"
+                      @pointermove="onDeliveryImagePointerMove(delivery.materialDeliveryId, $event)"
+                      @pointerup="onDeliveryImagePointerUp(delivery.materialDeliveryId)"
                     >
                       <img
+                        :ref="(el) => { deliveryImageRefs[delivery.materialDeliveryId] = el as HTMLImageElement }"
                         :src="deliveryImageUrls[delivery.materialDeliveryId]?.[deliveryImageIndex[delivery.materialDeliveryId] ?? 0]"
                         alt="송장 이미지"
                         class="w-full h-full object-contain select-none"
                         draggable="false"
                         :style="{
-                          transform: `translate(${deliveryImageTranslate[delivery.materialDeliveryId]?.x ?? 0}px, ${deliveryImageTranslate[delivery.materialDeliveryId]?.y ?? 0}px) scale(${deliveryImageScale[delivery.materialDeliveryId] ?? 1})`,
+                          transform: `translate(${deliveryImageTranslate[delivery.materialDeliveryId]?.x ?? 0}px, ${deliveryImageTranslate[delivery.materialDeliveryId]?.y ?? 0}px) scale(${deliveryImageScale[delivery.materialDeliveryId] ?? 1}) rotate(${deliveryImageRotation[imageEditKey(delivery.materialDeliveryId)] ?? 0}deg)`,
                           transformOrigin: 'center center',
                           transition: deliveryImageDragging[delivery.materialDeliveryId] ? 'none' : 'transform 0.15s ease',
                         }"
                       />
+                      <!-- 크롭 오버레이 -->
+                      <div
+                        v-if="deliveryImageCropMode[delivery.materialDeliveryId]"
+                        class="absolute inset-0 cursor-crosshair z-10"
+                        @pointerdown="onCropPointerDown(delivery.materialDeliveryId, $event)"
+                        @pointermove="onCropPointerMove(delivery.materialDeliveryId, $event)"
+                        @pointerup="onCropPointerUp(delivery.materialDeliveryId)"
+                      >
+                        <div
+                          v-if="deliveryImageCropRect[delivery.materialDeliveryId]"
+                          class="absolute border-2 border-dashed border-blue-500 bg-blue-500/10 pointer-events-none"
+                          :style="getCropStyle(delivery.materialDeliveryId)"
+                        />
+                      </div>
+                      <!-- 편집 도구 (상단 우측) -->
+                      <div class="absolute top-2 right-2 flex items-center gap-1.5 bg-background/80 rounded-md border border-border px-2 py-1 z-20">
+                        <Button variant="ghost" size="sm" class="h-8 w-8 p-0" title="회전" @click="rotateImage(delivery.materialDeliveryId, 'ccw')">
+                          <RotateCcw class="h-5 w-5" />
+                        </Button>
+                        <Button
+                          :variant="deliveryImageCropMode[delivery.materialDeliveryId] ? 'default' : 'ghost'"
+                          size="sm"
+                          class="h-8 w-8 p-0"
+                          title="자르기"
+                          @click="toggleCropMode(delivery.materialDeliveryId)"
+                        >
+                          <Crop class="h-5 w-5" />
+                        </Button>
+                      </div>
+                      <!-- 줌 컨트롤 (하단 우측) -->
                       <div class="absolute bottom-2 right-2 flex items-center gap-1 bg-background/80 rounded-md border border-border px-1.5 py-0.5">
                         <Button variant="ghost" size="sm" class="h-6 w-6 p-0" @click="deliveryImageScale[delivery.materialDeliveryId] = Math.max(0.5, (deliveryImageScale[delivery.materialDeliveryId] ?? 1) - 0.25)">−</Button>
                         <span class="text-xs text-muted-foreground min-w-[3ch] text-center">{{ Math.round((deliveryImageScale[delivery.materialDeliveryId] ?? 1) * 100) }}%</span>
@@ -781,6 +1189,47 @@ onUnmounted(() => {
                         다음 →
                       </Button>
                     </div>
+                    <!-- 이미지 추가/삭제 버튼 -->
+                    <div v-if="deliveryEditState[delivery.materialDeliveryId]" class="flex items-center justify-center gap-2">
+                      <Button variant="outline" size="sm" @click="triggerNoteInput(delivery.materialDeliveryId)">
+                        송장추가
+                      </Button>
+                      <Button variant="outline" size="sm" @click="triggerPhotoInput(delivery.materialDeliveryId)">
+                        반입사진추가
+                      </Button>
+                      <Button
+                        v-if="(deliveryImageUrls[delivery.materialDeliveryId] ?? []).length > 0"
+                        variant="outline"
+                        size="sm"
+                        class="text-destructive hover:text-destructive"
+                        @click="deleteCurrentImage(delivery)"
+                      >
+                        현재 이미지 삭제
+                      </Button>
+                      <input
+                        :ref="(el) => { noteInputRefs[delivery.materialDeliveryId] = el as HTMLInputElement }"
+                        type="file"
+                        multiple
+                        accept=".pdf,.png,.jpg,.jpeg"
+                        class="hidden"
+                        @change="onNewNotesChange(delivery.materialDeliveryId, $event)"
+                      />
+                      <input
+                        :ref="(el) => { photoInputRefs[delivery.materialDeliveryId] = el as HTMLInputElement }"
+                        type="file"
+                        multiple
+                        accept="image/*"
+                        class="hidden"
+                        @change="onNewPhotosChange(delivery.materialDeliveryId, $event)"
+                      />
+                    </div>
+                    <!-- 추가된 파일 표시 -->
+                    <div v-if="(newDeliveryNotes[delivery.materialDeliveryId]?.length ?? 0) + (newDeliveryPhotos[delivery.materialDeliveryId]?.length ?? 0) > 0" class="text-xs text-muted-foreground text-center">
+                      <span v-if="newDeliveryNotes[delivery.materialDeliveryId]?.length">송장 {{ newDeliveryNotes[delivery.materialDeliveryId].length }}건</span>
+                      <span v-if="newDeliveryNotes[delivery.materialDeliveryId]?.length && newDeliveryPhotos[delivery.materialDeliveryId]?.length"> · </span>
+                      <span v-if="newDeliveryPhotos[delivery.materialDeliveryId]?.length">사진 {{ newDeliveryPhotos[delivery.materialDeliveryId].length }}건</span>
+                      추가됨 (수정하기 시 저장)
+                    </div>
                   </template>
                   <div v-else class="h-[720px] flex items-center justify-center border border-border rounded-lg bg-muted/20">
                     <p class="text-sm text-muted-foreground">이미지가 없습니다</p>
@@ -789,10 +1238,13 @@ onUnmounted(() => {
 
                 <!-- 우측: 수정 폼 -->
                 <div class="space-y-4 overflow-y-auto" :class="isPortrait ? 'w-full' : 'w-1/2'">
-                  <!-- 분류 / 공종 -->
-                  <div class="grid grid-cols-2 gap-4">
-                    <div class="space-y-1.5">
-                      <Label>분류</Label>
+                  <!-- 공종 -->
+                  <div class="space-y-1.5">
+                    <Label class="inline-flex items-center gap-1">
+                      공종
+                      <ReferenceEditTrigger type="work-classification" @refresh="loadWorkClassifications(delivery)" />
+                    </Label>
+                    <div class="grid grid-cols-2 gap-4">
                       <Select
                         :model-value="deliveryEditState[delivery.materialDeliveryId]!.divisionId"
                         @update:model-value="handleEditDivisionChange(delivery.materialDeliveryId, $event)"
@@ -810,9 +1262,6 @@ onUnmounted(() => {
                           </SelectItem>
                         </SelectContent>
                       </Select>
-                    </div>
-                    <div class="space-y-1.5">
-                      <Label>공종</Label>
                       <Select
                         v-model="deliveryEditState[delivery.materialDeliveryId]!.workTypeId"
                         :disabled="!deliveryEditState[delivery.materialDeliveryId]!.divisionId || isLoadingEditWorkTypes"
@@ -845,6 +1294,41 @@ onUnmounted(() => {
                     </div>
                   </div>
 
+                  <!-- 위치정보 (존/층) -->
+                  <div v-if="editZones.length > 0" class="space-y-1.5">
+                    <Label class="inline-flex items-center gap-1">
+                      존
+                      <ReferenceEditTrigger type="zone" @refresh="async () => { editZones = await referenceApi.getZoneList() }" />
+                    </Label>
+                    <div class="flex flex-wrap gap-1.5">
+                      <button
+                        v-for="zone in editZones" :key="zone.id"
+                        class="px-3 py-1 text-sm rounded-md border transition-colors"
+                        :class="deliveryEditState[delivery.materialDeliveryId]!.selectedZoneIds.includes(zone.id) ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-background border-border text-foreground hover:bg-muted'"
+                        @click="deliveryEditState[delivery.materialDeliveryId]!.selectedZoneIds = toggleId(deliveryEditState[delivery.materialDeliveryId]!.selectedZoneIds, zone.id)"
+                      >
+                        {{ zone.name }}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div v-if="editFloors.length > 0" class="space-y-1.5">
+                    <Label class="inline-flex items-center gap-1">
+                      층
+                      <ReferenceEditTrigger type="floor" @refresh="async () => { editFloors = await referenceApi.getFloorList() }" />
+                    </Label>
+                    <div class="flex flex-wrap gap-1.5">
+                      <button
+                        v-for="floor in editFloors" :key="floor.id"
+                        class="px-3 py-1 text-sm rounded-md border transition-colors"
+                        :class="deliveryEditState[delivery.materialDeliveryId]!.selectedFloorIds.includes(floor.id) ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-background border-border text-foreground hover:bg-muted'"
+                        @click="deliveryEditState[delivery.materialDeliveryId]!.selectedFloorIds = toggleId(deliveryEditState[delivery.materialDeliveryId]!.selectedFloorIds, floor.id)"
+                      >
+                        {{ floor.name }}
+                      </button>
+                    </div>
+                  </div>
+
                   <!-- 행 추가 버튼 -->
                   <Button
                     variant="outline"
@@ -861,7 +1345,12 @@ onUnmounted(() => {
                       <TableHeader>
                         <TableRow>
                           <TableHead>제조사</TableHead>
-                          <TableHead>규격</TableHead>
+                          <TableHead>
+                            <span class="inline-flex items-center gap-1">
+                              규격
+                              <ReferenceEditTrigger type="material" @refresh="reloadMaterialSpecs" />
+                            </span>
+                          </TableHead>
                           <TableHead class="w-[200px] text-right">수량</TableHead>
                           <TableHead class="w-[40px]" />
                         </TableRow>
@@ -870,7 +1359,6 @@ onUnmounted(() => {
                         <TableRow
                           v-for="(line, lineIdx) in deliveryLinesMap[delivery.materialDeliveryId]"
                           :key="line.deliveryLineId ?? lineIdx"
-                          :class="{ 'bg-yellow-50 dark:bg-yellow-950/30': !line.specValidation }"
                         >
                           <TableCell>
                             <Input
@@ -902,25 +1390,6 @@ onUnmounted(() => {
                                   </SelectItem>
                                 </SelectContent>
                               </Select>
-                              <ReferenceEditTrigger
-                                v-if="lineIdx === 0"
-                                type="material"
-                                @refresh="reloadMaterialSpecs"
-                              />
-                              <span
-                                v-if="line.specValidation"
-                                class="shrink-0 text-green-600 dark:text-green-400 text-xs font-medium"
-                                title="규격 검증 성공"
-                              >
-                                ✅
-                              </span>
-                              <span
-                                v-else
-                                class="shrink-0 text-yellow-600 dark:text-yellow-400 text-xs font-medium"
-                                title="규격 검증 실패"
-                              >
-                                ⚠️
-                              </span>
                             </div>
                           </TableCell>
                           <TableCell>
@@ -1057,7 +1526,7 @@ onUnmounted(() => {
 
           <p class="text-sm">
             제외 후 남은 행 수:
-            <span :class="mirValidationResult.dataRowCount - mirExcludedIndices.length > mirValidationResult.totalMaxRows ? 'text-destructive font-semibold' : 'text-green-600 dark:text-green-400 font-semibold'">
+            <span :class="mirValidationResult.dataRowCount - mirExcludedIndices.length > mirValidationResult.totalMaxRows ? 'text-destructive font-semibold' : 'text-green-600 font-semibold'">
               {{ mirValidationResult.dataRowCount - mirExcludedIndices.length }}
             </span>
             / {{ mirValidationResult.totalMaxRows }}

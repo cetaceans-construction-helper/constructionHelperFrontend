@@ -56,14 +56,17 @@ export interface DeliverySpecQuantity {
 
 export interface MaterialDeliverySummary {
   materialDeliveryId: number
-  materialOrderId: number
-  materialOrderNumber: string
+  materialTypeName: string
+  workTypeName: string
   supplier: string
   deliveryDate: string
-  location: string | null
+  location: string
   noteFiles: DeliveryFileInfo[]
   photoFiles: DeliveryFileInfo[]
   unit: string
+  zoneIds: number[]
+  floorIds: number[]
+  mirDocumentNumber: string | null
   specQuantities: DeliverySpecQuantity[]
 }
 
@@ -73,10 +76,9 @@ export interface CreateDeliveryResponse {
 
 export interface DeliveryLineResponse {
   deliveryLineId: number
-  manufacturer: string | null
-  materialSpecId: number | null
-  materialSpecName: string | null
-  specValidation: boolean
+  manufacturer: string
+  materialSpecId: number
+  materialSpecName: string
   quantity: number
 }
 
@@ -85,7 +87,7 @@ export interface DeliveryQuantityByDate {
   materialSpecName: string
   totalQuantity: number
   unit: string
-  workTypeName: string | null
+  workTypeName: string
 }
 
 export type MaterialOrderStatus = 'BEFORE_ORDER' | 'ORDER_COMPLETED' | 'RECEIPT_COMPLETED'

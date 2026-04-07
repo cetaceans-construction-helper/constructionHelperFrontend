@@ -1,51 +1,54 @@
 <script setup lang="ts">
-import { Button } from '@/shared/ui/button'
-import { useRouter } from 'vue-router'
+import { ref } from 'vue'
+import HeroSection from './components/HeroSection.vue'
+import CostSection from './components/CostSection.vue'
+import WhySection from './components/WhySection.vue'
+import ServicesSection from './components/ServicesSection.vue'
+import ProcessSection from './components/ProcessSection.vue'
+import CtaSection from './components/CtaSection.vue'
+import ContactModal from './components/ContactModal.vue'
+import FooterSection from './components/FooterSection.vue'
 
-const router = useRouter()
+const showModal = ref(false)
 
-const navigateToLogin = () => {
-  router.push('/login')
+const openModal = () => {
+  showModal.value = true
+}
+
+const closeModal = () => {
+  showModal.value = false
 }
 </script>
 
 <template>
-  <div class="min-h-screen flex flex-col">
-    <!-- Header -->
-    <header class="flex items-center justify-between p-4 border-b border-border">
-      <div class="flex items-center gap-2">
-        <span class="text-xl font-bold">건설업무도우미</span>
-      </div>
-      <Button @click="navigateToLogin">로그인</Button>
-    </header>
-
-    <!-- Main Content -->
-    <main class="flex-1 flex items-center justify-center">
-      <div class="text-center space-y-4">
-        <h1 class="text-4xl font-bold">건설업무도우미</h1>
-        <p class="text-muted-foreground">효율적인 건설 프로젝트 관리를 위한 솔루션</p>
-      </div>
-    </main>
-
-    <!-- Footer / Contact Us -->
-    <footer class="p-6 border-t border-border">
-      <div class="max-w-4xl mx-auto">
-        <h2 class="text-lg font-semibold mb-4">Contact Us</h2>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-muted-foreground">
-          <div>
-            <p class="font-medium text-foreground">이메일</p>
-            <p>master@cetaceans.kr</p>
-          </div>
-          <div>
-            <p class="font-medium text-foreground">전화</p>
-            <p>010-9912-3292</p>
-          </div>
-          <div>
-            <p class="font-medium text-foreground">주소</p>
-            <p>서울특별시 양천구 목동동로 202, 상가 205호</p>
-          </div>
-        </div>
-      </div>
-    </footer>
+  <div class="landing-page">
+    <HeroSection @open-contact="openModal" />
+    <CostSection />
+    <WhySection />
+    <ServicesSection />
+    <ProcessSection />
+    <CtaSection @open-contact="openModal" />
+    <FooterSection />
+    <ContactModal :show="showModal" @close="closeModal" />
   </div>
 </template>
+
+<style>
+.landing-page {
+  --deep-navy: #1F2F98;
+  --blue: #1CA7EC;
+  --purple-blue: #787FF6;
+  --cyan: #4ADEDE;
+  --light-blue: #7BD5F5;
+  --white: #ffffff;
+  --light-gray: #f8f9fc;
+  --text-dark: #1a1a2e;
+  --text-light: #6b7280;
+
+  font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+  color: var(--text-dark);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+</style>

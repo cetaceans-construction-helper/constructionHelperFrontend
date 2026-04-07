@@ -26,7 +26,10 @@ export function useWorkTooltipData(getScheduleVersion?: () => number) {
   // TODO: section/usage 임시 비활성화
   // const sections = ref<IdNameResponse[]>([])
   // const usages = ref<IdNameResponse[]>([])
+  const componentDivisions = ref<IdNameResponse[]>([])
   const componentTypes = ref<IdNameResponse[]>([])
+  const selectedComponentDivisionId = ref('')
+  const isLoadingComponentTypes = ref(false)
 
   // 원본 데이터 (변경 비교용)
   const originalWork = ref<WorkResponse | null>(null)
@@ -61,20 +64,20 @@ export function useWorkTooltipData(getScheduleVersion?: () => number) {
   const loadReferenceData = async () => {
     try {
       // TODO: section/usage 임시 비활성화
-      const [divList, zoneList, floorList, /* sectionList, usageList, */ ctList] = await Promise.all([
+      const [divList, zoneList, floorList, /* sectionList, usageList, */ cdList] = await Promise.all([
         referenceApi.getDivisionList(),
         referenceApi.getZoneList(),
         referenceApi.getFloorList(),
         // referenceApi.getSectionList(),
         // referenceApi.getUsageList(),
-        referenceApi.getComponentTypeList(),
+        referenceApi.getComponentDivisionList(),
       ])
       divisions.value = divList
       zones.value = zoneList
       floors.value = floorList
       // sections.value = sectionList
       // usages.value = usageList
-      componentTypes.value = ctList
+      componentDivisions.value = cdList
     } catch (error) {
       console.error('참조 데이터 로드 실패:', error)
     }
@@ -118,7 +121,9 @@ export function useWorkTooltipData(getScheduleVersion?: () => number) {
     // TODO: section/usage 임시 비활성화
     // editSectionIds.value = []
     // editUsageIds.value = []
+    selectedComponentDivisionId.value = ''
     editComponentTypeIds.value = []
+    componentTypes.value = []
     editAnnotation.value = ''
     tooltipWorkTypes.value = []
     tooltipSubWorkTypes.value = []
@@ -169,8 +174,18 @@ export function useWorkTooltipData(getScheduleVersion?: () => number) {
     // editSectionIds.value = work.sectionIds ?? []
     // editUsageIds.value = work.usageIds ?? []
 
-    // 부재 타입 & 비고
-    editComponentTypeIds.value = work.componentTypeIds ? [...work.componentTypeIds] : []
+    // 부재 대분류 & 타입
+    const groups = work.componentTypes ?? []
+    if (groups.length > 0 && groups[0]) {
+      // 첫 번째 그룹의 대분류를 선택하고 해당 타입 로드
+      selectedComponentDivisionId.value = String(groups[0].componentDivisionId)
+      editComponentTypeIds.value = groups.flatMap((g) => g.componentTypeIds)
+      componentTypes.value = await referenceApi.getComponentTypeList(groups[0].componentDivisionId)
+    } else {
+      selectedComponentDivisionId.value = ''
+      editComponentTypeIds.value = []
+      componentTypes.value = []
+    }
     editAnnotation.value = work.annotation || ''
   }
 
@@ -237,6 +252,22 @@ export function useWorkTooltipData(getScheduleVersion?: () => number) {
   //     : [...editUsageIds.value, id]
   // }
 
+  // 부재 대분류 변경
+  const handleComponentDivisionChange = async (val: unknown) => {
+    const id = String(val ?? '')
+    selectedComponentDivisionId.value = id
+    editComponentTypeIds.value = []
+    componentTypes.value = []
+    if (!id) return
+
+    isLoadingComponentTypes.value = true
+    try {
+      componentTypes.value = await referenceApi.getComponentTypeList(Number(id))
+    } finally {
+      isLoadingComponentTypes.value = false
+    }
+  }
+
   // 부재 타입 토글
   const toggleComponentType = (id: number) => {
     editComponentTypeIds.value = editComponentTypeIds.value.includes(id)
@@ -261,7 +292,9 @@ export function useWorkTooltipData(getScheduleVersion?: () => number) {
         scheduleVersionId: getScheduleVersion?.() ?? 0,
       }
 
-      if (editComponentTypeIds.value.length > 0) payload.componentTypeIds = editComponentTypeIds.value
+      if (editComponentTypeIds.value.length > 0 && selectedComponentDivisionId.value) {
+        payload.componentTypes = [{ componentDivisionId: Number(selectedComponentDivisionId.value), componentTypeIds: editComponentTypeIds.value }]
+      }
       if (editAnnotation.value) payload.annotation = editAnnotation.value
 
       const response = await workApi.createWork(payload)
@@ -293,7 +326,14 @@ export function useWorkTooltipData(getScheduleVersion?: () => number) {
     // TODO: section/usage 임시 비활성화
     // if (!arraysEqual(editSectionIds.value, orig.sectionIds ?? [])) payload.sectionIds = editSectionIds.value
     // if (!arraysEqual(editUsageIds.value, orig.usageIds ?? [])) payload.usageIds = editUsageIds.value
-    if (!arraysEqual(editComponentTypeIds.value, orig.componentTypeIds ?? [])) payload.componentTypeIds = editComponentTypeIds.value
+    const origTypeIds = (orig.componentTypes ?? []).flatMap((g) => g.componentTypeIds)
+    if (!arraysEqual(editComponentTypeIds.value, origTypeIds)) {
+      if (editComponentTypeIds.value.length > 0 && selectedComponentDivisionId.value) {
+        payload.componentTypes = [{ componentDivisionId: Number(selectedComponentDivisionId.value), componentTypeIds: editComponentTypeIds.value }]
+      } else {
+        payload.componentTypes = []
+      }
+    }
     if (editAnnotation.value !== (orig.annotation || '')) payload.annotation = editAnnotation.value
     if (editSubWorkTypeId.value && Number(editSubWorkTypeId.value) !== orig.subWorkTypeId) payload.subWorkTypeId = Number(editSubWorkTypeId.value)
 
@@ -328,7 +368,10 @@ export function useWorkTooltipData(getScheduleVersion?: () => number) {
     // TODO: section/usage 임시 비활성화
     // sections,
     // usages,
+    componentDivisions,
     componentTypes,
+    selectedComponentDivisionId,
+    isLoadingComponentTypes,
     showDialog,
     editingWorkId,
     isCreateMode,
@@ -362,6 +405,7 @@ export function useWorkTooltipData(getScheduleVersion?: () => number) {
     // TODO: section/usage 임시 비활성화
     // toggleSection,
     // toggleUsage,
+    handleComponentDivisionChange,
     toggleComponentType,
     submitCreate,
     submitEdit,

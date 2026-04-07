@@ -88,6 +88,7 @@ export const useAuthStore = defineStore('auth', () => {
     } finally {
       analyticsClient.setUserId(null)
       user.value = null
+      localStorage.removeItem('selectedProjectId')
       isLoading.value = false
     }
   }

@@ -51,7 +51,7 @@ const { state } = useSidebar()
     />
     <div
       :class="cn(
-        'fixed top-[57px] bottom-0 z-30 w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear flex',
+        'fixed top-[65px] bottom-0 z-50 w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear flex',
         side === 'left'
           ? 'left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]'
           : 'right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]',

@@ -104,7 +104,7 @@ function onDateClick(date: DateValue) {
   <PopoverRoot v-model:open="popoverOpen">
     <PopoverTrigger
       :class="cn(
-        'border-input focus-visible:border-ring focus-visible:ring-ring/50 flex items-center gap-2 rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs h-9 whitespace-nowrap dark:bg-input/30 dark:hover:bg-input/50 transition-[color,box-shadow] outline-none focus-visible:ring-[3px] cursor-pointer',
+        'border-input focus-visible:border-ring focus-visible:ring-ring/50 flex items-center gap-2 rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs h-9 whitespace-nowrap transition-[color,box-shadow] outline-none focus-visible:ring-[3px] cursor-pointer',
         props.class,
       )"
     >

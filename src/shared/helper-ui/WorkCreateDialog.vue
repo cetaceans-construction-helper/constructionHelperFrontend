@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { Button } from '@/shared/ui/button'
-import { Checkbox } from '@/shared/ui/checkbox'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
 import { DateStepper } from '@/shared/ui/date-stepper'
+import { NumberStepper } from '@/shared/ui/number-stepper'
 import ReferenceEditTrigger from '@/shared/helper-ui/ReferenceEditTrigger.vue'
 import {
   Dialog,
@@ -56,29 +56,46 @@ const startDate = ref('')
 const workLeadTime = ref(1)
 const zones = ref<IdNameResponse[]>([])
 const floors = ref<IdNameResponse[]>([])
+const componentDivisions = ref<IdNameResponse[]>([])
 const componentTypes = ref<IdNameResponse[]>([])
+const selectedComponentDivisionId = ref('')
 const selectedZoneIds = ref<number[]>([])
 const selectedFloorIds = ref<number[]>([])
 const selectedComponentTypeIds = ref<number[]>([])
 const annotation = ref('')
 const isLoadingWorkTypes = ref(false)
 const isLoadingSubWorkTypes = ref(false)
+const isLoadingComponentTypes = ref(false)
 
 function toggleId(list: number[], id: number): number[] {
   return list.includes(id) ? list.filter((v) => v !== id) : [...list, id]
 }
 
 async function loadReferenceData() {
-  const [divList, zoneList, floorList, ctList] = await Promise.all([
+  const [divList, zoneList, floorList, cdList] = await Promise.all([
     referenceApi.getDivisionList(),
     referenceApi.getZoneList(),
     referenceApi.getFloorList(),
-    referenceApi.getComponentTypeList(),
+    referenceApi.getComponentDivisionList(),
   ])
   divisions.value = divList
   zones.value = zoneList
   floors.value = floorList
-  componentTypes.value = ctList
+  componentDivisions.value = cdList
+}
+
+async function handleComponentDivisionChange(divisionId: string) {
+  selectedComponentDivisionId.value = divisionId
+  selectedComponentTypeIds.value = []
+  componentTypes.value = []
+  if (!divisionId) return
+
+  isLoadingComponentTypes.value = true
+  try {
+    componentTypes.value = await referenceApi.getComponentTypeList(Number(divisionId))
+  } finally {
+    isLoadingComponentTypes.value = false
+  }
 }
 
 async function loadDivisions() {
@@ -123,7 +140,9 @@ watch(() => props.open, async (opened) => {
   selectedSubWorkTypeId.value = ''
   selectedZoneIds.value = []
   selectedFloorIds.value = []
+  selectedComponentDivisionId.value = ''
   selectedComponentTypeIds.value = []
+  componentTypes.value = []
   annotation.value = ''
   startDate.value = props.defaultStartDate
   workLeadTime.value = props.defaultWorkLeadTime
@@ -174,7 +193,9 @@ async function handleSave() {
       scheduleVersionId: versionId,
       ...(selectedZoneIds.value.length > 0 && { zoneIds: selectedZoneIds.value }),
       ...(selectedFloorIds.value.length > 0 && { floorIds: selectedFloorIds.value }),
-      ...(selectedComponentTypeIds.value.length > 0 && { componentTypeIds: selectedComponentTypeIds.value }),
+      ...(selectedComponentTypeIds.value.length > 0 && selectedComponentDivisionId.value && {
+        componentTypes: [{ componentDivisionId: Number(selectedComponentDivisionId.value), componentTypeIds: selectedComponentTypeIds.value }],
+      }),
       ...(annotation.value.trim() && { annotation: annotation.value.trim() }),
     })
 
@@ -232,15 +253,15 @@ async function handleSave() {
           </div>
         </div>
 
-        <!-- 시작일 / 공기 -->
+        <!-- 시작일 / 작업기간 -->
         <div class="flex gap-3">
           <div class="flex-1 space-y-1.5">
             <Label>시작일</Label>
             <DateStepper v-model="startDate" />
           </div>
-          <div class="w-24 space-y-1.5">
-            <Label>공기(일)</Label>
-            <Input v-model.number="workLeadTime" type="number" min="1" />
+          <div class="w-32 space-y-1.5">
+            <Label>작업기간</Label>
+            <NumberStepper v-model="workLeadTime" :min="1" suffix="일" />
           </div>
         </div>
 
@@ -252,47 +273,67 @@ async function handleSave() {
           <div class="grid grid-cols-2 gap-3">
             <div v-if="zones.length > 0" class="space-y-1">
               <span class="text-xs text-muted-foreground">구역</span>
-              <div class="flex flex-wrap gap-x-3 gap-y-1">
-                <label v-for="z in zones" :key="z.id" class="flex items-center gap-1.5 text-sm cursor-pointer">
-                  <Checkbox
-                    :model-value="selectedZoneIds.includes(z.id)"
-                    class="h-4 w-4"
-                    @update:model-value="selectedZoneIds = toggleId(selectedZoneIds, z.id)"
-                  />
+              <div class="flex flex-wrap gap-1.5">
+                <button
+                  v-for="z in zones" :key="z.id"
+                  class="px-3 py-1 text-sm rounded-md border transition-colors"
+                  :class="selectedZoneIds.includes(z.id) ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-background border-border text-foreground hover:bg-muted'"
+                  @click="selectedZoneIds = toggleId(selectedZoneIds, z.id)"
+                >
                   {{ z.name }}
-                </label>
+                </button>
               </div>
             </div>
             <div v-if="floors.length > 0" class="space-y-1">
               <span class="text-xs text-muted-foreground">층</span>
-              <div class="flex flex-wrap gap-x-3 gap-y-1">
-                <label v-for="f in floors" :key="f.id" class="flex items-center gap-1.5 text-sm cursor-pointer">
-                  <Checkbox
-                    :model-value="selectedFloorIds.includes(f.id)"
-                    class="h-4 w-4"
-                    @update:model-value="selectedFloorIds = toggleId(selectedFloorIds, f.id)"
-                  />
+              <div class="flex flex-wrap gap-1.5">
+                <button
+                  v-for="f in floors" :key="f.id"
+                  class="px-3 py-1 text-sm rounded-md border transition-colors"
+                  :class="selectedFloorIds.includes(f.id) ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-background border-border text-foreground hover:bg-muted'"
+                  @click="selectedFloorIds = toggleId(selectedFloorIds, f.id)"
+                >
                   {{ f.name }}
-                </label>
+                </button>
               </div>
             </div>
           </div>
         </div>
 
         <!-- 부재 -->
-        <div v-if="componentTypes.length > 0" class="space-y-1.5">
+        <div v-if="componentDivisions.length > 0" class="space-y-1.5">
           <Label class="flex items-center gap-1">부재
             <ReferenceEditTrigger type="component" @refresh="loadReferenceData" />
           </Label>
-          <div class="flex flex-wrap gap-x-4 gap-y-1.5">
-            <label v-for="ct in componentTypes" :key="ct.id" class="flex items-center gap-1.5 text-sm cursor-pointer">
-              <Checkbox
-                :model-value="selectedComponentTypeIds.includes(ct.id)"
-                class="h-4 w-4"
-                @update:model-value="selectedComponentTypeIds = toggleId(selectedComponentTypeIds, ct.id)"
-              />
+          <div class="space-y-1">
+            <span class="text-xs text-muted-foreground">부재대분류</span>
+            <div class="flex flex-wrap gap-1.5">
+              <button
+                v-for="cd in componentDivisions" :key="cd.id"
+                class="px-3 py-1 text-sm rounded-md border transition-colors"
+                :class="selectedComponentDivisionId === String(cd.id) ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-background border-border text-foreground hover:bg-muted'"
+                @click="handleComponentDivisionChange(selectedComponentDivisionId === String(cd.id) ? '' : String(cd.id))"
+              >
+                {{ cd.name }}
+              </button>
+            </div>
+          </div>
+          <div v-if="isLoadingComponentTypes" class="text-sm text-muted-foreground">로딩...</div>
+          <div v-else-if="selectedComponentDivisionId && componentTypes.length > 0" class="space-y-1">
+            <span class="text-xs text-muted-foreground">부재타입</span>
+            <div class="flex flex-wrap gap-1.5">
+            <button
+              v-for="ct in componentTypes" :key="ct.id"
+              class="px-3 py-1 text-sm rounded-md border transition-colors"
+              :class="selectedComponentTypeIds.includes(ct.id) ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-background border-border text-foreground hover:bg-muted'"
+              @click="selectedComponentTypeIds = toggleId(selectedComponentTypeIds, ct.id)"
+            >
               {{ ct.name }}
-            </label>
+            </button>
+            </div>
+          </div>
+          <div v-else-if="selectedComponentDivisionId && componentTypes.length === 0" class="text-sm text-muted-foreground">
+            등록된 부재 타입 없음
           </div>
         </div>
 

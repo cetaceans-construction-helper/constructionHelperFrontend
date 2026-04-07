@@ -33,7 +33,6 @@ import {
 import { Checkbox } from '@/shared/ui/checkbox'
 import { Label } from '@/shared/ui/label'
 import { X } from 'lucide-vue-next'
-import ImageRotatePreview from '@/shared/helper-ui/ImageRotatePreview.vue'
 import { materialOrderApi } from '@/features/material/infra/material-order-api'
 import {
   formatMaterialOrderLineLocation as formatLocation,
@@ -180,20 +179,16 @@ async function saveDelivery() {
   isSaving.value = true
   try {
     await materialOrderApi.createMaterialDelivery({
-      orderId: selectedOrder.value.id,
       materialTypeId: selectedOrder.value.materialTypeId,
       workTypeId: selectedOrder.value.workTypeId,
       deliveryNotes: deliveryNotes.value,
       deliveryPhotos: deliveryPhotos.value,
       zoneIds: selectedZoneIds.value,
       floorIds: selectedFloorIds.value,
-      // TODO: section/usage 임시 비활성화
-      // sectionIds: selectedSectionIds.value,
-      // usageIds: selectedUsageIds.value,
     })
     deliveryDialogOpen.value = false
     analyticsClient.trackAction('material_delivery', 'create_delivery', 'success')
-    router.push('/helper/material/incoming')
+    router.push('/helper/material/delivery')
   } catch (error: unknown) {
     console.error('송장입력 실패:', error)
     analyticsClient.trackAction('material_delivery', 'create_delivery', 'fail')
@@ -339,7 +334,6 @@ onMounted(() => {
               class="block w-full text-sm text-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded file:border file:border-input file:bg-muted file:text-sm file:font-medium hover:file:bg-muted/80 cursor-pointer"
               @change="onDeliveryNotesChange"
             />
-            <ImageRotatePreview v-model="deliveryNotes" />
           </div>
 
           <!-- 반입사진 -->
@@ -355,7 +349,6 @@ onMounted(() => {
               class="block w-full text-sm text-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded file:border file:border-input file:bg-muted file:text-sm file:font-medium hover:file:bg-muted/80 cursor-pointer"
               @change="onDeliveryPhotosChange"
             />
-            <ImageRotatePreview v-model="deliveryPhotos" />
           </div>
 
           <!-- 위치정보 -->

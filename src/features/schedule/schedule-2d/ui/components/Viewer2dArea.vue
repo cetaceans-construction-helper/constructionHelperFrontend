@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select'
 import { Checkbox } from '@/shared/ui/checkbox'
 import { DateStepper } from '@/shared/ui/date-stepper'
+import { NumberStepper } from '@/shared/ui/number-stepper'
 import {
   ContextMenu,
   ContextMenuTrigger,
@@ -1411,7 +1412,7 @@ async function handleExcludeConfirm(excludedIds: number[]) {
         +
       </button>
       <div class="ml-auto pr-2 relative">
-        <Button variant="outline" size="sm" class="bg-green-50 border-green-500 text-green-700 hover:bg-green-100 dark:bg-green-950 dark:border-green-600 dark:text-green-400 dark:hover:bg-green-900" @click="exportMenuOpen = !exportMenuOpen">엑셀 내보내기</Button>
+        <Button variant="outline" size="sm" class="bg-green-50 border-green-500 text-green-700 hover:bg-green-100" @click="exportMenuOpen = !exportMenuOpen">엑셀 내보내기</Button>
         <div
           v-if="exportMenuOpen"
           class="absolute right-0 top-full mt-1 bg-popover border border-border rounded-md shadow-md py-1 min-w-[140px] z-50"
@@ -2033,38 +2034,17 @@ async function handleExcludeConfirm(excludedIds: number[]) {
       </DialogHeader>
 
       <div class="space-y-4">
-        <!-- 시작일, 작업기간, 휴일 작업 (수정 모드만) -->
-        <template v-if="!td.isCreateMode">
-          <div class="space-y-1.5">
+        <!-- 시작일 / 작업기간 (수정 모드만) -->
+        <div v-if="!td.isCreateMode" class="flex gap-3">
+          <div class="flex-1 space-y-1.5">
             <label class="text-sm font-medium">시작일</label>
             <DateStepper v-model="td.editStartDate" />
           </div>
-
-          <div class="space-y-1.5">
+          <div class="w-32 space-y-1.5">
             <label class="text-sm font-medium">작업기간</label>
-            <div class="flex items-center gap-1">
-              <button
-                type="button"
-                class="h-8 w-8 flex items-center justify-center rounded-md border border-border text-sm font-bold hover:bg-muted transition-colors"
-                :disabled="td.editWorkLeadTime <= 1"
-                @click="td.editWorkLeadTime = Math.max(1, td.editWorkLeadTime - 1)"
-              >
-                −
-              </button>
-              <span
-                class="h-8 flex-1 flex items-center justify-center text-sm font-medium rounded-md border border-border bg-background"
-                >{{ td.editWorkLeadTime }}일</span
-              >
-              <button
-                type="button"
-                class="h-8 w-8 flex items-center justify-center rounded-md border border-border text-sm font-bold hover:bg-muted transition-colors"
-                @click="td.editWorkLeadTime = td.editWorkLeadTime + 1"
-              >
-                +
-              </button>
-            </div>
+            <NumberStepper v-model="td.editWorkLeadTime" :min="1" suffix="일" />
           </div>
-        </template>
+        </div>
 
         <!-- 공종 (생성 모드: 더블클릭 위치에서 자동 결정, 수정 모드: 3계층 선택) -->
         <div v-if="td.isCreateMode" class="space-y-1.5">
@@ -2137,36 +2117,28 @@ async function handleExcludeConfirm(excludedIds: number[]) {
           <div class="grid grid-cols-2 gap-3">
             <div v-if="td.zones.length" class="space-y-1">
               <span class="text-xs text-muted-foreground">구역</span>
-              <div class="flex flex-wrap gap-x-3 gap-y-1">
-                <label
-                  v-for="z in td.zones"
-                  :key="z.id"
-                  class="flex items-center gap-1.5 text-sm cursor-pointer"
+              <div class="flex flex-wrap gap-1.5">
+                <button
+                  v-for="z in td.zones" :key="z.id"
+                  class="px-3 py-1 text-sm rounded-md border transition-colors"
+                  :class="td.editZoneIds.includes(z.id) ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-background border-border text-foreground hover:bg-muted'"
+                  @click="td.toggleZone(z.id)"
                 >
-                  <Checkbox
-                    :model-value="td.editZoneIds.includes(z.id)"
-                    class="h-4 w-4"
-                    @update:model-value="td.toggleZone(z.id)"
-                  />
                   {{ z.name }}
-                </label>
+                </button>
               </div>
             </div>
             <div v-if="td.floors.length" class="space-y-1">
               <span class="text-xs text-muted-foreground">층</span>
-              <div class="flex flex-wrap gap-x-3 gap-y-1">
-                <label
-                  v-for="f in td.floors"
-                  :key="f.id"
-                  class="flex items-center gap-1.5 text-sm cursor-pointer"
+              <div class="flex flex-wrap gap-1.5">
+                <button
+                  v-for="f in td.floors" :key="f.id"
+                  class="px-3 py-1 text-sm rounded-md border transition-colors"
+                  :class="td.editFloorIds.includes(f.id) ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-background border-border text-foreground hover:bg-muted'"
+                  @click="td.toggleFloor(f.id)"
                 >
-                  <Checkbox
-                    :model-value="td.editFloorIds.includes(f.id)"
-                    class="h-4 w-4"
-                    @update:model-value="td.toggleFloor(f.id)"
-                  />
                   {{ f.name }}
-                </label>
+                </button>
               </div>
             </div>
             <!-- TODO: section/usage 임시 비활성화 -->
@@ -2207,28 +2179,41 @@ async function handleExcludeConfirm(excludedIds: number[]) {
           </div>
         </div>
 
-        <!-- 부재 타입 -->
-        <div class="space-y-1.5">
+        <!-- 부재 -->
+        <div v-if="td.componentDivisions.length > 0" class="space-y-1.5">
           <div class="flex items-center gap-1">
             <label class="text-sm font-medium">부재</label>
             <ReferenceEditTrigger type="component" @refresh="td.loadReferenceData" />
           </div>
-          <div v-if="!td.componentTypes.length" class="text-sm text-muted-foreground">
-            등록된 부재 타입 없음
+          <div class="space-y-1">
+            <span class="text-xs text-muted-foreground">부재대분류</span>
+            <div class="flex flex-wrap gap-1.5">
+              <button
+                v-for="cd in td.componentDivisions" :key="cd.id"
+                class="px-3 py-1 text-sm rounded-md border transition-colors"
+                :class="td.selectedComponentDivisionId === String(cd.id) ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-background border-border text-foreground hover:bg-muted'"
+                @click="td.handleComponentDivisionChange(td.selectedComponentDivisionId === String(cd.id) ? '' : String(cd.id))"
+              >
+                {{ cd.name }}
+              </button>
+            </div>
           </div>
-          <div class="flex flex-wrap gap-x-4 gap-y-1.5">
-            <label
-              v-for="ct in td.componentTypes"
-              :key="ct.id"
-              class="flex items-center gap-1.5 text-sm cursor-pointer"
-            >
-              <Checkbox
-                :model-value="td.editComponentTypeIds.includes(ct.id)"
-                class="h-4 w-4"
-                @update:model-value="td.toggleComponentType(ct.id)"
-              />
-              {{ ct.name }}
-            </label>
+          <div v-if="td.isLoadingComponentTypes" class="text-sm text-muted-foreground">로딩...</div>
+          <div v-else-if="td.componentTypes.length > 0" class="space-y-1">
+            <span class="text-xs text-muted-foreground">부재타입</span>
+            <div class="flex flex-wrap gap-1.5">
+              <button
+                v-for="ct in td.componentTypes" :key="ct.id"
+                class="px-3 py-1 text-sm rounded-md border transition-colors"
+                :class="td.editComponentTypeIds.includes(ct.id) ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-background border-border text-foreground hover:bg-muted'"
+                @click="td.toggleComponentType(ct.id)"
+              >
+                {{ ct.name }}
+              </button>
+            </div>
+          </div>
+          <div v-else-if="td.selectedComponentDivisionId" class="text-sm text-muted-foreground">
+            등록된 부재 타입 없음
           </div>
         </div>
 

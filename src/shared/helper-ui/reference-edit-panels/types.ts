@@ -24,7 +24,7 @@ export const REFERENCE_EDIT_WIDTHS: Record<ReferenceEditType, string> = {
   labor: 'sm:max-w-3xl',
   material: 'sm:max-w-2xl',
   'work-classification': 'sm:max-w-5xl',
-  component: 'sm:max-w-2xl',
+  component: 'sm:max-w-3xl',
   zone: 'sm:max-w-sm',
   floor: 'sm:max-w-sm',
   location: 'sm:max-w-xl',

@@ -77,9 +77,9 @@ const router = createRouter({
           component: materialRouteComponents.InvoicePage,
         },
         {
-          path: 'material/incoming',
-          name: 'material-incoming',
-          component: materialRouteComponents.IncomingMaterialPage,
+          path: 'material/delivery',
+          name: 'material-delivery',
+          component: materialRouteComponents.MaterialDeliveryPage,
         },
         {
           path: 'material/outgoing',

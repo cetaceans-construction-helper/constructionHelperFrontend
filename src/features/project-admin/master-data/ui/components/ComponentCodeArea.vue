@@ -34,12 +34,23 @@ import {
 import { useComponentCode } from '@/features/project-admin/master-data/view-model/useComponentCode'
 
 const {
+  // 부재 대분류
+  componentDivisions,
+  selectedComponentDivisionId,
+  newComponentDivisionName,
+  isCreatingDivision,
+  isDeletingDivision,
+  loadComponentDivisions,
+  addComponentDivision,
+  deleteComponentDivision,
+  updateComponentDivisionName,
+  reorderComponentDivisions,
+
   // 부재 타입
   componentTypes,
   newComponentTypeName,
   isCreatingType,
   isDeletingType,
-  loadComponentTypes,
   addComponentType,
   deleteComponentType,
   updateComponentTypeName,
@@ -115,11 +126,16 @@ const isComponentCodeListExpanded = ref(true)
 const isWorkStepListExpanded = ref(true)
 
 onMounted(() => {
-  loadComponentTypes()
+  loadComponentDivisions()
   loadDivisions()
   loadMaterialTypes()
   loadAllMappings()
 })
+
+// 부재 대분류 선택
+function selectComponentDivision(id: number) {
+  selectedComponentDivisionId.value = id
+}
 
 // 부재 타입 선택
 function selectComponentType(id: number) {
@@ -185,7 +201,37 @@ async function confirmDelete() {
     <!-- 부재 분류 (계층식) -->
     <div>
       <h3 class="text-sm font-semibold mb-3">부재분류</h3>
-      <div class="grid grid-cols-2 gap-4">
+      <div class="grid grid-cols-3 gap-4">
+        <!-- ComponentDivision 컬럼 -->
+        <div class="space-y-2">
+          <p class="text-xs text-muted-foreground font-medium">부재 대분류 (ComponentDivision)</p>
+          <div class="flex gap-1">
+            <Input
+              v-model="newComponentDivisionName"
+              placeholder="이름 입력"
+              class="h-8 text-sm"
+              @keydown.enter="(e: KeyboardEvent) => { if (!e.isComposing) addComponentDivision() }"
+            />
+            <Button
+              size="sm"
+              class="h-8 shrink-0"
+              :disabled="isCreatingDivision || !newComponentDivisionName.trim()"
+              @click="addComponentDivision"
+            >
+              추가
+            </Button>
+          </div>
+          <SortableReferenceList
+            :items="componentDivisions"
+            :selected-id="selectedComponentDivisionId"
+            :disabled="isDeletingDivision"
+            @select="selectComponentDivision"
+            @delete="(id, name) => openDeleteDialog(id, name, deleteComponentDivision)"
+            @update-name="({ id, name }) => updateComponentDivisionName(id, name)"
+            @reorder="reorderComponentDivisions"
+          />
+        </div>
+
         <!-- ComponentType 컬럼 -->
         <div class="space-y-2">
           <p class="text-xs text-muted-foreground font-medium">부재 타입 (ComponentType)</p>
@@ -194,12 +240,13 @@ async function confirmDelete() {
               v-model="newComponentTypeName"
               placeholder="이름 입력"
               class="h-8 text-sm"
+              :disabled="selectedComponentDivisionId == null"
               @keydown.enter="(e: KeyboardEvent) => { if (!e.isComposing) addComponentType() }"
             />
             <Button
               size="sm"
               class="h-8 shrink-0"
-              :disabled="isCreatingType || !newComponentTypeName.trim()"
+              :disabled="isCreatingType || !newComponentTypeName.trim() || selectedComponentDivisionId == null"
               @click="addComponentType"
             >
               추가
@@ -209,6 +256,7 @@ async function confirmDelete() {
             :items="componentTypes"
             :selected-id="selectedComponentTypeId"
             :disabled="isDeletingType"
+            :empty-message="selectedComponentDivisionId == null ? '대분류를 선택하세요' : '항목 없음'"
             @select="selectComponentType"
             @delete="(id, name) => openDeleteDialog(id, name, deleteComponentType)"
             @update-name="({ id, name }) => updateComponentTypeName(id, name)"

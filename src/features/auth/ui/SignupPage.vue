@@ -59,7 +59,7 @@ const goBack = () => {
       <CardContent class="space-y-4">
         <div
           v-if="authStore.error && Object.keys(authStore.fieldErrors).length === 0"
-          class="p-3 text-sm text-red-600 bg-red-50 rounded-md dark:bg-red-900/20 dark:text-red-400"
+          class="p-3 text-sm text-red-600 bg-red-50 rounded-md"
         >
           {{ authStore.error }}
         </div>

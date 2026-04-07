@@ -147,7 +147,7 @@ const materialDeliveryDialogOpen = ref(false)
             <Button
               variant="outline"
               size="sm"
-              class="bg-indigo-50 border-indigo-600 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-950 dark:border-indigo-500 dark:text-indigo-400 dark:hover:bg-indigo-900"
+              class="bg-indigo-50 border-indigo-600 text-indigo-700 hover:bg-indigo-100"
               :disabled="!isToday || isCreatingHomepageDailyReport"
               @click="generateHomepageDailyReport"
             >
@@ -156,7 +156,7 @@ const materialDeliveryDialogOpen = ref(false)
             <Button
               variant="outline"
               size="sm"
-              class="bg-green-50 border-green-500 text-green-700 hover:bg-green-100 dark:bg-green-950 dark:border-green-600 dark:text-green-400 dark:hover:bg-green-900"
+              class="bg-green-50 border-green-500 text-green-700 hover:bg-green-100"
               :disabled="isCreatingDailyReport"
               @click="generateDailyReport"
             >
@@ -535,7 +535,7 @@ const materialDeliveryDialogOpen = ref(false)
             <h3 class="text-lg font-semibold">작업 평가</h3>
             <div class="space-y-4 mt-4">
               <div class="border border-border rounded-lg p-3">
-                <p class="text-sm font-medium text-orange-600 dark:text-orange-400">
+                <p class="text-sm font-medium text-orange-600">
                   ⚠️ 오늘 효율 저하
                 </p>
                 <p class="text-sm text-muted-foreground mt-1">
@@ -543,7 +543,7 @@ const materialDeliveryDialogOpen = ref(false)
                 </p>
               </div>
               <div class="border border-border rounded-lg p-3">
-                <p class="text-sm font-medium text-green-600 dark:text-green-400">
+                <p class="text-sm font-medium text-green-600">
                   ✓ 이번주 목표 초과 달성
                 </p>
                 <p class="text-sm text-muted-foreground mt-1">
@@ -551,7 +551,7 @@ const materialDeliveryDialogOpen = ref(false)
                 </p>
               </div>
               <div class="border border-border rounded-lg p-3">
-                <p class="text-sm font-medium text-blue-600 dark:text-blue-400">
+                <p class="text-sm font-medium text-blue-600">
                   📊 철근콘크리트공사
                 </p>
                 <p class="text-sm text-muted-foreground mt-1">
@@ -559,13 +559,13 @@ const materialDeliveryDialogOpen = ref(false)
                 </p>
               </div>
               <div class="border border-border rounded-lg p-3">
-                <p class="text-sm font-medium text-red-600 dark:text-red-400">⚠️ 지연 주의</p>
+                <p class="text-sm font-medium text-red-600">⚠️ 지연 주의</p>
                 <p class="text-sm text-muted-foreground mt-1">
                   금속공사가 계획 대비 3일 지연되고 있습니다. 인원 보강을 검토하세요.
                 </p>
               </div>
               <div class="border border-border rounded-lg p-3">
-                <p class="text-sm font-medium text-purple-600 dark:text-purple-400">
+                <p class="text-sm font-medium text-purple-600">
                   📈 생산성 분석
                 </p>
                 <p class="text-sm text-muted-foreground mt-1">
@@ -634,7 +634,7 @@ const materialDeliveryDialogOpen = ref(false)
     />
     <MaterialDeliveryCreateDialog
       v-model:open="materialDeliveryDialogOpen"
-      @submitted="router.push('/helper/material/incoming')"
+      @submitted="router.push('/helper/material/delivery')"
     />
     <WorkCreateDialog
       v-model:open="workCreateDialogOpen"

@@ -49,13 +49,13 @@ const goBack = () => {
       <CardContent class="space-y-4">
         <div
           v-if="authStore.isLoginBlocked"
-          class="p-3 text-sm text-red-600 bg-red-50 rounded-md dark:bg-red-900/20 dark:text-red-400"
+          class="p-3 text-sm text-red-600 bg-red-50 rounded-md"
         >
           로그인 시도가 너무 많습니다. {{ authStore.blockCountdown }}초 후 다시 시도해주세요.
         </div>
         <div
           v-else-if="authStore.error && Object.keys(authStore.fieldErrors).length === 0"
-          class="p-3 text-sm text-red-600 bg-red-50 rounded-md dark:bg-red-900/20 dark:text-red-400"
+          class="p-3 text-sm text-red-600 bg-red-50 rounded-md"
         >
           {{ authStore.error }}
         </div>

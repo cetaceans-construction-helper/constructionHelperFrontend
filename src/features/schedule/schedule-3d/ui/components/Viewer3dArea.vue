@@ -240,10 +240,10 @@ const groupedDailyWorks = computed<GroupedWorks>(() => {
       <!-- 로딩 상태 표시 -->
       <div
         v-if="isLoading"
-        class="absolute top-4 left-4 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg"
+        class="absolute top-4 left-4 bg-white p-4 rounded-lg shadow-lg"
       >
         <p class="text-sm font-medium">3D 모델 로딩 중...</p>
-        <div class="mt-2 w-48 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+        <div class="mt-2 w-48 h-2 bg-gray-200 rounded-full overflow-hidden">
           <div
             class="h-full bg-blue-500 transition-all duration-300"
             :style="{ width: `${loadProgress}%` }"
@@ -255,17 +255,17 @@ const groupedDailyWorks = computed<GroupedWorks>(() => {
       <!-- 에러 표시 -->
       <div
         v-if="loadError"
-        class="absolute top-4 left-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4 rounded-lg shadow-lg"
+        class="absolute top-4 left-4 bg-red-50 border border-red-200 p-4 rounded-lg shadow-lg"
       >
-        <p class="text-sm font-medium text-red-600 dark:text-red-400">모델 로드 실패</p>
-        <p class="mt-1 text-xs text-red-500 dark:text-red-300">{{ loadError }}</p>
+        <p class="text-sm font-medium text-red-600">모델 로드 실패</p>
+        <p class="mt-1 text-xs text-red-500">{{ loadError }}</p>
       </div>
 
       <!-- 왼쪽 회전 버튼 -->
       <Button
         variant="outline"
         size="icon"
-        class="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80 dark:bg-gray-800/80 hover:bg-white dark:hover:bg-gray-800 h-16 w-16"
+        class="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white h-16 w-16"
         @click="emit('rotateLeft')"
       >
         <ChevronLeft class="h-10 w-10" />
@@ -275,7 +275,7 @@ const groupedDailyWorks = computed<GroupedWorks>(() => {
       <Button
         variant="outline"
         size="icon"
-        class="absolute right-4 top-1/2 -translate-y-1/2 bg-white/80 dark:bg-gray-800/80 hover:bg-white dark:hover:bg-gray-800 h-16 w-16"
+        class="absolute right-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white h-16 w-16"
         @click="emit('rotateRight')"
       >
         <ChevronRight class="h-10 w-10" />
@@ -285,7 +285,7 @@ const groupedDailyWorks = computed<GroupedWorks>(() => {
       <Button
         variant="outline"
         size="icon"
-        class="absolute top-4 right-4 bg-white/80 dark:bg-gray-800/80 hover:bg-white dark:hover:bg-gray-800 h-12 w-12"
+        class="absolute top-4 right-4 bg-white/80 hover:bg-white h-12 w-12"
         @click="handleTruckClick"
       >
         <Truck class="size-7" />

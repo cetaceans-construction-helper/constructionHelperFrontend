@@ -1,10 +1,16 @@
 import apiClient from '@/shared/network-core/apiClient'
 import type { WorkDepResponse } from './workDep'
 
+// 부재 대분류별 부재타입 그룹
+export interface ComponentTypeGroup {
+  componentDivisionId: number
+  componentTypeIds: number[]
+}
+
 // 작업 생성 페이로드
 export interface CreateWorkPayload {
   subWorkTypeId: number
-  componentTypeIds?: number[]
+  componentTypes?: ComponentTypeGroup[]
   zoneIds?: number[]
   floorIds?: number[]
   sectionIds?: number[]
@@ -46,7 +52,7 @@ export interface WorkResponse {
   usageNames?: string[]
   usageIds?: number[]
   positionY: number
-  componentTypeIds?: number[]
+  componentTypes?: ComponentTypeGroup[]
   annotation?: string
   photos?: WorkPhotoResponse[]
   isSkipped?: boolean
@@ -69,7 +75,7 @@ export interface UpdateWorkPayload {
   floorIds?: number[]
   sectionIds?: number[]
   usageIds?: number[]
-  componentTypeIds?: number[]
+  componentTypes?: ComponentTypeGroup[]
   annotation?: string
 }
 

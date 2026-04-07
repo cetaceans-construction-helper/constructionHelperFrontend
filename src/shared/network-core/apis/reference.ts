@@ -244,15 +244,30 @@ export const referenceApi = {
     return data
   },
 
-  // ========== 부재 코드 (ComponentType → ComponentCode) ==========
+  // ========== 부재 대분류 (ComponentDivision → ComponentType → ComponentCode) ==========
 
-  async getComponentTypeList(): Promise<IdNameResponse[]> {
-    const { data } = await apiClient.get<IdNameResponse[]>('/reference/getComponentTypeList')
+  async getComponentDivisionList(): Promise<IdNameResponse[]> {
+    const { data } = await apiClient.get<IdNameResponse[]>('/reference/getComponentDivisionList')
     return data
   },
 
-  async createComponentType(name: string): Promise<IdNameResponse> {
+  async createComponentDivision(name: string): Promise<IdNameResponse> {
+    const { data } = await apiClient.post<IdNameResponse>('/reference/createComponentDivision', {
+      name,
+    })
+    return data
+  },
+
+  async getComponentTypeList(componentDivisionId?: number): Promise<IdNameResponse[]> {
+    const { data } = await apiClient.get<IdNameResponse[]>('/reference/getComponentTypeList', {
+      params: componentDivisionId != null ? { componentDivisionId } : undefined,
+    })
+    return data
+  },
+
+  async createComponentType(componentDivisionId: number, name: string): Promise<IdNameResponse> {
     const { data } = await apiClient.post<IdNameResponse>('/reference/createComponentType', {
+      componentDivisionId,
       name,
     })
     return data
@@ -379,7 +394,11 @@ export const referenceApi = {
     await apiClient.post('/reference/updateEquipmentType', params)
   },
 
-  async updateComponentType(params: UpdateReferenceRequest): Promise<void> {
+  async updateComponentDivision(params: UpdateReferenceRequest): Promise<void> {
+    await apiClient.post('/reference/updateComponentDivision', params)
+  },
+
+  async updateComponentType(params: UpdateChildReferenceRequest): Promise<void> {
     await apiClient.post('/reference/updateComponentType', params)
   },
 
@@ -460,6 +479,10 @@ export const referenceApi = {
 
   async deleteEquipmentSpec(id: number): Promise<void> {
     await apiClient.delete(`/reference/deleteEquipmentSpec/${id}`)
+  },
+
+  async deleteComponentDivision(id: number): Promise<void> {
+    await apiClient.delete(`/reference/deleteComponentDivision/${id}`)
   },
 
   async deleteComponentType(id: number): Promise<void> {

@@ -39,12 +39,12 @@ async function handleRebuild() {
           {{ isLoading ? '재생성 중...' : '공정명 재생성' }}
         </Button>
 
-        <div v-if="result" class="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-          <p class="text-sm text-green-700 dark:text-green-300">{{ result }}</p>
+        <div v-if="result" class="p-3 bg-green-50 border border-green-200 rounded-lg">
+          <p class="text-sm text-green-700">{{ result }}</p>
         </div>
 
-        <div v-if="error" class="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-          <p class="text-sm text-red-700 dark:text-red-300">{{ error }}</p>
+        <div v-if="error" class="p-3 bg-red-50 border border-red-200 rounded-lg">
+          <p class="text-sm text-red-700">{{ error }}</p>
         </div>
       </div>
     </AreaCard>

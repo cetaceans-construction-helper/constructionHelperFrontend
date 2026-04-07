@@ -42,12 +42,12 @@ function cellClasses(cell: CalendarCell) {
   const inRange = isInSelectedRange(cell.date)
   const isSelecting = inactiveFlow.value.mode !== 'idle'
   return {
-    'bg-red-50 dark:bg-red-950/20':
+    'bg-red-50':
       cell.isHoliday && cell.isActivated && !inactive && !inRange,
-    'bg-orange-50 dark:bg-orange-950/20':
+    'bg-orange-50':
       !cell.isActivated && !inactive && !inRange,
     'opacity-40 pointer-events-none': inactive,
-    'bg-blue-100 dark:bg-blue-900/30 ring-1 ring-blue-400': inRange && !inactive,
+    'bg-blue-100 ring-1 ring-blue-400': inRange && !inactive,
     'cursor-pointer hover:bg-muted/50': isSelecting && !inactive,
   }
 }
@@ -156,13 +156,13 @@ onMounted(() => {
                 </span>
                 <div
                   v-if="cell.holidayName && cell.isCurrentMonth && cell.isInProjectRange"
-                  class="text-[10px] text-red-600 dark:text-red-400 mt-0.5 truncate"
+                  class="text-[10px] text-red-600 mt-0.5 truncate"
                 >
                   {{ cell.holidayName }}
                 </div>
                 <div
                   v-if="!cell.isActivated && cell.deactivatedReason && cell.isCurrentMonth && cell.isInProjectRange"
-                  class="text-[10px] text-orange-600 dark:text-orange-400 mt-0.5 truncate"
+                  class="text-[10px] text-orange-600 mt-0.5 truncate"
                 >
                   {{ cell.deactivatedReason }}
                 </div>
@@ -262,11 +262,11 @@ onMounted(() => {
     <!-- 범례 -->
     <div class="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
       <div class="flex items-center gap-1.5">
-        <div class="w-3 h-3 rounded bg-red-50 dark:bg-red-950/20 border border-border" />
+        <div class="w-3 h-3 rounded bg-red-50 border border-border" />
         <span>휴일</span>
       </div>
       <div class="flex items-center gap-1.5">
-        <div class="w-3 h-3 rounded bg-orange-50 dark:bg-orange-950/20 border border-border" />
+        <div class="w-3 h-3 rounded bg-orange-50 border border-border" />
         <span>비활성일</span>
       </div>
     </div>

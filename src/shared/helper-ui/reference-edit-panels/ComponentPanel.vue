@@ -17,11 +17,20 @@ import SortableReferenceList from '@/shared/helper-ui/SortableReferenceList.vue'
 import { useComponentCode } from '@/features/project-admin/master-data/public'
 
 const {
+  componentDivisions,
+  selectedComponentDivisionId,
+  newComponentDivisionName,
+  isCreatingDivision,
+  isDeletingDivision,
+  loadComponentDivisions,
+  addComponentDivision,
+  deleteComponentDivision,
+  updateComponentDivisionName,
+  reorderComponentDivisions,
   componentTypes,
   newComponentTypeName,
   isCreatingType,
   isDeletingType,
-  loadComponentTypes,
   addComponentType,
   deleteComponentType,
   updateComponentTypeName,
@@ -34,6 +43,10 @@ const {
   addComponentCode,
   deleteComponentCode,
 } = useComponentCode()
+
+function selectComponentDivision(id: number) {
+  selectedComponentDivisionId.value = id
+}
 
 function selectComponentType(id: number) {
   selectedComponentTypeId.value = id
@@ -59,14 +72,43 @@ async function confirmDelete() {
 }
 
 async function load() {
-  await loadComponentTypes()
+  await loadComponentDivisions()
 }
 
 defineExpose({ load })
 </script>
 
 <template>
-  <div class="grid grid-cols-2 gap-4">
+  <div class="grid grid-cols-3 gap-4">
+    <div class="space-y-2">
+      <p class="text-xs text-muted-foreground font-medium">부재 대분류</p>
+      <div class="flex gap-1">
+        <Input
+          v-model="newComponentDivisionName"
+          placeholder="이름 입력"
+          class="h-8 text-sm"
+          @keydown.enter="(e: KeyboardEvent) => { if (!e.isComposing) addComponentDivision() }"
+        />
+        <Button
+          size="sm"
+          class="h-8 shrink-0"
+          :disabled="isCreatingDivision || !newComponentDivisionName.trim()"
+          @click="addComponentDivision"
+        >
+          추가
+        </Button>
+      </div>
+      <SortableReferenceList
+        :items="componentDivisions"
+        :selected-id="selectedComponentDivisionId"
+        :disabled="isDeletingDivision"
+        @select="selectComponentDivision"
+        @delete="(id, name) => openDeleteDialog(id, name, deleteComponentDivision)"
+        @update-name="({ id, name }) => updateComponentDivisionName(id, name)"
+        @reorder="reorderComponentDivisions"
+      />
+    </div>
+
     <div class="space-y-2">
       <p class="text-xs text-muted-foreground font-medium">부재 타입</p>
       <div class="flex gap-1">
@@ -74,12 +116,13 @@ defineExpose({ load })
           v-model="newComponentTypeName"
           placeholder="이름 입력"
           class="h-8 text-sm"
+          :disabled="selectedComponentDivisionId == null"
           @keydown.enter="(e: KeyboardEvent) => { if (!e.isComposing) addComponentType() }"
         />
         <Button
           size="sm"
           class="h-8 shrink-0"
-          :disabled="isCreatingType || !newComponentTypeName.trim()"
+          :disabled="isCreatingType || !newComponentTypeName.trim() || selectedComponentDivisionId == null"
           @click="addComponentType"
         >
           추가
@@ -89,6 +132,7 @@ defineExpose({ load })
         :items="componentTypes"
         :selected-id="selectedComponentTypeId"
         :disabled="isDeletingType"
+        :empty-message="selectedComponentDivisionId == null ? '대분류를 선택하세요' : '항목 없음'"
         @select="selectComponentType"
         @delete="(id, name) => openDeleteDialog(id, name, deleteComponentType)"
         @update-name="({ id, name }) => updateComponentTypeName(id, name)"

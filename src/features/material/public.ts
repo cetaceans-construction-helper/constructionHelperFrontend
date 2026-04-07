@@ -27,13 +27,13 @@ export type {
 
 export { default as MaterialDeliveryCreateDialog } from '@/features/material/ui/components/MaterialDeliveryCreateDialog.vue'
 export { default as InvoicePageView } from '@/features/material/ui/InvoicePage.vue'
-export { default as IncomingMaterialPageView } from '@/features/material/ui/IncomingMaterialPage.vue'
+export { default as MaterialDeliveryPageView } from '@/features/material/ui/MaterialDeliveryPage.vue'
 export { default as OutgoingMaterialPageView } from '@/features/material/ui/OutgoingMaterialPage.vue'
 export { default as RemainingMaterialPageView } from '@/features/material/ui/RemainingMaterialPage.vue'
 
 export const materialRouteComponents = {
   InvoicePage: () => import('@/features/material/ui/InvoicePage.vue'),
-  IncomingMaterialPage: () => import('@/features/material/ui/IncomingMaterialPage.vue'),
+  MaterialDeliveryPage: () => import('@/features/material/ui/MaterialDeliveryPage.vue'),
   OutgoingMaterialPage: () => import('@/features/material/ui/OutgoingMaterialPage.vue'),
   RemainingMaterialPage: () => import('@/features/material/ui/RemainingMaterialPage.vue'),
 }

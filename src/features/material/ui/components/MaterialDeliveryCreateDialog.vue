@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import { Button } from '@/shared/ui/button'
 import { Label } from '@/shared/ui/label'
 import { Checkbox } from '@/shared/ui/checkbox'
@@ -17,7 +17,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/shared/ui/select'
-import ImageRotatePreview from '@/shared/helper-ui/ImageRotatePreview.vue'
 import ReferenceEditTrigger from '@/shared/helper-ui/ReferenceEditTrigger.vue'
 import { referenceApi, type MaterialTypeResponse, type IdNameResponse } from '@/shared/network-core/apis/reference'
 import { materialOrderApi } from '@/features/material/infra/material-order-api'
@@ -95,6 +94,34 @@ watch(() => props.open, async (opened) => {
       alert(err.response?.data?.message || err.message)
     }
   }
+})
+
+const notePreviewUrls = ref<string[]>([])
+const photoPreviewUrls = ref<string[]>([])
+
+function buildPreviewUrls(files: File[]): string[] {
+  return files.filter((f) => f.type.startsWith('image/')).map((f) => URL.createObjectURL(f))
+}
+
+function revokeUrls(urls: string[]) {
+  urls.forEach((u) => URL.revokeObjectURL(u))
+}
+
+watch(deliveryNotes, (files, _, onCleanup) => {
+  const urls = buildPreviewUrls(files)
+  notePreviewUrls.value = urls
+  onCleanup(() => revokeUrls(urls))
+})
+
+watch(deliveryPhotos, (files, _, onCleanup) => {
+  const urls = buildPreviewUrls(files)
+  photoPreviewUrls.value = urls
+  onCleanup(() => revokeUrls(urls))
+})
+
+onUnmounted(() => {
+  revokeUrls(notePreviewUrls.value)
+  revokeUrls(photoPreviewUrls.value)
 })
 
 function onNotesChange(event: Event) {
@@ -182,7 +209,11 @@ async function handleSave() {
             class="block w-full text-sm text-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded file:border file:border-input file:bg-muted file:text-sm file:font-medium hover:file:bg-muted/80 cursor-pointer"
             @change="onNotesChange"
           />
-          <ImageRotatePreview v-model="deliveryNotes" />
+          <div v-if="notePreviewUrls.length > 0" class="flex flex-wrap gap-2 mt-1">
+            <div v-for="(url, i) in notePreviewUrls" :key="i" class="w-[120px] h-[120px] rounded border border-border overflow-hidden">
+              <img :src="url" class="w-full h-full object-cover" />
+            </div>
+          </div>
         </div>
 
         <!-- 반입사진 -->
@@ -198,7 +229,11 @@ async function handleSave() {
             class="block w-full text-sm text-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded file:border file:border-input file:bg-muted file:text-sm file:font-medium hover:file:bg-muted/80 cursor-pointer"
             @change="onPhotosChange"
           />
-          <ImageRotatePreview v-model="deliveryPhotos" />
+          <div v-if="photoPreviewUrls.length > 0" class="flex flex-wrap gap-2 mt-1">
+            <div v-for="(url, i) in photoPreviewUrls" :key="i" class="w-[120px] h-[120px] rounded border border-border overflow-hidden">
+              <img :src="url" class="w-full h-full object-cover" />
+            </div>
+          </div>
         </div>
 
         <!-- 위치정보 -->
@@ -207,15 +242,15 @@ async function handleSave() {
             <Label>존</Label>
             <ReferenceEditTrigger type="zone" @refresh="reloadZones" />
           </div>
-          <div class="flex flex-wrap gap-3">
-            <div v-for="zone in zones" :key="zone.id" class="flex items-center gap-1.5">
-              <Checkbox
-                :id="`dialog-zone-${zone.id}`"
-                :model-value="selectedZoneIds.includes(zone.id)"
-                @update:model-value="selectedZoneIds = toggleId(selectedZoneIds, zone.id)"
-              />
-              <label :for="`dialog-zone-${zone.id}`" class="text-sm cursor-pointer">{{ zone.name }}</label>
-            </div>
+          <div class="flex flex-wrap gap-1.5">
+            <button
+              v-for="zone in zones" :key="zone.id"
+              class="px-3 py-1 text-sm rounded-md border transition-colors"
+              :class="selectedZoneIds.includes(zone.id) ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-background border-border text-foreground hover:bg-muted'"
+              @click="selectedZoneIds = toggleId(selectedZoneIds, zone.id)"
+            >
+              {{ zone.name }}
+            </button>
           </div>
         </div>
 
@@ -224,15 +259,15 @@ async function handleSave() {
             <Label>층</Label>
             <ReferenceEditTrigger type="floor" @refresh="reloadFloors" />
           </div>
-          <div class="flex flex-wrap gap-3">
-            <div v-for="floor in floors" :key="floor.id" class="flex items-center gap-1.5">
-              <Checkbox
-                :id="`dialog-floor-${floor.id}`"
-                :model-value="selectedFloorIds.includes(floor.id)"
-                @update:model-value="selectedFloorIds = toggleId(selectedFloorIds, floor.id)"
-              />
-              <label :for="`dialog-floor-${floor.id}`" class="text-sm cursor-pointer">{{ floor.name }}</label>
-            </div>
+          <div class="flex flex-wrap gap-1.5">
+            <button
+              v-for="floor in floors" :key="floor.id"
+              class="px-3 py-1 text-sm rounded-md border transition-colors"
+              :class="selectedFloorIds.includes(floor.id) ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-background border-border text-foreground hover:bg-muted'"
+              @click="selectedFloorIds = toggleId(selectedFloorIds, floor.id)"
+            >
+              {{ floor.name }}
+            </button>
           </div>
         </div>
       </div>
