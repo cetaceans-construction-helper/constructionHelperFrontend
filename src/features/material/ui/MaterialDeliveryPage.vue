@@ -181,9 +181,9 @@ const deliveryTranslateStart = reactive<Record<number, { x: number; y: number }>
 
 // 이미지 편집 상태 (회전/크롭)
 const deliveryImageRotation = ref<Record<string, number>>({}) // key: `${deliveryId}-${imgIdx}`
-const deliveryImageCropMode = ref<Record<number, boolean>>({})
-const deliveryImageCropRect = reactive<Record<number, { startX: number; startY: number; endX: number; endY: number } | null>>({})
-const isCropDragging = ref<Record<number, boolean>>({})
+const deliveryImageCropMode = ref<Record<string, boolean>>({}) // key: `${deliveryId}-${imgIdx}`
+const deliveryImageCropRect = reactive<Record<string, { startX: number; startY: number; endX: number; endY: number } | null>>({}) // key: `${deliveryId}-${imgIdx}`
+const isCropDragging = ref<Record<string, boolean>>({}) // key: `${deliveryId}-${imgIdx}`
 const deliveryImageRefs = ref<Record<number, HTMLImageElement | null>>({})
 const deliveryImageContainerRefs = ref<Record<number, HTMLElement | null>>({})
 
@@ -192,10 +192,28 @@ function imageEditKey(deliveryId: number) {
   return `${deliveryId}-${idx}`
 }
 
+function clearImageEditState(deliveryId: number) {
+  const prefix = `${deliveryId}-`
+  for (const key of Object.keys(deliveryImageRotation.value)) {
+    if (key.startsWith(prefix)) delete deliveryImageRotation.value[key]
+  }
+  for (const key of Object.keys(deliveryImageCropMode.value)) {
+    if (key.startsWith(prefix)) delete deliveryImageCropMode.value[key]
+  }
+  for (const key of Object.keys(deliveryImageCropRect)) {
+    if (key.startsWith(prefix)) delete deliveryImageCropRect[key]
+  }
+  for (const key of Object.keys(isCropDragging.value)) {
+    if (key.startsWith(prefix)) delete isCropDragging.value[key]
+  }
+  delete deliveryImageRefs.value[deliveryId]
+  delete deliveryImageContainerRefs.value[deliveryId]
+}
+
 function hasImageEdits(deliveryId: number): boolean {
   const key = imageEditKey(deliveryId)
   const rotation = deliveryImageRotation.value[key] ?? 0
-  const cropRect = deliveryImageCropRect[deliveryId]
+  const cropRect = deliveryImageCropRect[key]
   return rotation !== 0 || cropRect != null
 }
 
@@ -207,55 +225,60 @@ function rotateImage(deliveryId: number, direction: 'cw' | 'ccw') {
 }
 
 function toggleCropMode(deliveryId: number) {
-  const active = deliveryImageCropMode.value[deliveryId]
+  const key = imageEditKey(deliveryId)
+  const active = deliveryImageCropMode.value[key]
   if (active) {
-    deliveryImageCropMode.value[deliveryId] = false
-    deliveryImageCropRect[deliveryId] = null
+    deliveryImageCropMode.value[key] = false
+    deliveryImageCropRect[key] = null
   } else {
-    deliveryImageCropMode.value[deliveryId] = true
-    deliveryImageCropRect[deliveryId] = null
+    deliveryImageCropMode.value[key] = true
+    deliveryImageCropRect[key] = null
     // 크롭 모드에서는 zoom/pan 초기화
     resetDeliveryImageTransform(deliveryId)
   }
 }
 
 function onCropPointerDown(deliveryId: number, e: PointerEvent) {
+  const key = imageEditKey(deliveryId)
   const container = deliveryImageContainerRefs.value[deliveryId]
   if (!container) return
   const rect = container.getBoundingClientRect()
   const x = e.clientX - rect.left
   const y = e.clientY - rect.top
-  deliveryImageCropRect[deliveryId] = { startX: x, startY: y, endX: x, endY: y }
-  isCropDragging.value[deliveryId] = true
+  deliveryImageCropRect[key] = { startX: x, startY: y, endX: x, endY: y }
+  isCropDragging.value[key] = true
   ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
 }
 
 function onCropPointerMove(deliveryId: number, e: PointerEvent) {
-  if (!isCropDragging.value[deliveryId]) return
+  const key = imageEditKey(deliveryId)
+  if (!isCropDragging.value[key]) return
   const container = deliveryImageContainerRefs.value[deliveryId]
   if (!container) return
   const rect = container.getBoundingClientRect()
-  const crop = deliveryImageCropRect[deliveryId]
+  const crop = deliveryImageCropRect[key]
   if (!crop) return
   crop.endX = Math.max(0, Math.min(e.clientX - rect.left, rect.width))
   crop.endY = Math.max(0, Math.min(e.clientY - rect.top, rect.height))
 }
 
 function onCropPointerUp(deliveryId: number) {
-  isCropDragging.value[deliveryId] = false
+  const key = imageEditKey(deliveryId)
+  isCropDragging.value[key] = false
   // 너무 작은 크롭 영역은 무시
-  const crop = deliveryImageCropRect[deliveryId]
+  const crop = deliveryImageCropRect[key]
   if (crop) {
     const w = Math.abs(crop.endX - crop.startX)
     const h = Math.abs(crop.endY - crop.startY)
     if (w < 10 || h < 10) {
-      deliveryImageCropRect[deliveryId] = null
+      deliveryImageCropRect[key] = null
     }
   }
 }
 
 function getCropStyle(deliveryId: number) {
-  const crop = deliveryImageCropRect[deliveryId]
+  const key = imageEditKey(deliveryId)
+  const crop = deliveryImageCropRect[key]
   if (!crop) return {}
   const left = Math.min(crop.startX, crop.endX)
   const top = Math.min(crop.startY, crop.endY)
@@ -266,8 +289,10 @@ function getCropStyle(deliveryId: number) {
 
 function screenToImageCropRect(
   deliveryId: number,
+  imgIdx?: number,
 ): { x: number; y: number; width: number; height: number } | null {
-  const crop = deliveryImageCropRect[deliveryId]
+  const key = imgIdx != null ? `${deliveryId}-${imgIdx}` : imageEditKey(deliveryId)
+  const crop = deliveryImageCropRect[key]
   const imgEl = deliveryImageRefs.value[deliveryId]
   const container = deliveryImageContainerRefs.value[deliveryId]
   if (!crop || !imgEl || !container) return null
@@ -330,14 +355,16 @@ async function collectImageEdits(deliveryId: number) {
   async function applyEdits(imgIdx: number, sourceFile: File | null) {
     const key = `${id}-${imgIdx}`
     const rotation = deliveryImageRotation.value[key] ?? 0
-    const cropRect = imgIdx === (deliveryImageIndex.value[id] ?? 0) ? screenToImageCropRect(id) : null
+    const cropRect = screenToImageCropRect(id, imgIdx)
     if (rotation === 0 && !cropRect) return null
 
     let file: File
     if (sourceFile) {
       file = sourceFile
     } else {
-      const response = await fetch(urls[imgIdx])
+      const url = urls[imgIdx]
+      if (!url) return null
+      const response = await fetch(url)
       const blob = await response.blob()
       file = new File([blob], 'image.jpg', { type: blob.type || 'image/jpeg' })
     }
@@ -356,7 +383,7 @@ async function collectImageEdits(deliveryId: number) {
       const edited = await applyEdits(imgIdx, null)
       if (edited) {
         const noteFile = detail.noteFiles[imgIdx]
-        if (noteFile.noteId) {
+        if (noteFile?.noteId) {
           replaceNotes.push({ noteId: noteFile.noteId, fileIndex: replaceNoteFiles.length })
           replaceNoteFiles.push(edited)
         }
@@ -366,7 +393,7 @@ async function collectImageEdits(deliveryId: number) {
       const edited = await applyEdits(imgIdx, null)
       if (edited) {
         const photoFile = detail.photoFiles[imgIdx - noteLen]
-        if (photoFile.photoId) {
+        if (photoFile?.photoId) {
           replacePhotos.push({ photoId: photoFile.photoId, fileIndex: replacePhotoFiles.length })
           replacePhotoFiles.push(edited)
         }
@@ -374,14 +401,14 @@ async function collectImageEdits(deliveryId: number) {
     } else if (imgIdx < existingLen + addedNotes.length) {
       // 새로 추가한 송장
       const addedIdx = imgIdx - existingLen
-      const edited = await applyEdits(imgIdx, addedNotes[addedIdx])
+      const edited = await applyEdits(imgIdx, addedNotes[addedIdx] ?? null)
       if (edited) {
         addedNotes[addedIdx] = edited
       }
     } else {
       // 새로 추가한 사진
       const addedIdx = imgIdx - existingLen - addedNotes.length
-      const edited = await applyEdits(imgIdx, addedPhotos[addedIdx])
+      const edited = await applyEdits(imgIdx, addedPhotos[addedIdx] ?? null)
       if (edited) {
         addedPhotos[addedIdx] = edited
       }
@@ -448,9 +475,9 @@ function deleteCurrentImage(deliveryId: number) {
 
   if (imgIdx < noteLen) {
     const noteFile = detail.noteFiles[imgIdx]
-    if (noteFile.noteId) {
+    if (noteFile?.noteId) {
       if (!deletedNoteIds.value[id]) deletedNoteIds.value[id] = []
-      deletedNoteIds.value[id].push(noteFile.noteId)
+      deletedNoteIds.value[id]!.push(noteFile.noteId)
     }
     detail.noteFiles.splice(imgIdx, 1)
     const editState = deliveryEditState.value[id]
@@ -458,9 +485,9 @@ function deleteCurrentImage(deliveryId: number) {
   } else {
     const photoIdx = imgIdx - noteLen
     const photoFile = detail.photoFiles[photoIdx]
-    if (photoFile.photoId) {
+    if (photoFile?.photoId) {
       if (!deletedPhotoIds.value[id]) deletedPhotoIds.value[id] = []
-      deletedPhotoIds.value[id].push(photoFile.photoId)
+      deletedPhotoIds.value[id]!.push(photoFile.photoId)
     }
     detail.photoFiles.splice(photoIdx, 1)
     const editState = deliveryEditState.value[id]
@@ -601,6 +628,7 @@ async function confirmDeleteDelivery() {
     delete deliveryImageDragging.value[deletedId]
     delete deliveryDragStart[deletedId]
     delete deliveryTranslateStart[deletedId]
+    clearImageEditState(deletedId)
     delete isGeneratingMir.value[deletedId]
     analyticsClient.trackAction('material_delivery', 'delete_delivery', 'success')
   } catch (error: unknown) {
@@ -702,6 +730,7 @@ async function toggleDelivery(delivery: MaterialDeliverySummary) {
     delete deliveryImageDragging.value[id]
     delete deliveryDragStart[id]
     delete deliveryTranslateStart[id]
+    clearImageEditState(id)
     return
   }
 
@@ -721,6 +750,7 @@ async function toggleDelivery(delivery: MaterialDeliverySummary) {
       delete deliveryImageDragging.value[otherId]
       delete deliveryDragStart[otherId]
       delete deliveryTranslateStart[otherId]
+      clearImageEditState(otherId)
     }
   }
 
@@ -781,7 +811,7 @@ async function toggleDelivery(delivery: MaterialDeliverySummary) {
       editComponentDivisions.value = compDivList
 
       // 부재타입: detail에 componentTypes가 있으면 첫번째의 divisionId로 로드
-      if (detail.componentTypes.length > 0) {
+      if (detail.componentTypes.length > 0 && detail.componentTypes[0]) {
         const firstDivId = detail.componentTypes[0].componentDivisionId
         selectedEditComponentDivisionId.value = String(firstDivId)
         editComponentTypes.value = await referenceApi.getComponentTypeList(firstDivId)
@@ -846,7 +876,7 @@ function resetDeliveryImageTransform(deliveryId: number) {
 }
 
 function onDeliveryImageWheel(deliveryId: number, e: WheelEvent) {
-  if (deliveryImageCropMode.value[deliveryId]) return
+  if (deliveryImageCropMode.value[imageEditKey(deliveryId)]) return
   e.preventDefault()
   const delta = e.deltaY > 0 ? -0.1 : 0.1
   const current = deliveryImageScale.value[deliveryId] ?? 1
@@ -854,7 +884,7 @@ function onDeliveryImageWheel(deliveryId: number, e: WheelEvent) {
 }
 
 function onDeliveryImagePointerDown(deliveryId: number, e: PointerEvent) {
-  if (deliveryImageCropMode.value[deliveryId]) return
+  if (deliveryImageCropMode.value[imageEditKey(deliveryId)]) return
   const scale = deliveryImageScale.value[deliveryId] ?? 1
   if (scale <= 1) return
   deliveryImageDragging.value[deliveryId] = true
@@ -956,6 +986,7 @@ async function updateDelivery(delivery: MaterialDeliverySummary) {
     delete deliveryImageIndex.value[id]
     delete deliveryImageScale.value[id]
     delete deliveryImageTranslate[id]
+    clearImageEditState(id)
     delete deletedLineIds.value[id]
     delete deletedNoteIds.value[id]
     delete deletedPhotoIds.value[id]
@@ -1064,6 +1095,7 @@ onUnmounted(() => {
           >
             <div class="flex items-center gap-3 px-4 py-3">
               <span class="text-xs text-muted-foreground">{{ expandedDeliveries[delivery.materialDeliveryId] ? '▲' : '▼' }}</span>
+              <span class="text-xs text-muted-foreground">#{{ delivery.materialDeliveryId }}</span>
               <span class="text-sm font-medium inline-flex items-center gap-1">
                 {{ delivery.materialTypeName }}
                 <span @click.stop>
@@ -1127,7 +1159,8 @@ onUnmounted(() => {
                   <template v-else-if="(deliveryImageUrls[delivery.materialDeliveryId] ?? []).length > 0">
                     <div
                       :ref="(el) => { deliveryImageContainerRefs[delivery.materialDeliveryId] = el as HTMLElement }"
-                      class="h-[720px] border border-border rounded-lg overflow-hidden bg-muted/20 relative"
+                      class="h-[720px] border-4 rounded-lg overflow-hidden bg-muted/20 relative"
+                      :class="deliveryDetailMap[delivery.materialDeliveryId] && (deliveryImageIndex[delivery.materialDeliveryId] ?? 0) < deliveryDetailMap[delivery.materialDeliveryId]!.noteFiles.length ? 'border-blue-600' : 'border-green-600'"
                       @wheel="onDeliveryImageWheel(delivery.materialDeliveryId, $event)"
                       @pointerdown="onDeliveryImagePointerDown(delivery.materialDeliveryId, $event)"
                       @pointermove="onDeliveryImagePointerMove(delivery.materialDeliveryId, $event)"
@@ -1147,14 +1180,14 @@ onUnmounted(() => {
                       />
                       <!-- 크롭 오버레이 -->
                       <div
-                        v-if="deliveryImageCropMode[delivery.materialDeliveryId]"
+                        v-if="deliveryImageCropMode[imageEditKey(delivery.materialDeliveryId)]"
                         class="absolute inset-0 cursor-crosshair z-10"
                         @pointerdown="onCropPointerDown(delivery.materialDeliveryId, $event)"
                         @pointermove="onCropPointerMove(delivery.materialDeliveryId, $event)"
                         @pointerup="onCropPointerUp(delivery.materialDeliveryId)"
                       >
                         <div
-                          v-if="deliveryImageCropRect[delivery.materialDeliveryId]"
+                          v-if="deliveryImageCropRect[imageEditKey(delivery.materialDeliveryId)]"
                           class="absolute border-2 border-dashed border-blue-500 bg-blue-500/10 pointer-events-none"
                           :style="getCropStyle(delivery.materialDeliveryId)"
                         />
@@ -1165,7 +1198,7 @@ onUnmounted(() => {
                           <RotateCcw class="h-5 w-5" />
                         </Button>
                         <Button
-                          :variant="deliveryImageCropMode[delivery.materialDeliveryId] ? 'default' : 'ghost'"
+                          :variant="deliveryImageCropMode[imageEditKey(delivery.materialDeliveryId)] ? 'default' : 'ghost'"
                           size="sm"
                           class="h-8 w-8 p-0"
                           title="자르기"
@@ -1200,14 +1233,17 @@ onUnmounted(() => {
                       </template>
                     </div>
                     <!-- 페이지 넘기기 -->
-                    <div v-if="(deliveryImageUrls[delivery.materialDeliveryId] ?? []).length > 1" class="flex items-center justify-center gap-3 shrink-0">
-                      <Button variant="outline" size="sm" @click="prevDeliveryImage(delivery.materialDeliveryId)">
+                    <div v-if="(deliveryImageUrls[delivery.materialDeliveryId] ?? []).length > 0" class="flex items-center justify-center gap-3 shrink-0">
+                      <Button v-if="(deliveryImageUrls[delivery.materialDeliveryId] ?? []).length > 1" variant="outline" size="sm" @click="prevDeliveryImage(delivery.materialDeliveryId)">
                         ← 이전
                       </Button>
+                      <span class="text-sm font-medium" :class="deliveryDetailMap[delivery.materialDeliveryId] && (deliveryImageIndex[delivery.materialDeliveryId] ?? 0) < deliveryDetailMap[delivery.materialDeliveryId]!.noteFiles.length ? 'text-blue-600' : 'text-green-600'">
+                        {{ deliveryDetailMap[delivery.materialDeliveryId] && (deliveryImageIndex[delivery.materialDeliveryId] ?? 0) < deliveryDetailMap[delivery.materialDeliveryId]!.noteFiles.length ? '송장' : '반입사진' }}
+                      </span>
                       <span class="text-sm text-muted-foreground">
                         {{ (deliveryImageIndex[delivery.materialDeliveryId] ?? 0) + 1 }} / {{ (deliveryImageUrls[delivery.materialDeliveryId] ?? []).length }}
                       </span>
-                      <Button variant="outline" size="sm" @click="nextDeliveryImage(delivery.materialDeliveryId)">
+                      <Button v-if="(deliveryImageUrls[delivery.materialDeliveryId] ?? []).length > 1" variant="outline" size="sm" @click="nextDeliveryImage(delivery.materialDeliveryId)">
                         다음 →
                       </Button>
                     </div>
@@ -1247,9 +1283,9 @@ onUnmounted(() => {
                     </div>
                     <!-- 추가된 파일 표시 -->
                     <div v-if="(newDeliveryNotes[delivery.materialDeliveryId]?.length ?? 0) + (newDeliveryPhotos[delivery.materialDeliveryId]?.length ?? 0) > 0" class="text-xs text-muted-foreground text-center">
-                      <span v-if="newDeliveryNotes[delivery.materialDeliveryId]?.length">송장 {{ newDeliveryNotes[delivery.materialDeliveryId].length }}건</span>
+                      <span v-if="newDeliveryNotes[delivery.materialDeliveryId]?.length">송장 {{ newDeliveryNotes[delivery.materialDeliveryId]!.length }}건</span>
                       <span v-if="newDeliveryNotes[delivery.materialDeliveryId]?.length && newDeliveryPhotos[delivery.materialDeliveryId]?.length"> · </span>
-                      <span v-if="newDeliveryPhotos[delivery.materialDeliveryId]?.length">사진 {{ newDeliveryPhotos[delivery.materialDeliveryId].length }}건</span>
+                      <span v-if="newDeliveryPhotos[delivery.materialDeliveryId]?.length">사진 {{ newDeliveryPhotos[delivery.materialDeliveryId]!.length }}건</span>
                       추가됨 (수정하기 시 저장)
                     </div>
                   </template>

@@ -1007,7 +1007,7 @@ const edgeMenuSetLagDays = async (lagDays: number | null) => {
 }
 
 const edgeMenuUpdateLocalLagDays = (delta: number) => {
-  if (!edgeContextMenu.value) return
+  if (!edgeContextMenu.value || edgeContextMenu.value.lagDays == null) return
   const newDays = edgeContextMenu.value.lagDays + delta
   edgeContextMenu.value.lagDays = newDays
   updateLagDaysLocal(edgeContextMenu.value.depId, newDays)
@@ -1942,8 +1942,8 @@ async function handleExcludeConfirm(excludedIds: number[]) {
                 >
                   +
                 </button>
-                <span class="text-xs" :class="edgeContextMenu.lagDays < 0 ? 'text-blue-500' : edgeContextMenu.lagDays > 0 ? 'text-orange-500' : 'text-muted-foreground'">
-                  {{ edgeContextMenu.lagDays < 0 ? `${Math.abs(edgeContextMenu.lagDays)}일 겹치기` : edgeContextMenu.lagDays === 0 ? '다음날' : `${edgeContextMenu.lagDays}일 벌리기` }}
+                <span class="text-xs" :class="(edgeContextMenu.lagDays ?? 0) < 0 ? 'text-blue-500' : (edgeContextMenu.lagDays ?? 0) > 0 ? 'text-orange-500' : 'text-muted-foreground'">
+                  {{ (edgeContextMenu.lagDays ?? 0) < 0 ? `${Math.abs(edgeContextMenu.lagDays ?? 0)}일 겹치기` : edgeContextMenu.lagDays === 0 ? '다음날' : `${edgeContextMenu.lagDays ?? 0}일 벌리기` }}
                 </span>
                 <button
                   type="button"

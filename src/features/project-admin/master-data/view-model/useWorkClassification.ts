@@ -6,6 +6,7 @@ import {
   type SubWorkTypeResponse,
   type WorkStepResponse,
 } from '@/shared/network-core/apis/reference'
+import { standardApi } from '@/shared/network-core/apis/standard'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 export function useWorkClassification() {
@@ -372,20 +373,104 @@ export function useWorkClassification() {
     }
   }
 
+  // ========== 표준 매핑 ==========
+
+  const stdDivisions = ref<IdNameResponse[]>([])
+  const stdWorkTypes = ref<{ id: number; name: string }[]>([])
+  const stdSubWorkTypes = ref<{ id: number; name: string }[]>([])
+  const stdWorkSteps = ref<{ id: number; name: string }[]>([])
+
+  const loadStdDivisions = async () => {
+    try {
+      stdDivisions.value = await standardApi.division.getList()
+    } catch (error) {
+      console.error('StdDivision 로드 실패:', error)
+    }
+  }
+
+  const setDivisionStandard = async (id: number, standardId: number | null) => {
+    try {
+      await referenceApi.updateDivision({ id, standardId })
+      const item = divisions.value.find((d) => d.id === id)
+      if (item) item.standardId = standardId
+    } catch (error: unknown) {
+      console.error('Division 표준 매핑 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+    }
+  }
+
+  const setWorkTypeStandard = async (id: number, standardId: number | null) => {
+    try {
+      await referenceApi.updateWorkType({ id, standardId })
+      const item = workTypes.value.find((wt) => wt.id === id)
+      if (item) item.standardId = standardId
+    } catch (error: unknown) {
+      console.error('WorkType 표준 매핑 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+    }
+  }
+
+  const setSubWorkTypeStandard = async (id: number, standardId: number | null) => {
+    try {
+      await referenceApi.updateSubWorkType({ id, standardId })
+      const item = subWorkTypes.value.find((swt) => swt.id === id)
+      if (item) item.standardId = standardId
+    } catch (error: unknown) {
+      console.error('SubWorkType 표준 매핑 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+    }
+  }
+
+  const setWorkStepStandard = async (id: number, standardId: number | null) => {
+    try {
+      await referenceApi.updateWorkStep({ id, standardId })
+      const item = workSteps.value.find((ws) => ws.id === id)
+      if (item) item.standardId = standardId
+    } catch (error: unknown) {
+      console.error('WorkStep 표준 매핑 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+    }
+  }
+
   // 캐스케이딩 로드
   watch(selectedDivisionId, (id) => {
     workTypes.value = []
-    if (id) loadWorkTypes(id)
+    stdWorkTypes.value = []
+    if (id) {
+      loadWorkTypes(id)
+      const div = divisions.value.find((d) => d.id === id)
+      if (div?.standardId) {
+        standardApi.workType.getList(div.standardId).then((list) => { stdWorkTypes.value = list })
+      }
+    }
   })
 
   watch(selectedWorkTypeId, (id) => {
     subWorkTypes.value = []
-    if (id) loadSubWorkTypes(id)
+    stdSubWorkTypes.value = []
+    if (id) {
+      loadSubWorkTypes(id)
+      const wt = workTypes.value.find((w) => w.id === id)
+      if (wt?.standardId) {
+        standardApi.subWorkType.getList(wt.standardId).then((list) => { stdSubWorkTypes.value = list })
+      }
+    }
   })
 
   watch(selectedSubWorkTypeId, (id) => {
     workSteps.value = []
-    if (id) loadWorkSteps(id)
+    stdWorkSteps.value = []
+    if (id) {
+      loadWorkSteps(id)
+      const swt = subWorkTypes.value.find((s) => s.id === id)
+      if (swt?.standardId) {
+        standardApi.workStep.getList(swt.standardId).then((list) => { stdWorkSteps.value = list })
+      }
+    }
   })
 
   return {
@@ -422,5 +507,14 @@ export function useWorkClassification() {
     reorderWorkTypes,
     reorderSubWorkTypes,
     reorderWorkSteps,
+    stdDivisions,
+    stdWorkTypes,
+    stdSubWorkTypes,
+    stdWorkSteps,
+    loadStdDivisions,
+    setDivisionStandard,
+    setWorkTypeStandard,
+    setSubWorkTypeStandard,
+    setWorkStepStandard,
   }
 }

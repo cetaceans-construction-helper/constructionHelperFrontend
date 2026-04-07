@@ -20,6 +20,7 @@ import type {
   UpdateWorkerPayload,
   UpdateUserPayload,
 } from '@/features/system-admin/model/system-admin-types'
+import type { WorkRule } from '@/features/system-admin/model/standard-types'
 
 export const systemAdminApi = {
   // Company
@@ -173,5 +174,23 @@ export const systemAdminApi = {
   // User-Project 삭제
   async deleteUserToProject(id: number): Promise<void> {
     await apiClient.delete(`/userProject/deleteUserToProject/${id}`)
+  },
+
+  // WorkRules CUD (super 전용)
+  async createWorkRules(payload: {
+    stdWorkTypeId?: number | null
+    stdSubWorkTypeId?: number | null
+    rules: string
+  }): Promise<WorkRule> {
+    const { data } = await apiClient.post<WorkRule>('/super/workRules/createWorkRules', payload)
+    return data
+  },
+
+  async updateWorkRules(id: number, payload: { rules: string }): Promise<void> {
+    await apiClient.put(`/super/workRules/updateWorkRules/${id}`, payload)
+  },
+
+  async deleteWorkRules(id: number): Promise<void> {
+    await apiClient.delete(`/super/workRules/deleteWorkRules/${id}`)
   },
 }

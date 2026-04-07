@@ -11,6 +11,7 @@ import {
   type MaterialSpecResponse,
   type CreateTasksResponse,
 } from '@/shared/network-core/apis/reference'
+import { standardApi } from '@/shared/network-core/apis/standard'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 export function useComponentCode() {
@@ -536,10 +537,54 @@ export function useComponentCode() {
 
   // ========== Watch: 캐스케이딩 셀렉트 ==========
 
+  // ========== 표준 매핑 ==========
+
+  const stdComponentDivisions = ref<IdNameResponse[]>([])
+  const stdComponentTypes = ref<{ id: number; name: string }[]>([])
+
+  const loadStdComponentDivisions = async () => {
+    try {
+      stdComponentDivisions.value = await standardApi.componentDivision.getList()
+    } catch (error) {
+      console.error('StdComponentDivision 로드 실패:', error)
+    }
+  }
+
+  const setComponentDivisionStandard = async (id: number, standardId: number | null) => {
+    try {
+      await referenceApi.updateComponentDivision({ id, standardId })
+      const item = componentDivisions.value.find((cd) => cd.id === id)
+      if (item) item.standardId = standardId
+    } catch (error: unknown) {
+      console.error('ComponentDivision 표준 매핑 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+    }
+  }
+
+  const setComponentTypeStandard = async (id: number, standardId: number | null) => {
+    try {
+      await referenceApi.updateComponentType({ id, standardId })
+      const item = componentTypes.value.find((ct) => ct.id === id)
+      if (item) item.standardId = standardId
+    } catch (error: unknown) {
+      console.error('ComponentType 표준 매핑 실패:', error)
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+    }
+  }
+
   watch(selectedComponentDivisionId, (divisionId) => {
     componentTypes.value = []
     selectedComponentTypeId.value = null
-    if (divisionId) loadComponentTypes(divisionId)
+    stdComponentTypes.value = []
+    if (divisionId) {
+      loadComponentTypes(divisionId)
+      const cd = componentDivisions.value.find((d) => d.id === divisionId)
+      if (cd?.standardId) {
+        standardApi.componentType.getList(cd.standardId).then((list) => { stdComponentTypes.value = list })
+      }
+    }
   })
 
   watch(selectedComponentTypeId, (typeId) => {
@@ -716,5 +761,12 @@ export function useComponentCode() {
     createTasksResult,
     showCreateTasksResult,
     createTasks,
+
+    // 표준에서 가져오기
+    stdComponentDivisions,
+    stdComponentTypes,
+    loadStdComponentDivisions,
+    setComponentDivisionStandard,
+    setComponentTypeStandard,
   }
 }

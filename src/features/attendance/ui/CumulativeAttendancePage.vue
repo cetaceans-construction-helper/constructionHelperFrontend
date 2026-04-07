@@ -48,7 +48,7 @@ onMounted(async () => {
   <PageContainer title="출역 누적 집계">
     <AreaCard height="flex-1" min-height="400px">
       <div class="flex items-center gap-2 mb-4">
-        <DateRangeFilter v-model="cumulativeDateRange" />
+        <DateRangeFilter :model-value="(cumulativeDateRange as any)" @update:model-value="(v: any) => cumulativeDateRange = v" />
       </div>
 
       <div class="grid grid-cols-2 [@media(max-aspect-ratio:1/1)]:grid-cols-1 gap-4 flex-1">

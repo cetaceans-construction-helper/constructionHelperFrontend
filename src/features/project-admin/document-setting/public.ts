@@ -1,5 +1,4 @@
 export { useDocumentSetting } from '@/features/project-admin/document-setting/view-model/useDocumentSetting'
-export { usePromptManagement } from '@/features/project-admin/document-setting/view-model/usePromptManagement'
 
 export { default as DocumentSettingPageView } from '@/features/project-admin/document-setting/ui/DocumentSettingPage.vue'
 

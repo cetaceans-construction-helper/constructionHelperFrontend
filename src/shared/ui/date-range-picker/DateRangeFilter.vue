@@ -59,15 +59,17 @@ const displayText = computed(() => {
   return ''
 })
 
+// Note: DateValue from reka-ui and @internationalized/date types are structurally identical
+// but TypeScript sees them as incompatible due to private class fields. Use 'as any' for interop.
 function isInRange(date: DateValue): boolean {
   const { start, end } = draftRange.value
   if (start && end) {
-    return date.compare(start) >= 0 && date.compare(end) <= 0
+    return date.compare(start as any) >= 0 && date.compare(end as any) <= 0
   }
   if (start && !isSelectingStart.value && hoveredDate.value) {
-    const lo = start.compare(hoveredDate.value) <= 0 ? start : hoveredDate.value
-    const hi = start.compare(hoveredDate.value) <= 0 ? hoveredDate.value : start
-    return date.compare(lo) >= 0 && date.compare(hi) <= 0
+    const lo = start.compare(hoveredDate.value as any) <= 0 ? start : hoveredDate.value
+    const hi = start.compare(hoveredDate.value as any) <= 0 ? hoveredDate.value : start
+    return date.compare(lo as any) >= 0 && date.compare(hi as any) <= 0
   }
   return false
 }
@@ -80,7 +82,7 @@ function onDateHover(date: DateValue) {
 
 function isSelected(date: DateValue): boolean {
   const { start, end } = draftRange.value
-  return (!!start && isSameDay(date, start)) || (!!end && isSameDay(date, end))
+  return (!!start && isSameDay(date as any, start as any)) || (!!end && isSameDay(date as any, end as any))
 }
 
 function onDateClick(date: DateValue) {
@@ -88,10 +90,10 @@ function onDateClick(date: DateValue) {
     draftRange.value = { start: date, end: undefined }
   } else {
     const { start } = draftRange.value
-    const newStart = (start && date.compare(start) < 0) ? date : start
-    const newEnd = (start && date.compare(start) < 0) ? start : date
-    draftRange.value = { start: newStart, end: newEnd }
-    emit('update:modelValue', { start: newStart, end: newEnd })
+    const newStart = (start && date.compare(start as any) < 0) ? date : (start ?? date)
+    const newEnd = (start && date.compare(start as any) < 0) ? start : date
+    draftRange.value = { start: newStart as DateValue, end: newEnd as DateValue }
+    emit('update:modelValue', { start: newStart as DateValue, end: newEnd as DateValue })
   }
   isSelectingStart.value = !isSelectingStart.value
   if (isSelectingStart.value) {

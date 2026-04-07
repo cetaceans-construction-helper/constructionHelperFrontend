@@ -20,17 +20,24 @@ import ProjectManagementArea from '@/features/system-admin/ui/components/Project
 import RoleManagementArea from '@/features/system-admin/ui/components/RoleManagementArea.vue'
 import MappingManagementArea from '@/features/system-admin/ui/components/MappingManagementArea.vue'
 import WorkerManagementArea from '@/features/system-admin/ui/components/WorkerManagementArea.vue'
+import StandardWorkClassificationArea from '@/features/system-admin/ui/components/StandardWorkClassificationArea.vue'
+import StandardMaterialArea from '@/features/system-admin/ui/components/StandardMaterialArea.vue'
+import StandardEquipmentArea from '@/features/system-admin/ui/components/StandardEquipmentArea.vue'
+import StandardComponentArea from '@/features/system-admin/ui/components/StandardComponentArea.vue'
+import StandardLaborArea from '@/features/system-admin/ui/components/StandardLaborArea.vue'
+import WorkRulesArea from '@/features/system-admin/ui/components/WorkRulesArea.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
 
-type MenuId = 'project' | 'worker' | 'company' | 'common'
+type MenuId = 'project' | 'worker' | 'company' | 'common' | 'standard'
 
 const menus: { id: MenuId; label: string }[] = [
   { id: 'project', label: '프로젝트관리' },
   { id: 'worker', label: '작업자관리' },
   { id: 'company', label: '사용자/회사관리' },
   { id: 'common', label: '공용 설정' },
+  { id: 'standard', label: '표준 데이터' },
 ]
 
 const activeMenu = ref<MenuId>('project')
@@ -160,6 +167,62 @@ onUnmounted(() => {
               </CardHeader>
               <CardContent>
                 <RoleManagementArea />
+              </CardContent>
+            </Card>
+          </template>
+
+          <template v-if="activeMenu === 'standard'">
+            <Card>
+              <CardHeader>
+                <CardTitle>표준 공종분류</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <StandardWorkClassificationArea />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>표준 자재</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <StandardMaterialArea />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>표준 장비</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <StandardEquipmentArea />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>표준 부재</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <StandardComponentArea />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>표준 직종</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <StandardLaborArea />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>작업 규칙</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <WorkRulesArea />
               </CardContent>
             </Card>
           </template>

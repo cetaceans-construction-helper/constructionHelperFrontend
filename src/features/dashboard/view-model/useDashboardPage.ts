@@ -426,7 +426,7 @@ export const useDashboardPage = () => {
     showExcludeDialog.value = false
     try {
       await createDailyReport(dailyReportRepository, {
-        date: todayString,
+        date: todayString.value,
         excludedIds,
         excludedPhotoIndices,
       })

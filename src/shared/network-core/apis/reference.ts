@@ -4,6 +4,8 @@ import apiClient from '@/shared/network-core/apiClient'
 export interface IdNameResponse {
   id: number
   name: string
+  standardId?: number | null
+  standardName?: string | null
 }
 
 // 공종 분류 타입
@@ -12,18 +14,24 @@ export interface WorkTypeResponse {
   name: string
   displayName: string
   divisionId: number
+  standardId?: number | null
+  standardName?: string | null
 }
 
 export interface SubWorkTypeResponse {
   id: number
   name: string
   workTypeId: number
+  standardId?: number | null
+  standardName?: string | null
 }
 
 export interface WorkStepResponse {
   id: number
   name: string
   subWorkTypeId: number
+  standardId?: number | null
+  standardName?: string | null
 }
 
 // 직종(LaborType) 타입
@@ -34,12 +42,16 @@ export interface LaborTypeResponse {
   workTypeName: string
   subWorkTypeId: number | null
   subWorkTypeName: string | null
+  standardId?: number | null
+  standardName?: string | null
 }
 
 // 장비 마스터 타입
 export interface EquipmentTypeResponse {
   id: number
   name: string
+  standardId?: number | null
+  standardName?: string | null
 }
 
 export interface EquipmentSpecResponse {
@@ -47,6 +59,8 @@ export interface EquipmentSpecResponse {
   name: string
   equipmentTypeId: number
   equipmentTypeName: string
+  standardId?: number | null
+  standardName?: string | null
 }
 
 // 자재 마스터 타입
@@ -54,12 +68,16 @@ export interface MaterialTypeResponse {
   id: number
   name: string
   unit: string
+  standardId?: number | null
+  standardName?: string | null
 }
 
 export interface MaterialSpecResponse {
   id: number
   name: string
   materialTypeId: number
+  standardId?: number | null
+  standardName?: string | null
 }
 
 // 부재 코드 타입
@@ -108,6 +126,7 @@ export interface UpdateReferenceRequest {
   name?: string
   unit?: string
   ids?: number[]
+  standardId?: number | null
 }
 
 export interface UpdateChildReferenceRequest extends UpdateReferenceRequest {
@@ -122,8 +141,11 @@ export const referenceApi = {
     return data
   },
 
-  async createDivision(name: string): Promise<IdNameResponse> {
-    const { data } = await apiClient.post<IdNameResponse>('/reference/createDivision', { name })
+  async createDivision(name: string, standardId?: number): Promise<IdNameResponse> {
+    const { data } = await apiClient.post<IdNameResponse>('/reference/createDivision', {
+      name,
+      ...(standardId != null && { standardId }),
+    })
     return data
   },
 
@@ -134,10 +156,11 @@ export const referenceApi = {
     return data
   },
 
-  async createWorkType(divisionId: number, name: string): Promise<WorkTypeResponse> {
+  async createWorkType(divisionId: number, name: string, standardId?: number): Promise<WorkTypeResponse> {
     const { data } = await apiClient.post<WorkTypeResponse>('/reference/createWorkType', {
       divisionId,
       name,
+      ...(standardId != null && { standardId }),
     })
     return data
   },
@@ -149,10 +172,11 @@ export const referenceApi = {
     return data
   },
 
-  async createSubWorkType(workTypeId: number, name: string): Promise<SubWorkTypeResponse> {
+  async createSubWorkType(workTypeId: number, name: string, standardId?: number): Promise<SubWorkTypeResponse> {
     const { data } = await apiClient.post<SubWorkTypeResponse>('/reference/createSubWorkType', {
       workTypeId,
       name,
+      ...(standardId != null && { standardId }),
     })
     return data
   },
@@ -164,10 +188,11 @@ export const referenceApi = {
     return data
   },
 
-  async createWorkStep(subWorkTypeId: number, name: string): Promise<WorkStepResponse> {
+  async createWorkStep(subWorkTypeId: number, name: string, standardId?: number): Promise<WorkStepResponse> {
     const { data } = await apiClient.post<WorkStepResponse>('/reference/createWorkStep', {
       subWorkTypeId,
       name,
+      ...(standardId != null && { standardId }),
     })
     return data
   },
@@ -179,10 +204,11 @@ export const referenceApi = {
     return data
   },
 
-  async createMaterialType(name: string, unit?: string): Promise<MaterialTypeResponse> {
+  async createMaterialType(name: string, unit?: string, standardId?: number): Promise<MaterialTypeResponse> {
     const { data } = await apiClient.post<MaterialTypeResponse>('/reference/createMaterialType', {
       name,
       unit,
+      ...(standardId != null && { standardId }),
     })
     return data
   },
@@ -194,10 +220,11 @@ export const referenceApi = {
     return data
   },
 
-  async createMaterialSpec(materialTypeId: number, name: string): Promise<MaterialSpecResponse> {
+  async createMaterialSpec(materialTypeId: number, name: string, standardId?: number): Promise<MaterialSpecResponse> {
     const { data } = await apiClient.post<MaterialSpecResponse>('/reference/createMaterialSpec', {
       materialTypeId,
       name,
+      ...(standardId != null && { standardId }),
     })
     return data
   },
@@ -251,9 +278,10 @@ export const referenceApi = {
     return data
   },
 
-  async createComponentDivision(name: string): Promise<IdNameResponse> {
+  async createComponentDivision(name: string, standardId?: number): Promise<IdNameResponse> {
     const { data } = await apiClient.post<IdNameResponse>('/reference/createComponentDivision', {
       name,
+      ...(standardId != null && { standardId }),
     })
     return data
   },
@@ -265,10 +293,11 @@ export const referenceApi = {
     return data
   },
 
-  async createComponentType(componentDivisionId: number, name: string): Promise<IdNameResponse> {
+  async createComponentType(componentDivisionId: number, name: string, standardId?: number): Promise<IdNameResponse> {
     const { data } = await apiClient.post<IdNameResponse>('/reference/createComponentType', {
       componentDivisionId,
       name,
+      ...(standardId != null && { standardId }),
     })
     return data
   },
@@ -328,9 +357,10 @@ export const referenceApi = {
     return data
   },
 
-  async createEquipmentType(name: string): Promise<EquipmentTypeResponse> {
+  async createEquipmentType(name: string, standardId?: number): Promise<EquipmentTypeResponse> {
     const { data } = await apiClient.post<EquipmentTypeResponse>('/reference/createEquipmentType', {
       name,
+      ...(standardId != null && { standardId }),
     })
     return data
   },
@@ -342,10 +372,11 @@ export const referenceApi = {
     return data
   },
 
-  async createEquipmentSpec(equipmentTypeId: number, name: string): Promise<EquipmentSpecResponse> {
+  async createEquipmentSpec(equipmentTypeId: number, name: string, standardId?: number): Promise<EquipmentSpecResponse> {
     const { data } = await apiClient.post<EquipmentSpecResponse>('/reference/createEquipmentSpec', {
       equipmentTypeId,
       name,
+      ...(standardId != null && { standardId }),
     })
     return data
   },
@@ -371,6 +402,7 @@ export const referenceApi = {
     name: string
     workTypeId: number
     subWorkTypeId?: number | null
+    standardId?: number
   }): Promise<LaborTypeResponse> {
     const { data } = await apiClient.post<LaborTypeResponse>(
       '/reference/createLaborType',

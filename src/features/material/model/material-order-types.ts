@@ -94,9 +94,9 @@ export interface CreateDeliveryResponse {
 
 export interface DeliveryLineResponse {
   deliveryLineId: number
-  manufacturer: string
-  materialSpecId: number
-  materialSpecName: string
+  manufacturer: string | null
+  materialSpecId: number | null
+  materialSpecName: string | null
   quantity: number
 }
 

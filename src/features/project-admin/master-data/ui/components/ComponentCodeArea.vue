@@ -114,6 +114,13 @@ const {
   createTasksResult,
   showCreateTasksResult,
   createTasks,
+
+  // 표준 매핑
+  stdComponentDivisions,
+  stdComponentTypes,
+  loadStdComponentDivisions,
+  setComponentDivisionStandard,
+  setComponentTypeStandard,
 } = useComponentCode()
 
 // 매핑 테이블 접기/펼치기
@@ -130,6 +137,7 @@ onMounted(() => {
   loadDivisions()
   loadMaterialTypes()
   loadAllMappings()
+  loadStdComponentDivisions()
 })
 
 // 부재 대분류 선택
@@ -194,6 +202,34 @@ async function confirmDelete() {
   }
   showDeleteDialog.value = false
 }
+
+// 표준 매핑 다이얼로그
+const showStdDialog = ref(false)
+const stdDialogTargetId = ref<number | null>(null)
+const stdDialogTargetName = ref('')
+const stdDialogSelectedStdId = ref<number | null>(null)
+const stdDialogOptions = ref<{ id: number; name: string }[]>([])
+const stdDialogSaveFn = ref<((id: number, stdId: number | null) => Promise<void>) | null>(null)
+
+type StdItem = { id: number; name: string; standardId?: number | null; [key: string]: unknown }
+
+function openStdDialog(id: number, items: StdItem[], stdOptions: { id: number; name: string }[], saveFn: (id: number, stdId: number | null) => Promise<void>) {
+  const item = items.find((i) => i.id === id)
+  if (!item) return
+  stdDialogTargetId.value = id
+  stdDialogTargetName.value = item.name
+  stdDialogSelectedStdId.value = item.standardId ?? null
+  stdDialogOptions.value = stdOptions
+  stdDialogSaveFn.value = saveFn
+  showStdDialog.value = true
+}
+
+async function saveStdMapping() {
+  if (stdDialogTargetId.value != null && stdDialogSaveFn.value) {
+    await stdDialogSaveFn.value(stdDialogTargetId.value, stdDialogSelectedStdId.value)
+  }
+  showStdDialog.value = false
+}
 </script>
 
 <template>
@@ -225,10 +261,12 @@ async function confirmDelete() {
             :items="componentDivisions"
             :selected-id="selectedComponentDivisionId"
             :disabled="isDeletingDivision"
+            standard-mappable
             @select="selectComponentDivision"
             @delete="(id, name) => openDeleteDialog(id, name, deleteComponentDivision)"
             @update-name="({ id, name }) => updateComponentDivisionName(id, name)"
             @reorder="reorderComponentDivisions"
+            @map-standard="(id) => openStdDialog(id, componentDivisions, stdComponentDivisions, setComponentDivisionStandard)"
           />
         </div>
 
@@ -257,10 +295,12 @@ async function confirmDelete() {
             :selected-id="selectedComponentTypeId"
             :disabled="isDeletingType"
             :empty-message="selectedComponentDivisionId == null ? '대분류를 선택하세요' : '항목 없음'"
+            standard-mappable
             @select="selectComponentType"
             @delete="(id, name) => openDeleteDialog(id, name, deleteComponentType)"
             @update-name="({ id, name }) => updateComponentTypeName(id, name)"
             @reorder="reorderComponentTypes"
+            @map-standard="(id) => openStdDialog(id, componentTypes, stdComponentTypes, setComponentTypeStandard)"
           />
         </div>
 
@@ -662,6 +702,31 @@ async function confirmDelete() {
         </div>
         <DialogFooter>
           <Button @click="showCreateTasksResult = false">확인</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <!-- 표준 매핑 다이얼로그 -->
+    <Dialog :open="showStdDialog" @update:open="showStdDialog = $event">
+      <DialogContent class="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>표준 매핑 — {{ stdDialogTargetName }}</DialogTitle>
+        </DialogHeader>
+        <div class="space-y-2 py-2">
+          <Select v-model="stdDialogSelectedStdId">
+            <SelectTrigger class="h-9">
+              <SelectValue placeholder="표준 항목 선택" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem v-for="std in stdDialogOptions" :key="std.id" :value="std.id">{{ std.name }}</SelectItem>
+            </SelectContent>
+          </Select>
+          <button v-if="stdDialogSelectedStdId" class="text-xs text-muted-foreground hover:text-foreground"
+            @click="stdDialogSelectedStdId = null">매핑 해제</button>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" @click="showStdDialog = false">취소</Button>
+          <Button @click="saveStdMapping">저장</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

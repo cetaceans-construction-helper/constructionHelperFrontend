@@ -102,8 +102,8 @@ async function loadDivisions() {
   divisions.value = await referenceApi.getDivisionList()
 }
 
-async function handleDivisionChange(divisionId: string) {
-  selectedDivisionId.value = divisionId
+async function handleDivisionChange(divisionId: any) {
+  selectedDivisionId.value = String(divisionId ?? '')
   selectedWorkTypeId.value = ''
   selectedSubWorkTypeId.value = ''
   workTypes.value = []
@@ -118,8 +118,8 @@ async function handleDivisionChange(divisionId: string) {
   }
 }
 
-async function handleWorkTypeChange(workTypeId: string) {
-  selectedWorkTypeId.value = workTypeId
+async function handleWorkTypeChange(workTypeId: any) {
+  selectedWorkTypeId.value = String(workTypeId ?? '')
   selectedSubWorkTypeId.value = ''
   subWorkTypes.value = []
   if (!workTypeId) return

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
 import draggable from 'vuedraggable'
-import { Menu, Pencil, Check, X } from 'lucide-vue-next'
+import { Menu, Pencil, Check, X, Info } from 'lucide-vue-next'
 import { Input } from '@/shared/ui/input'
 
 interface ListItem {
@@ -21,6 +21,7 @@ const props = withDefaults(
     unitEditable?: boolean
     unitKey?: string
     unitLabel?: string
+    standardMappable?: boolean
   }>(),
   {
     selectedId: null,
@@ -32,6 +33,7 @@ const props = withDefaults(
     unitEditable: false,
     unitKey: 'unit',
     unitLabel: '단위',
+    standardMappable: false,
   },
 )
 
@@ -40,6 +42,7 @@ const emit = defineEmits<{
   delete: [id: number, name: string]
   'update-name': [payload: { id: number; name: string; unit?: string }]
   reorder: [ids: number[]]
+  'map-standard': [id: number]
 }>()
 
 const localItems = ref<ListItem[]>([])
@@ -168,6 +171,16 @@ function onEditKeydown(e: KeyboardEvent) {
               }}</span>
             </span>
           </template>
+
+          <!-- 표준 매핑 버튼 -->
+          <button
+            v-if="standardMappable && editingId !== element.id"
+            class="p-0.5 rounded hover:bg-blue-500/10 text-muted-foreground hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+            :disabled="disabled"
+            @click.stop="emit('map-standard', element.id)"
+          >
+            <Info class="w-3 h-3" />
+          </button>
 
           <!-- 수정 버튼 (Pencil / Check) -->
           <button
