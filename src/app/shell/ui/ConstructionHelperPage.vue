@@ -22,6 +22,7 @@ import {
   Upload,
   RefreshCw,
   Globe,
+  Map,
   ChevronRight,
   ChevronLeft,
   ChevronDown,
@@ -69,7 +70,7 @@ const sections = [
   { id: 'process', label: '공정관리', shortLabel: '공정', path: '/helper/schedule/2d' },
   // { id: 'attendance', label: '출역관리', shortLabel: '출역', path: '/helper/attendance/input' },
   { id: 'material', label: '자재관리', shortLabel: '자재', path: '/helper/material/delivery' },
-  // { id: 'safety', label: '안전관리', shortLabel: '안전', path: '/helper/safety' },
+  { id: 'floor-plan', label: '도면관리', shortLabel: '도면', path: '/helper/floor-plan' },
   { id: 'utility', label: '유용한 기능', shortLabel: '기능', path: '/helper/functions/cumulative-attendance' },
   { id: 'admin', label: '관리자', shortLabel: '관리', path: '/helper/admin' },
 ]
@@ -97,7 +98,7 @@ const menusBySection: Record<string, MenuItem[]> = {
     { id: 'outgoing', label: '반출자재', path: '/helper/material/outgoing', icon: PackageMinus },
     { id: 'remaining', label: '잔여자재', path: '/helper/material/remaining', icon: Package },
   ],
-  // safety: [{ id: 'placeholder', label: '(구현예정)', path: '/helper/safety', icon: Shield }],
+  'floor-plan': [],
   document: [],
   utility: [
     { id: 'cumulative-attendance', label: '출역누적집계', path: '/helper/functions/cumulative-attendance', icon: CalendarCheck },
@@ -183,7 +184,7 @@ const currentSection = computed(() => {
   if (path.startsWith('/helper/schedule')) return 'process'
   // if (path.startsWith('/helper/attendance')) return 'attendance'
   if (path.startsWith('/helper/material')) return 'material'
-  // if (path.startsWith('/helper/safety')) return 'safety'
+  if (path.startsWith('/helper/floor-plan')) return 'floor-plan'
   if (path.startsWith('/helper/document')) return 'document'
   if (path.startsWith('/helper/functions')) return 'utility'
   if (path.startsWith('/helper/admin')) return 'admin'

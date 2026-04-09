@@ -12,6 +12,7 @@ import { projectAdminBulkDeploymentRouteComponents } from '@/features/project-ad
 import { projectAdminHomepageSettingRouteComponents } from '@/features/project-admin/homepage-setting/public'
 import { rebuildWorkNamesRouteComponents } from '@/features/project-admin/rebuild-work-names/public'
 import { projectAdminResourceRouteComponents } from '@/features/project-admin/resource/public'
+import { floorPlanRouteComponents } from '@/features/floor-plan/public'
 import { schedule2dRouteComponents } from '@/features/schedule/schedule-2d/public'
 import { schedule3dRouteComponents } from '@/features/schedule/schedule-3d/public'
 import { systemAdminRouteComponents } from '@/features/system-admin/public'
@@ -90,6 +91,11 @@ const router = createRouter({
           path: 'material/remaining',
           name: 'material-remaining',
           component: materialRouteComponents.RemainingMaterialPage,
+        },
+        {
+          path: 'floor-plan',
+          name: 'floor-plan',
+          component: floorPlanRouteComponents.FloorPlanPage,
         },
         {
           path: 'safety',
