@@ -191,10 +191,19 @@ export function useCanvasRenderer(options: RendererOptions) {
   }
 
   // Y반전 상태에서 텍스트를 정방향으로 그리는 헬퍼
-  function drawTextFlipped(ctx: CanvasRenderingContext2D, text: string, mmX: number, mmY: number) {
+  function drawTextFlipped(ctx: CanvasRenderingContext2D, text: string, mmX: number, mmY: number, bg?: string) {
+    const textColor = ctx.fillStyle
     ctx.save()
     ctx.translate(mmX, mmY)
     ctx.scale(1, -1)
+    if (bg) {
+      const m = ctx.measureText(text)
+      const px = 2 / transform.value.scale
+      const h = m.actualBoundingBoxAscent + m.actualBoundingBoxDescent
+      ctx.fillStyle = bg
+      ctx.fillRect(-px, -m.actualBoundingBoxAscent - px, m.width + px * 2, h + px * 2)
+    }
+    ctx.fillStyle = textColor
     ctx.fillText(text, 0, 0)
     ctx.restore()
   }
@@ -268,23 +277,13 @@ export function useCanvasRenderer(options: RendererOptions) {
     const fontSize = 12 / t.scale
     const pad = 4 / t.scale
 
-    // 매핑 라벨 (백엔드 계산값)
-    if (obj.gridLabel && (isFiltered || isSelected)) {
-      ctx.setLineDash([])
-      ctx.font = `${fontSize}px sans-serif`
-      ctx.fillStyle = isSelected ? BOX_SELECTED_STROKE_COLOR : BOX_STROKE_COLOR
-      ctx.textAlign = 'left'
-      ctx.textBaseline = 'top'
-      drawTextFlipped(ctx, obj.gridLabel, x + pad, y + bh - pad)
-    }
-
     // 부재코드 (박스 위쪽)
     if ((isFiltered || isSelected) && obj.componentCode) {
       ctx.font = `${fontSize}px sans-serif`
       ctx.fillStyle = '#374151'
       ctx.textAlign = 'left'
       ctx.textBaseline = 'bottom'
-      drawTextFlipped(ctx, obj.componentCode, x + pad, y + bh + pad)
+      drawTextFlipped(ctx, obj.componentCode, x + pad, y + bh + pad, '#ffffff')
     }
 
     // 선택 핸들
@@ -319,13 +318,14 @@ export function useCanvasRenderer(options: RendererOptions) {
     ctx.restore()
   }
 
-  watch(
+  const stopWatch = watch(
     [canvasRef, image, drawing, transform, activeMode, editing, xAxes, yAxes, objects, selectedBoxIds, filteredObjectIds, previewBox, selectionRect, imageAnchor],
     requestRender,
     { deep: true },
   )
 
   function dispose() {
+    stopWatch()
     if (rafId) { cancelAnimationFrame(rafId); rafId = 0 }
   }
 

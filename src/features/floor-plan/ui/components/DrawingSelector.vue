@@ -19,7 +19,7 @@ const loaded = computed(() => zones.value.length > 0 || floors.value.length > 0)
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function onZoneChange(val: any) {
-  if (val == null || val === '') {
+  if (val == null || val === '__none__') {
     currentZoneId.value = null
     return
   }
@@ -44,14 +44,14 @@ function onFloorChange(val: any) {
   <div v-if="loaded" class="flex items-center gap-2">
     <span class="text-sm font-medium shrink-0">도면:</span>
     <Select
-      :model-value="currentZoneId != null ? currentZoneId.toString() : ''"
+      :model-value="currentZoneId != null ? currentZoneId.toString() : '__none__'"
       @update:model-value="onZoneChange"
     >
       <SelectTrigger class="h-8 w-32">
         <SelectValue placeholder="Zone" />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="">선택안함</SelectItem>
+        <SelectItem value="__none__">선택안함</SelectItem>
         <SelectItem v-for="z in zones" :key="z.id" :value="z.id.toString()">{{ z.name }}</SelectItem>
       </SelectContent>
     </Select>
