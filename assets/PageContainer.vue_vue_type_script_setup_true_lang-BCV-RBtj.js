@@ -1,0 +1,1 @@
+import{d as s,c as o,o as a,a as l,s as n,t as r}from"./index-C2Qsd1sm.js";const i={class:"flex-1 flex flex-col gap-4"},c={class:"text-right text-primary font-semibold text-lg"},_=s({__name:"PageContainer",props:{title:{}},setup(e){return(t,d)=>(a(),o("div",i,[l("div",c,r(e.title),1),n(t.$slots,"default")]))}});export{_};
