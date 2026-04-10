@@ -4,12 +4,12 @@ const env = (import.meta.env.MODE || 'development') as Env
 
 const apiBaseUrls: Record<Env, string> = {
   development: 'http://localhost:8080/api',
-  production: 'https://api.conhelp.kr/api',
+  production: 'https://api.conelp.kr/api',
 }
 
 const batApiBaseUrls: Record<Env, string> = {
-  development: 'https://bat.conhelp.kr',
-  production: 'https://bat.conhelp.kr',
+  development: 'https://bat.conelp.kr',
+  production: 'https://bat.conelp.kr',
 }
 
 export const appConfig = {

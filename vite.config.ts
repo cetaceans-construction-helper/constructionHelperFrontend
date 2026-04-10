@@ -23,10 +23,10 @@ export default defineConfig({
     },
   },
   server: {
-    allowedHosts: ['conhelp.kr', 'www.conhelp.kr', 'dev.conhelp.kr', 'localhost'],
+    allowedHosts: ['conelp.kr', 'www.conelp.kr', 'dev.conelp.kr', 'localhost'],
     proxy: {
       '/api': {
-        target: 'https://dev.conhelp.kr',
+        target: 'https://dev.conelp.kr',
         changeOrigin: true,
         secure: false,
       },
