@@ -69,9 +69,8 @@ const sections = [
   { id: 'document', label: '문서생성', shortLabel: '문서', path: '/helper/document/daily-report' },
   { id: 'process', label: '공정관리', shortLabel: '공정', path: '/helper/schedule/2d' },
   // { id: 'attendance', label: '출역관리', shortLabel: '출역', path: '/helper/attendance/input' },
-  { id: 'material', label: '자재관리', shortLabel: '자재', path: '/helper/material/delivery' },
-  { id: 'floor-plan', label: '도면관리', shortLabel: '도면', path: '/helper/floor-plan' },
-  { id: 'utility', label: '유용한 기능', shortLabel: '기능', path: '/helper/functions/cumulative-attendance' },
+  { id: 'material', label: '자원관리', shortLabel: '자원', path: '/helper/material/delivery' },
+  // { id: 'floor-plan', label: '도면관리', shortLabel: '도면', path: '/helper/floor-plan' },
   { id: 'admin', label: '관리자', shortLabel: '관리', path: '/helper/admin' },
 ]
 
@@ -85,8 +84,8 @@ interface MenuItem {
 
 const menusBySection: Record<string, MenuItem[]> = {
   process: [
-    { id: '2d-schedule', label: '2D공정표', path: '/helper/schedule/2d', icon: Grid2x2 },
-    { id: '3d-schedule', label: '3D공정표', path: '/helper/schedule/3d', icon: Box },
+    // { id: '2d-schedule', label: '2D공정표', path: '/helper/schedule/2d', icon: Grid2x2 },
+    // { id: '3d-schedule', label: '3D공정표', path: '/helper/schedule/3d', icon: Box },
   ],
   // attendance: [
   //   { id: 'attendance-input', label: '출역입력', path: '/helper/attendance/input', icon: UserPlus },
@@ -95,14 +94,10 @@ const menusBySection: Record<string, MenuItem[]> = {
   material: [
     { id: 'incoming', label: '반입자재', path: '/helper/material/delivery', icon: PackagePlus },
     // { id: 'order', label: '자재발주서', path: '/helper/material/order', icon: FileText },
-    { id: 'outgoing', label: '반출자재', path: '/helper/material/outgoing', icon: PackageMinus },
-    { id: 'remaining', label: '잔여자재', path: '/helper/material/remaining', icon: Package },
+    { id: 'cumulative-attendance', label: '출역집계', path: '/helper/functions/cumulative-attendance', icon: CalendarCheck },
   ],
   'floor-plan': [],
   document: [],
-  utility: [
-    { id: 'cumulative-attendance', label: '출역누적집계', path: '/helper/functions/cumulative-attendance', icon: CalendarCheck },
-  ],
   admin: [
     { id: 'master-data', label: '기준정보 관리', path: '/helper/admin', icon: Database },
     { id: 'resource-info', label: '자원정보 관리', path: '/helper/admin/resource', icon: Users },
@@ -186,7 +181,7 @@ const currentSection = computed(() => {
   if (path.startsWith('/helper/material')) return 'material'
   if (path.startsWith('/helper/floor-plan')) return 'floor-plan'
   if (path.startsWith('/helper/document')) return 'document'
-  if (path.startsWith('/helper/functions')) return 'utility'
+  if (path.startsWith('/helper/functions')) return 'material'
   if (path.startsWith('/helper/admin')) return 'admin'
   return 'dashboard'
 })
@@ -369,7 +364,7 @@ onUnmounted(() => {
       <div class="flex flex-1 relative">
         <!-- Floating Sidebar (2단계: Menu) - 대시보드에서는 숨김 -->
         <Sidebar
-          v-if="currentSection !== 'dashboard'"
+          v-if="currentSection !== 'dashboard' && currentSection !== 'process'"
           :collapsible="isPortrait ? 'offcanvas' : 'none'"
           class="border-r shadow-lg"
           :style="currentSection === 'document' ? { '--sidebar-width': '240px' } : {}"
@@ -455,7 +450,7 @@ onUnmounted(() => {
 
         <!-- 세로모드 햄버거 버튼 -->
         <button
-          v-if="isPortrait && currentSection !== 'dashboard'"
+          v-if="isPortrait && currentSection !== 'dashboard' && currentSection !== 'process'"
           class="fixed top-[69px] z-50 p-2 bg-primary text-primary-foreground rounded-md shadow-sm transition-[left] duration-200 ease-linear"
           :style="{ left: sidebarOpen ? `calc(${currentSection === 'document' ? '240px' : 'var(--sidebar-width)'} + 4px)` : '4px' }"
           @click="sidebarOpen = !sidebarOpen"
@@ -465,7 +460,7 @@ onUnmounted(() => {
 
         <!-- Content Area - RouterView로 각 페이지 렌더링 -->
         <div class="flex-1 w-full flex flex-col" @click="isPortrait && sidebarOpen ? (sidebarOpen = false) : undefined">
-          <div class="p-4 flex-1 flex flex-col">
+          <div class="flex-1 flex flex-col min-h-0" :class="currentSection === 'process' ? '' : 'p-4'">
             <RouterView />
           </div>
         </div>
