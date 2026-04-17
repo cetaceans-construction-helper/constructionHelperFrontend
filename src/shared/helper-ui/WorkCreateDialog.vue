@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { Button } from '@/shared/ui/button'
-import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
 import { DateStepper } from '@/shared/ui/date-stepper'
 import { NumberStepper } from '@/shared/ui/number-stepper'
@@ -23,6 +22,7 @@ import {
 import {
   referenceApi,
   type IdNameResponse,
+  type ComponentTypeResponse,
   type WorkTypeResponse,
   type SubWorkTypeResponse,
 } from '@/shared/network-core/apis/reference'
@@ -56,9 +56,8 @@ const startDate = ref('')
 const workLeadTime = ref(1)
 const zones = ref<IdNameResponse[]>([])
 const floors = ref<IdNameResponse[]>([])
-const componentDivisions = ref<IdNameResponse[]>([])
-const componentTypes = ref<IdNameResponse[]>([])
-const selectedComponentDivisionId = ref('')
+const componentTypes = ref<ComponentTypeResponse[]>([])
+const selectedIsStructure = ref<boolean | null>(null)
 const selectedZoneIds = ref<number[]>([])
 const selectedFloorIds = ref<number[]>([])
 const selectedComponentTypeIds = ref<number[]>([])
@@ -72,34 +71,28 @@ function toggleId(list: number[], id: number): number[] {
 }
 
 async function loadReferenceData() {
-  const [divList, zoneList, floorList, cdList] = await Promise.all([
+  const [divList, zoneList, floorList] = await Promise.all([
     referenceApi.getDivisionList(),
     referenceApi.getZoneList(),
     referenceApi.getFloorList(),
-    referenceApi.getComponentDivisionList(),
   ])
   divisions.value = divList
   zones.value = zoneList
   floors.value = floorList
-  componentDivisions.value = cdList
 }
 
-async function handleComponentDivisionChange(divisionId: string) {
-  selectedComponentDivisionId.value = divisionId
+async function handleIsStructureChange(isStructure: boolean | null) {
+  selectedIsStructure.value = isStructure
   selectedComponentTypeIds.value = []
   componentTypes.value = []
-  if (!divisionId) return
+  if (isStructure == null) return
 
   isLoadingComponentTypes.value = true
   try {
-    componentTypes.value = await referenceApi.getComponentTypeList(Number(divisionId))
+    componentTypes.value = await referenceApi.getComponentTypeList(isStructure)
   } finally {
     isLoadingComponentTypes.value = false
   }
-}
-
-async function loadDivisions() {
-  divisions.value = await referenceApi.getDivisionList()
 }
 
 async function handleDivisionChange(divisionId: any) {
@@ -140,7 +133,7 @@ watch(() => props.open, async (opened) => {
   selectedSubWorkTypeId.value = ''
   selectedZoneIds.value = []
   selectedFloorIds.value = []
-  selectedComponentDivisionId.value = ''
+  selectedIsStructure.value = null
   selectedComponentTypeIds.value = []
   componentTypes.value = []
   annotation.value = ''
@@ -154,7 +147,7 @@ watch(() => props.open, async (opened) => {
   if (props.presetWorkTypeName) {
     for (const div of divisions.value) {
       const wts = await referenceApi.getWorkTypeList(div.id)
-      const match = wts.find(wt => wt.displayName === props.presetWorkTypeName || wt.name === props.presetWorkTypeName)
+      const match = wts.find(wt => wt.name === props.presetWorkTypeName)
       if (match) {
         selectedDivisionId.value = String(div.id)
         workTypes.value = wts
@@ -193,8 +186,8 @@ async function handleSave() {
       scheduleVersionId: versionId,
       ...(selectedZoneIds.value.length > 0 && { zoneIds: selectedZoneIds.value }),
       ...(selectedFloorIds.value.length > 0 && { floorIds: selectedFloorIds.value }),
-      ...(selectedComponentTypeIds.value.length > 0 && selectedComponentDivisionId.value && {
-        componentTypes: [{ componentDivisionId: Number(selectedComponentDivisionId.value), componentTypeIds: selectedComponentTypeIds.value }],
+      ...(selectedComponentTypeIds.value.length > 0 && selectedIsStructure.value != null && {
+        componentTypes: [{ isStructure: selectedIsStructure.value, componentTypeIds: selectedComponentTypeIds.value }],
       }),
       ...(annotation.value.trim() && { annotation: annotation.value.trim() }),
     })
@@ -301,25 +294,31 @@ async function handleSave() {
         </div>
 
         <!-- 부재 -->
-        <div v-if="componentDivisions.length > 0" class="space-y-1.5">
+        <div class="space-y-1.5">
           <Label class="flex items-center gap-1">부재
             <ReferenceEditTrigger type="component" @refresh="loadReferenceData" />
           </Label>
           <div class="space-y-1">
-            <span class="text-xs text-muted-foreground">부재대분류</span>
-            <div class="flex flex-wrap gap-1.5">
+            <span class="text-xs text-muted-foreground">부재구분</span>
+            <div class="flex gap-1.5">
               <button
-                v-for="cd in componentDivisions" :key="cd.id"
                 class="px-3 py-1 text-sm rounded-md border transition-colors"
-                :class="selectedComponentDivisionId === String(cd.id) ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-background border-border text-foreground hover:bg-muted'"
-                @click="handleComponentDivisionChange(selectedComponentDivisionId === String(cd.id) ? '' : String(cd.id))"
+                :class="selectedIsStructure === true ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-background border-border text-foreground hover:bg-muted'"
+                @click="handleIsStructureChange(selectedIsStructure === true ? null : true)"
               >
-                {{ cd.name }}
+                구조
+              </button>
+              <button
+                class="px-3 py-1 text-sm rounded-md border transition-colors"
+                :class="selectedIsStructure === false ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-background border-border text-foreground hover:bg-muted'"
+                @click="handleIsStructureChange(selectedIsStructure === false ? null : false)"
+              >
+                비구조
               </button>
             </div>
           </div>
           <div v-if="isLoadingComponentTypes" class="text-sm text-muted-foreground">로딩...</div>
-          <div v-else-if="selectedComponentDivisionId && componentTypes.length > 0" class="space-y-1">
+          <div v-else-if="selectedIsStructure != null && componentTypes.length > 0" class="space-y-1">
             <span class="text-xs text-muted-foreground">부재타입</span>
             <div class="flex flex-wrap gap-1.5">
             <button
@@ -332,7 +331,7 @@ async function handleSave() {
             </button>
             </div>
           </div>
-          <div v-else-if="selectedComponentDivisionId && componentTypes.length === 0" class="text-sm text-muted-foreground">
+          <div v-else-if="selectedIsStructure != null && componentTypes.length === 0" class="text-sm text-muted-foreground">
             등록된 부재 타입 없음
           </div>
         </div>

@@ -29,4 +29,18 @@ export const object3dApi = {
     })
     return data
   },
+
+  /**
+   * 3D 객체 일괄 수정 (zone/floor/componentCode/layerColor)
+   */
+  async updateObject3dList(items: {
+    id: number
+    zoneId?: number | null
+    floorId?: number | null
+    componentCodeId?: number | null
+    layerColor?: Record<string, unknown> | null
+  }[]): Promise<Object3d[]> {
+    const { data } = await apiClient.put<Object3d[]>('/object3d/updateObject3dList', items)
+    return data
+  },
 }

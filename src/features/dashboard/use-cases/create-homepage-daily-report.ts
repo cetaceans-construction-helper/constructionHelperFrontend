@@ -1,9 +1,12 @@
 import type { HomepageCredentials } from '@/features/project-admin/homepage-setting/public'
 import { HOMEPAGE_CREDENTIALS_KEY } from '@/features/project-admin/homepage-setting/public'
 import type { WeatherByDateResponse } from '@/shared/network-core/contracts/calendar'
-import type { WorkResponse } from '@/shared/network-core/apis/work'
 import type { DeliveryQuantityByDate } from '@/features/material/public'
-import type { AttendanceGroup, EquipmentGroup } from '@/features/dashboard/model/dashboard-types'
+import type {
+  ActualWorkGroup,
+  AttendanceGroup,
+  EquipmentGroup,
+} from '@/features/dashboard/model/dashboard-types'
 import type { CreateDailyReportInWebPayload } from '@/features/dashboard/model/homepage-daily-report-types'
 import { homepageApi } from '@/features/dashboard/infra/homepage-api'
 import {
@@ -17,9 +20,8 @@ import { importPublicKey, rsaEncrypt } from '@/shared/utils/rsa-encrypt'
 interface CreateHomepageDailyReportParams {
   todayDayName: string
   todayWeather: WeatherByDateResponse | null
-  todayWorksByType: Map<string, WorkResponse[]>
-  tomorrowWorksByType: Map<string, WorkResponse[]>
-  simpleTomorrowWorksByType: Map<string, WorkResponse[]>
+  todayWorksByType: Map<number, ActualWorkGroup>
+  tomorrowWorksByType: Map<number, ActualWorkGroup>
   deliveryByWorkType: Map<string, DeliveryQuantityByDate[]>
   equipmentByGroup: EquipmentGroup[]
   attendanceByGroup: AttendanceGroup[]
@@ -58,10 +60,6 @@ export async function createHomepageDailyReport(params: CreateHomepageDailyRepor
   const publicKeyPem = await homepageApi.getPublicKey()
   const cryptoKey = await importPublicKey(publicKeyPem)
 
-  const tomorrowWorks = (creds.tomorrowWorkMode ?? 1) === 1
-    ? params.tomorrowWorksByType
-    : params.simpleTomorrowWorksByType
-
   const payload: CreateDailyReportInWebPayload = {
     navigateTo: creds.url,
     id: await rsaEncrypt(cryptoKey, creds.id),
@@ -71,7 +69,7 @@ export async function createHomepageDailyReport(params: CreateHomepageDailyRepor
       ? `${params.todayWeather.minTemperature} ~ ${params.todayWeather.maxTemperature}`
       : '',
     todayWork: `${params.todayDayName}요일\n\n${formatWorksByType(params.todayWorksByType)}`,
-    tomorrowWork: formatWorksByType(tomorrowWorks),
+    tomorrowWork: formatWorksByType(params.tomorrowWorksByType),
     materials: formatMaterials(params.deliveryByWorkType),
     equipment: formatEquipment(params.equipmentByGroup),
     manpower: formatManpower(params.attendanceByGroup),

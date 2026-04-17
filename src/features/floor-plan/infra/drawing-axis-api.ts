@@ -8,7 +8,7 @@ export interface DrawingAxisResponse {
 }
 
 export const drawingAxisApi = {
-  async createDrawingAxis(data: { isX: boolean; name: string; position: number }): Promise<DrawingAxisResponse> {
+  async createDrawingAxis(data: { isX: boolean; name: string; position: number }[]): Promise<DrawingAxisResponse[]> {
     const res = await apiClient.post('/drawingAxis/createDrawingAxis', data)
     return res.data
   },
@@ -18,8 +18,8 @@ export const drawingAxisApi = {
     return res.data
   },
 
-  async updateDrawingAxis(axisId: number, data: { name?: string; position?: number }): Promise<DrawingAxisResponse> {
-    const res = await apiClient.put(`/drawingAxis/updateDrawingAxis/${axisId}`, data)
+  async updateDrawingAxis(data: { id: number; name?: string; position?: number }[]): Promise<DrawingAxisResponse[]> {
+    const res = await apiClient.put('/drawingAxis/updateDrawingAxis', data)
     return res.data
   },
 

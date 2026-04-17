@@ -1,9 +1,9 @@
 import apiClient from '@/shared/network-core/apiClient'
 import type { WorkDepResponse } from './workDep'
 
-// 부재 대분류별 부재타입 그룹
+// 구조/비구조별 부재타입 그룹
 export interface ComponentTypeGroup {
-  componentDivisionId: number
+  isStructure: boolean
   componentTypeIds: number[]
 }
 
@@ -13,8 +13,6 @@ export interface CreateWorkPayload {
   componentTypes?: ComponentTypeGroup[]
   zoneIds?: number[]
   floorIds?: number[]
-  sectionIds?: number[]
-  usageIds?: number[]
   startDate: string
   workLeadTime: number
   isWorkingOnHoliday?: boolean
@@ -47,15 +45,9 @@ export interface WorkResponse {
   zoneIds?: number[]
   floorNames?: string[]
   floorIds?: number[]
-  sectionNames?: string[]
-  sectionIds?: number[]
-  usageNames?: string[]
-  usageIds?: number[]
   positionY: number
   componentTypes?: ComponentTypeGroup[]
   annotation?: string
-  photos?: WorkPhotoResponse[]
-  isSkipped?: boolean
 }
 
 // Mutation 응답 (Work/WorkDep 변경 시 공통 반환)
@@ -73,8 +65,6 @@ export interface UpdateWorkPayload {
   subWorkTypeId?: number
   zoneIds?: number[]
   floorIds?: number[]
-  sectionIds?: number[]
-  usageIds?: number[]
   componentTypes?: ComponentTypeGroup[]
   annotation?: string
 }
@@ -152,15 +142,15 @@ export const workApi = {
     return data
   },
 
-  // 작업 사진 업로드
+  // 작업 사진 업로드 (ActualWork 기반)
   async createWorkPhoto(
-    workId: number,
+    actualWorkId: number,
     photoDate: string,
     photos: File[],
     descriptions?: string[],
   ): Promise<void> {
     const formData = new FormData()
-    formData.append('workId', String(workId))
+    formData.append('actualWorkId', String(actualWorkId))
     formData.append('photoDate', photoDate)
     photos.forEach((file) => formData.append('photos', file))
     if (descriptions) {
@@ -180,12 +170,6 @@ export const workApi = {
   // 작업 사진 삭제
   async deleteWorkPhoto(photoId: number): Promise<void> {
     await apiClient.delete(`/work/deleteWorkPhoto/${photoId}`)
-  },
-
-  // 공정명 재생성 (임시)
-  async rebuildAllWorkNames(): Promise<string> {
-    const { data } = await apiClient.post<string>('/work/rebuildAllWorkNames')
-    return data
   },
 
   // 작업 사진 다운로드 (ObjectURL 반환)

@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { createModelFromApiData } from './loader/apiModelLoader'
 import type { Object3d } from '@/features/schedule/schedule-3d/model/object3d-types'
 import { CameraController } from './control/CameraController'
@@ -20,6 +21,14 @@ export class Engine {
   private resizeHandler: (() => void) | null = null
 
   private rhinoModel: THREE.Object3D | null = null
+  private axisGroup: THREE.Group | null = null
+  private axisData: { xAxes: { name: string; position: number }[]; yAxes: { name: string; position: number }[] } | null = null
+  private isTopView = false
+  private orthoCamera: THREE.OrthographicCamera | null = null
+  private orthoControls: OrbitControls | null = null
+  private orthoWheelHandler: ((e: WheelEvent) => void) | null = null
+  private orthoKeyDown: ((e: KeyboardEvent) => void) | null = null
+  private orthoKeyUp: ((e: KeyboardEvent) => void) | null = null
   private originalColors: Map<string, THREE.Color> = new Map()
   private cameraController: CameraController
   private rotationController: RotationController
@@ -82,7 +91,7 @@ export class Engine {
 
     // SelectionController 초기화
     this.selectionController = new SelectionController()
-    this.selectionController.init(this.cameraController.getCamera(), this.scene, this.renderer.domElement)
+    this.selectionController.init(this.cameraController.getCamera(), this.scene, this.renderer.domElement, this.renderer)
 
     // ClippingController 초기화 (비활성화)
     // this.clippingController = new ClippingController()
@@ -134,14 +143,246 @@ export class Engine {
   }
 
   /**
-   * y축 기준 카메라 회전 (각도 단위) - target 중심으로 회전
+   * 축선 데이터 저장 (퍼스펙티브에서는 렌더링하지 않음, 탑뷰 전환 시 렌더링)
    */
-  rotateZ(degrees: number): void {
-    const controls = this.getControls()
-    if (controls) {
-      this.cameraController.rotateAroundTarget(degrees, controls.target)
-      controls.update()
+  addAxisLines(xAxes: { name: string; position: number }[], yAxes: { name: string; position: number }[]): void {
+    this.axisData = { xAxes, yAxes }
+    // 탑뷰 중이면 즉시 렌더링
+    if (this.isTopView) this.renderAxisLines()
+  }
+
+  private renderAxisLines(): void {
+    this.removeAxisLines()
+    if (!this.axisData || !this.rhinoModel) return
+
+    const { xAxes, yAxes } = this.axisData
+    const axisY = 1000000 // 충분히 높은 위치 (탑뷰 오쏘 카메라에서 모델 위로 렌더링)
+
+    const xPositions = xAxes.map(a => a.position)
+    const yPositions = yAxes.map(a => a.position)
+    const xMin = xPositions.length > 0 ? Math.min(...xPositions) : 0
+    const xMax = xPositions.length > 0 ? Math.max(...xPositions) : 0
+    const yMin = yPositions.length > 0 ? Math.min(...yPositions) : 0
+    const yMax = yPositions.length > 0 ? Math.max(...yPositions) : 0
+    const xSpan = xMax - xMin || 10000
+    const ySpan = yMax - yMin || 10000
+    const xOverhang = xSpan * 0.25
+    const yOverhang = ySpan * 0.25
+
+    this.axisGroup = new THREE.Group()
+    this.axisGroup.name = 'AxisLines'
+
+    for (const axis of xAxes) {
+      const x = axis.position
+      const zStart = -(yMin - yOverhang)
+      const zEnd = -(yMax + yOverhang)
+      this.createDashedLine(
+        new THREE.Vector3(x, axisY, zStart),
+        new THREE.Vector3(x, axisY, zEnd),
+        0xef4444
+      )
+      this.createTextSprite(`X${axis.name}`, new THREE.Vector3(x, axisY, zEnd - ySpan * 0.05), 0xef4444)
     }
+
+    for (const axis of yAxes) {
+      const z = -axis.position
+      const xStart = xMin - xOverhang
+      const xEnd = xMax + xOverhang
+      this.createDashedLine(
+        new THREE.Vector3(xStart, axisY, z),
+        new THREE.Vector3(xEnd, axisY, z),
+        0x3b82f6
+      )
+      this.createTextSprite(`Y${axis.name}`, new THREE.Vector3(xStart - xSpan * 0.05, axisY, z), 0x3b82f6)
+    }
+
+    this.scene.add(this.axisGroup)
+  }
+
+  private createDashedLine(start: THREE.Vector3, end: THREE.Vector3, color: number): void {
+    if (!this.axisGroup) return
+    const geometry = new THREE.BufferGeometry().setFromPoints([start, end])
+    const material = new THREE.LineDashedMaterial({
+      color,
+      dashSize: 500,
+      gapSize: 250,
+      linewidth: 1,
+    })
+    const line = new THREE.Line(geometry, material)
+    line.computeLineDistances()
+    this.axisGroup.add(line)
+  }
+
+  private createTextSprite(text: string, position: THREE.Vector3, color: number): void {
+    if (!this.axisGroup) return
+    const canvas = document.createElement('canvas')
+    const size = 256
+    canvas.width = size
+    canvas.height = size
+    const ctx = canvas.getContext('2d')!
+    ctx.clearRect(0, 0, size, size)
+    ctx.font = 'bold 120px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = `#${color.toString(16).padStart(6, '0')}`
+    ctx.fillText(text, size / 2, size / 2)
+
+    const texture = new THREE.CanvasTexture(canvas)
+    const material = new THREE.SpriteMaterial({ map: texture, depthTest: false })
+    const sprite = new THREE.Sprite(material)
+    sprite.position.copy(position)
+
+    // 스프라이트 크기: 모델 스케일에 맞춤
+    const box = new THREE.Box3().setFromObject(this.rhinoModel!)
+    const modelSize = box.getSize(new THREE.Vector3())
+    const spriteScale = Math.max(modelSize.x, modelSize.z) * 0.04
+    sprite.scale.set(spriteScale, spriteScale, 1)
+
+    this.axisGroup.add(sprite)
+  }
+
+  removeAxisLines(): void {
+    if (this.axisGroup) {
+      this.axisGroup.traverse((child) => {
+        if (child instanceof THREE.Line) {
+          child.geometry.dispose()
+          ;(child.material as THREE.Material).dispose()
+        }
+        if (child instanceof THREE.Sprite) {
+          child.material.map?.dispose()
+          child.material.dispose()
+        }
+      })
+      this.scene.remove(this.axisGroup)
+      this.axisGroup = null
+    }
+  }
+
+  /**
+   * 탑뷰: OrthographicCamera로 전환, 위에서 아래를 내려다보는 시점
+   */
+  setTopView(): void {
+    if (!this.rhinoModel) return
+    const box = new THREE.Box3().setFromObject(this.rhinoModel)
+    const center = box.getCenter(new THREE.Vector3())
+    const size = box.getSize(new THREE.Vector3())
+
+    const width = this.container.clientWidth
+    const height = this.container.clientHeight
+    const aspect = width / height
+
+    // 모델이 화면에 맞도록 frustum 계산
+    const maxDim = Math.max(size.x, size.z) * 0.75
+    const frustumH = maxDim
+    const frustumW = frustumH * aspect
+
+    this.orthoCamera = new THREE.OrthographicCamera(
+      -frustumW, frustumW, frustumH, -frustumH,
+      0.1, 2000001,
+    )
+    this.orthoCamera.up.set(0, 0, -1) // Rhino Y(→Three.js -Z)가 화면 위쪽
+    this.orthoCamera.position.set(center.x, 1000001, center.z)
+    this.orthoCamera.lookAt(center)
+    this.orthoCamera.updateProjectionMatrix()
+
+    // 탑뷰 전용 OrbitControls
+    const isPortrait = window.matchMedia('(max-aspect-ratio: 1/1)').matches
+    this.orthoControls = new OrbitControls(this.orthoCamera, this.renderer.domElement)
+    this.orthoControls.enableRotate = false
+    this.orthoControls.enablePan = isPortrait // 세로모드: 기본 패닝 활성화
+    this.orthoControls.enableZoom = false
+    this.orthoControls.enableDamping = false
+    this.orthoControls.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: null as unknown as THREE.MOUSE }
+    this.orthoControls.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_PAN }
+    this.orthoControls.target.set(center.x, 0, center.z)
+    this.orthoControls.update()
+
+    // 가로모드: Space 키로 패닝 토글
+    if (!isPortrait) {
+      this.orthoKeyDown = (e: KeyboardEvent) => {
+        if (e.code === 'Space' && this.orthoControls) {
+          e.preventDefault()
+          this.orthoControls.enablePan = true
+        }
+      }
+      this.orthoKeyUp = (e: KeyboardEvent) => {
+        if (e.code === 'Space' && this.orthoControls) {
+          this.orthoControls.enablePan = false
+        }
+      }
+      window.addEventListener('keydown', this.orthoKeyDown)
+      window.addEventListener('keyup', this.orthoKeyUp)
+    }
+
+    // 가로모드: 휠 줌 핸들러 (세로모드: 스크롤 캡처 안함, 버튼 줌만)
+    if (!isPortrait) {
+      this.orthoWheelHandler = (e: WheelEvent) => {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        const zoomFactor = e.deltaY > 0 ? 1.1 : 0.9
+        this.zoomOrtho(zoomFactor)
+      }
+      this.renderer.domElement.addEventListener('wheel', this.orthoWheelHandler, { passive: false, capture: true })
+    }
+
+    // SelectionController에 ortho 카메라 사용하도록 오버라이드
+    this.selectionController.setCameraOverride(() => this.getActiveCamera())
+
+    this.isTopView = true
+
+    // 탑뷰에서만 축선 렌더링
+    this.renderAxisLines()
+  }
+
+  private zoomOrtho(factor: number): void {
+    if (!this.orthoCamera) return
+    this.orthoCamera.left *= factor
+    this.orthoCamera.right *= factor
+    this.orthoCamera.top *= factor
+    this.orthoCamera.bottom *= factor
+    this.orthoCamera.updateProjectionMatrix()
+  }
+
+  zoomIn(): void { this.zoomOrtho(0.8) }
+  zoomOut(): void { this.zoomOrtho(1.25) }
+
+  /**
+   * 기본 뷰 복귀: PerspectiveCamera로 전환
+   */
+  resetView(): void {
+    // 축선 제거
+    this.removeAxisLines()
+
+    // ortho 정리
+    if (this.orthoControls) {
+      this.orthoControls.dispose()
+      this.orthoControls = null
+    }
+    if (this.orthoWheelHandler) {
+      this.renderer.domElement.removeEventListener('wheel', this.orthoWheelHandler, { capture: true })
+      this.orthoWheelHandler = null
+    }
+    if (this.orthoKeyDown) { window.removeEventListener('keydown', this.orthoKeyDown); this.orthoKeyDown = null }
+    if (this.orthoKeyUp) { window.removeEventListener('keyup', this.orthoKeyUp); this.orthoKeyUp = null }
+    this.orthoCamera = null
+
+    // SelectionController 카메라 오버라이드 해제
+    this.selectionController.setCameraOverride(null)
+
+    if (!this.rhinoModel) return
+    this.cameraController.fitToModel(this.rhinoModel, this.getControls() ?? undefined)
+    this.isTopView = false
+  }
+
+  /**
+   * 현재 활성 카메라
+   */
+  getActiveCamera(): THREE.Camera {
+    return this.isTopView && this.orthoCamera ? this.orthoCamera : this.cameraController.getCamera()
+  }
+
+  getIsTopView(): boolean {
+    return this.isTopView
   }
 
   // =====================
@@ -374,28 +615,17 @@ export class Engine {
 
         // 원래 색상 저장 (최초 1회)
         if (!this.originalColors.has(child.uuid)) {
-          const storedOrig = this.selectionController.getOriginalMaterial(child.uuid)
-          const trueMat = (storedOrig && !Array.isArray(storedOrig))
-            ? storedOrig as THREE.MeshStandardMaterial
-            : child.material as THREE.MeshStandardMaterial
-          this.originalColors.set(child.uuid, trueMat.color.clone())
+          const mat = child.material as THREE.MeshStandardMaterial
+          this.originalColors.set(child.uuid, mat.color.clone())
         }
 
         const targetColor = isEmphasized
           ? this.originalColors.get(child.uuid)!
           : GRAY
 
-        // 3D 선택 중이면 원본 material만 변경 (하이라이트 clone은 유지)
-        const storedOrig = this.selectionController.getOriginalMaterial(child.uuid)
-        if (storedOrig && !Array.isArray(storedOrig)) {
-          const orig = storedOrig as THREE.MeshStandardMaterial
-          orig.color.copy(targetColor)
-          orig.needsUpdate = true
-        } else {
-          const currentMat = child.material as THREE.MeshStandardMaterial
-          currentMat.color.copy(targetColor)
-          currentMat.needsUpdate = true
-        }
+        const currentMat = child.material as THREE.MeshStandardMaterial
+        currentMat.color.copy(targetColor)
+        currentMat.needsUpdate = true
       }
     })
   }
@@ -411,11 +641,13 @@ export class Engine {
     const animate = () => {
       this.animationId = requestAnimationFrame(animate)
 
-      // 회전 및 OrbitControls 업데이트 (RotationController에 위임)
-      this.rotationController.update()
+      if (this.isTopView && this.orthoControls) {
+        this.orthoControls.update()
+      } else {
+        this.rotationController.update()
+      }
 
-      // 렌더링
-      this.renderer.render(this.scene, this.cameraController.getCamera())
+      this.renderer.render(this.scene, this.getActiveCamera())
     }
 
     animate()
@@ -441,6 +673,15 @@ export class Engine {
     // 카메라 리사이즈 (CameraController에 위임)
     this.cameraController.handleResize()
 
+    // ortho 카메라 리사이즈
+    if (this.orthoCamera) {
+      const aspect = width / height
+      const frustumH = (this.orthoCamera.top - this.orthoCamera.bottom) / 2
+      this.orthoCamera.left = -frustumH * aspect
+      this.orthoCamera.right = frustumH * aspect
+      this.orthoCamera.updateProjectionMatrix()
+    }
+
     this.renderer.setSize(width, height)
   }
 
@@ -464,6 +705,19 @@ export class Engine {
 
     // ClippingController 정리 (비활성화)
     // this.clippingController.dispose()
+
+    // 탑뷰 정리
+    if (this.orthoControls) { this.orthoControls.dispose(); this.orthoControls = null }
+    if (this.orthoWheelHandler) {
+      this.renderer.domElement.removeEventListener('wheel', this.orthoWheelHandler, { capture: true })
+      this.orthoWheelHandler = null
+    }
+    if (this.orthoKeyDown) { window.removeEventListener('keydown', this.orthoKeyDown); this.orthoKeyDown = null }
+    if (this.orthoKeyUp) { window.removeEventListener('keyup', this.orthoKeyUp); this.orthoKeyUp = null }
+    this.orthoCamera = null
+
+    // 축선 정리
+    this.removeAxisLines()
 
     // 모델 정리
     if (this.rhinoModel) {

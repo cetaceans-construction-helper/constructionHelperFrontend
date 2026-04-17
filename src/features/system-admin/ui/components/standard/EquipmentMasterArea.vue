@@ -13,7 +13,7 @@ import {
   AlertDialogTitle,
 } from '@/shared/ui/alert-dialog'
 import SortableReferenceList from '@/shared/helper-ui/SortableReferenceList.vue'
-import { useEquipmentMaster } from '@/features/project-admin/resource/view-model/useEquipmentMaster'
+import { useEquipmentMaster } from '@/features/system-admin/view-model/standard/useEquipmentMaster'
 
 const {
   equipmentTypes,

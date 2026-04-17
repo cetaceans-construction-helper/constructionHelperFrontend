@@ -33,7 +33,7 @@ export function useBulkDeployment() {
   // 참조 데이터
   const laborTypes = ref<LaborTypeResponse[]>([])
   const equipmentSpecs = ref<EquipmentSpecResponse[]>([])
-  const workTypes = ref<{ id: number; name: string; displayName: string }[]>([])
+  const workTypes = ref<{ id: number; name: string }[]>([])
 
   // 입력 행
   let nextAttendanceId = 1
@@ -95,10 +95,10 @@ export function useBulkDeployment() {
       equipmentSpecs.value = equipRes
 
       // workType 목록을 laborTypes에서 추출 (unique)
-      const wtMap = new Map<number, { id: number; name: string; displayName: string }>()
+      const wtMap = new Map<number, { id: number; name: string }>()
       laborRes.forEach((lt) => {
         if (!wtMap.has(lt.workTypeId)) {
-          wtMap.set(lt.workTypeId, { id: lt.workTypeId, name: lt.workTypeName, displayName: lt.workTypeName })
+          wtMap.set(lt.workTypeId, { id: lt.workTypeId, name: lt.workTypeName })
         }
       })
       workTypes.value = Array.from(wtMap.values())

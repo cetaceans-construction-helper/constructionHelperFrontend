@@ -10,8 +10,6 @@ import { projectAdminHolidayRouteComponents } from '@/features/project-admin/hol
 import { projectAdminMasterDataRouteComponents } from '@/features/project-admin/master-data/public'
 import { projectAdminBulkDeploymentRouteComponents } from '@/features/project-admin/bulk-deployment/public'
 import { projectAdminHomepageSettingRouteComponents } from '@/features/project-admin/homepage-setting/public'
-import { rebuildWorkNamesRouteComponents } from '@/features/project-admin/rebuild-work-names/public'
-import { projectAdminResourceRouteComponents } from '@/features/project-admin/resource/public'
 import { floorPlanRouteComponents } from '@/features/floor-plan/public'
 import { schedule2dRouteComponents } from '@/features/schedule/schedule-2d/public'
 import { schedule3dRouteComponents } from '@/features/schedule/schedule-3d/public'
@@ -51,16 +49,16 @@ const router = createRouter({
           redirect: '/helper/schedule/2d',
           children: [
             {
-              path: '3d',
-              name: 'schedule-3d',
-              component: schedule3dRouteComponents.Schedule3dPage,
-            },
-            {
               path: '2d',
               name: 'schedule-2d',
               component: schedule2dRouteComponents.Schedule2dPage,
             },
           ],
+        },
+        {
+          path: '3d-model',
+          name: '3d-model',
+          component: schedule3dRouteComponents.Schedule3dPage,
         },
         {
           path: 'attendance/input',
@@ -133,11 +131,6 @@ const router = createRouter({
           component: projectAdminMasterDataRouteComponents.AdminPage,
         },
         {
-          path: 'admin/resource',
-          name: 'admin-resource',
-          component: projectAdminResourceRouteComponents.ResourceManagementPage,
-        },
-        {
           path: 'admin/document',
           name: 'admin-document',
           component: projectAdminDocumentSettingRouteComponents.DocumentSettingPage,
@@ -161,11 +154,6 @@ const router = createRouter({
           path: 'admin/homepage-setting',
           name: 'admin-homepage-setting',
           component: projectAdminHomepageSettingRouteComponents.HomepageSettingPage,
-        },
-        {
-          path: 'admin/rebuild-work-names',
-          name: 'admin-rebuild-work-names',
-          component: rebuildWorkNamesRouteComponents.RebuildWorkNamesPage,
         },
       ],
     },

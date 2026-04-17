@@ -51,7 +51,7 @@ import {
   type RefWorkType,
 } from '@/features/schedule/schedule-2d/use-cases/rowLayout'
 import { buildWorkBlocks, workBlockToNode } from '@/features/schedule/schedule-2d/use-cases/workBlockBuilder'
-import { referenceApi } from '@/shared/network-core/apis/reference'
+import { referenceApi, type IdNameResponse } from '@/shared/network-core/apis/reference'
 import WorkNode from './WorkNode.vue'
 import WorkBlockNode from './WorkBlockNode.vue'
 import LeftHeader from './LeftHeader.vue'
@@ -78,6 +78,13 @@ import { useWorkTooltipData } from '@/features/schedule/schedule-2d/view-model/u
 const emit = defineEmits<{
   'works-loaded': [works: WorkResponse[]]
 }>()
+
+// 세로모드
+const isPortrait = ref(false)
+const portraitMql = window.matchMedia('(max-aspect-ratio: 1/1)')
+isPortrait.value = portraitMql.matches
+portraitMql.addEventListener('change', (e) => { isPortrait.value = e.matches })
+const leftHeaderWidth = computed(() => isPortrait.value ? 0 : LEFT_HEADER_WIDTH)
 
 // VueFlow
 const nodes = ref<Node[]>([])
@@ -116,6 +123,7 @@ const isLoadingWorks = ref(false)
 
 // Reference tree (API 순서 보존)
 const refTree = ref<RefWorkType[]>([])
+const refDivisions = ref<IdNameResponse[]>([])
 const cornerDialogOpen = ref(false)
 const zoneDialogOpen = ref(false)
 const floorDialogOpen = ref(false)
@@ -129,6 +137,7 @@ const loadRefTree = async () => {
   try {
     // 1라운드: divisions
     const divisions = await referenceApi.getDivisionList()
+    refDivisions.value = divisions
 
     // 2라운드: 모든 division의 workTypes 병렬
     const workTypesByDiv = await Promise.all(
@@ -141,13 +150,160 @@ const loadRefTree = async () => {
       allWorkTypes.map((wt) => referenceApi.getSubWorkTypeList(wt.id)),
     )
 
-    // 순서 유지하며 트리 재구성
+    // 순서 유지하며 트리 재구성 (division 정보 포함)
+    const divMap = new Map(divisions.map((d) => [d.id, d.name]))
     refTree.value = allWorkTypes.map((wt, idx) => ({
+      id: wt.id,
       name: wt.name,
+      divisionId: wt.divisionId,
+      divisionName: divMap.get(wt.divisionId) ?? '',
       subWorkTypes: subsByWorkType[idx]!.map((s) => ({ id: s.id, name: s.name })),
     }))
   } catch (error) {
     console.error('Reference tree 로드 실패:', error)
+  }
+}
+
+// LeftHeader 인라인 CRUD 핸들러
+function extractErrorMessage(e: unknown): string {
+  const err = e as { response?: { data?: { message?: string } }; message?: string }
+  return err.response?.data?.message || err.message || ''
+}
+
+async function refreshRefData() {
+  await loadRefTree()
+  await td.loadReferenceData()
+}
+
+async function handleAddDivision(name: string) {
+  try {
+    await referenceApi.createDivision(name)
+    await refreshRefData()
+    analyticsClient.trackAction('schedule_2d', 'create_division', 'success')
+  } catch (e: unknown) {
+    analyticsClient.trackAction('schedule_2d', 'create_division', 'fail')
+    alert(extractErrorMessage(e))
+  }
+}
+
+async function handleUpdateDivision(id: number, name: string) {
+  try {
+    await referenceApi.updateDivision({ id, name })
+    await refreshRefData()
+    analyticsClient.trackAction('schedule_2d', 'update_division', 'success')
+  } catch (e: unknown) {
+    analyticsClient.trackAction('schedule_2d', 'update_division', 'fail')
+    alert(extractErrorMessage(e))
+  }
+}
+
+async function handleDeleteDivision(id: number) {
+  try {
+    await referenceApi.deleteDivision(id)
+    await refreshRefData()
+    analyticsClient.trackAction('schedule_2d', 'delete_division', 'success')
+  } catch (e: unknown) {
+    analyticsClient.trackAction('schedule_2d', 'delete_division', 'fail')
+    alert(extractErrorMessage(e))
+  }
+}
+
+async function handleAddWorkType(divisionId: number, name: string, isStructure: boolean) {
+  try {
+    await referenceApi.createWorkType(divisionId, name, isStructure)
+    await refreshRefData()
+    analyticsClient.trackAction('schedule_2d', 'create_work_type', 'success')
+  } catch (e: unknown) {
+    analyticsClient.trackAction('schedule_2d', 'create_work_type', 'fail')
+    alert(extractErrorMessage(e))
+  }
+}
+
+async function handleUpdateWorkType(id: number, name: string) {
+  try {
+    await referenceApi.updateWorkType({ id, name })
+    await refreshRefData()
+    analyticsClient.trackAction('schedule_2d', 'update_work_type', 'success')
+  } catch (e: unknown) {
+    analyticsClient.trackAction('schedule_2d', 'update_work_type', 'fail')
+    alert(extractErrorMessage(e))
+  }
+}
+
+async function handleDeleteWorkType(id: number) {
+  try {
+    await referenceApi.deleteWorkType(id)
+    await refreshRefData()
+    analyticsClient.trackAction('schedule_2d', 'delete_work_type', 'success')
+  } catch (e: unknown) {
+    analyticsClient.trackAction('schedule_2d', 'delete_work_type', 'fail')
+    alert(extractErrorMessage(e))
+  }
+}
+
+async function handleAddSubWorkType(workTypeId: number, name: string) {
+  try {
+    await referenceApi.createSubWorkType(workTypeId, name)
+    await refreshRefData()
+    analyticsClient.trackAction('schedule_2d', 'create_sub_work_type', 'success')
+  } catch (e: unknown) {
+    analyticsClient.trackAction('schedule_2d', 'create_sub_work_type', 'fail')
+    alert(extractErrorMessage(e))
+  }
+}
+
+async function handleUpdateSubWorkType(id: number, name: string) {
+  try {
+    await referenceApi.updateSubWorkType({ id, name })
+    await refreshRefData()
+    analyticsClient.trackAction('schedule_2d', 'update_sub_work_type', 'success')
+  } catch (e: unknown) {
+    analyticsClient.trackAction('schedule_2d', 'update_sub_work_type', 'fail')
+    alert(extractErrorMessage(e))
+  }
+}
+
+async function handleDeleteSubWorkType(id: number) {
+  try {
+    await referenceApi.deleteSubWorkType(id)
+    await refreshRefData()
+    analyticsClient.trackAction('schedule_2d', 'delete_sub_work_type', 'success')
+  } catch (e: unknown) {
+    analyticsClient.trackAction('schedule_2d', 'delete_sub_work_type', 'fail')
+    alert(extractErrorMessage(e))
+  }
+}
+
+async function handleReorderDivisions(ids: number[]) {
+  try {
+    await referenceApi.updateDivision({ ids })
+    await refreshRefData()
+    analyticsClient.trackAction('schedule_2d', 'reorder_divisions', 'success')
+  } catch (e: unknown) {
+    analyticsClient.trackAction('schedule_2d', 'reorder_divisions', 'fail')
+    alert(extractErrorMessage(e))
+  }
+}
+
+async function handleReorderWorkTypes(divisionId: number, ids: number[]) {
+  try {
+    await referenceApi.updateWorkType({ ids, parentId: divisionId })
+    await refreshRefData()
+    analyticsClient.trackAction('schedule_2d', 'reorder_work_types', 'success')
+  } catch (e: unknown) {
+    analyticsClient.trackAction('schedule_2d', 'reorder_work_types', 'fail')
+    alert(extractErrorMessage(e))
+  }
+}
+
+async function handleReorderSubWorkTypes(workTypeId: number, ids: number[]) {
+  try {
+    await referenceApi.updateSubWorkType({ ids, parentId: workTypeId })
+    await refreshRefData()
+    analyticsClient.trackAction('schedule_2d', 'reorder_sub_work_types', 'success')
+  } catch (e: unknown) {
+    analyticsClient.trackAction('schedule_2d', 'reorder_sub_work_types', 'fail')
+    alert(extractErrorMessage(e))
   }
 }
 
@@ -433,7 +589,7 @@ const loadWorkData = async (centerToday = false) => {
         const containerWidth = container.clientWidth
         const zoom = 0.6
         const todayX = 0 // dayIndex=0이 오늘
-        const centerX = (containerWidth / 2 - LEFT_HEADER_WIDTH / 2)
+        const centerX = (containerWidth / 2 - leftHeaderWidth.value / 2)
         setViewport({ x: -todayX * zoom + centerX, y: 0, zoom })
       }
     }
@@ -753,7 +909,7 @@ const onConnectingMouseMove = (e: MouseEvent) => {
   if (!container) return
   const rect = container.getBoundingClientRect()
   connectingMousePos.value = {
-    x: (e.clientX - rect.left - LEFT_HEADER_WIDTH - viewport.value.x) / viewport.value.zoom,
+    x: (e.clientX - rect.left - leftHeaderWidth.value - viewport.value.x) / viewport.value.zoom,
     y: (e.clientY - rect.top - activeHeaderHeight.value - viewport.value.y) / viewport.value.zoom,
   }
 }
@@ -897,9 +1053,13 @@ const onContainerMouseDown = (event: MouseEvent) => {
 // 컨테이너 우클릭 → 배경 컨텍스트 메뉴 (작업 생성) — 주단위화면에서 비활성
 const onContainerContextMenu = (event: MouseEvent) => {
   if (isWeeklyMode.value) { event.preventDefault(); return }
-  // 노드/엣지 위에서 발생한 건 무시 (노드 우클릭은 별도 처리)
+  // 노드/엣지/LeftHeader 위에서 발생한 건 무시 (각자 별도 컨텍스트 메뉴 처리)
   const target = event.target as HTMLElement
-  if (target.closest('.vue-flow__node') || target.closest('.vue-flow__edge')) return
+  if (
+    target.closest('.vue-flow__node') ||
+    target.closest('.vue-flow__edge') ||
+    target.closest('[data-left-header]')
+  ) return
 
   event.preventDefault()
 
@@ -907,7 +1067,7 @@ const onContainerContextMenu = (event: MouseEvent) => {
   if (!container) return
   const rect = container.getBoundingClientRect()
   const flowX =
-    (event.clientX - rect.left - LEFT_HEADER_WIDTH - viewport.value.x) / viewport.value.zoom
+    (event.clientX - rect.left - leftHeaderWidth.value - viewport.value.x) / viewport.value.zoom
   const flowY = (event.clientY - rect.top - activeHeaderHeight.value - viewport.value.y) / viewport.value.zoom
 
   // 우클릭한 행 강조
@@ -1282,7 +1442,7 @@ const handleVueFlowWheel = (e: WheelEvent) => {
   const container = containerRef.value
   if (!container) return
   const rect = container.getBoundingClientRect()
-  const mouseX = e.clientX - rect.left - LEFT_HEADER_WIDTH
+  const mouseX = e.clientX - rect.left - leftHeaderWidth.value
   // Y축 확대/축소 기준점을 헤더 바로 아래(차트 최상단)로 고정
   const anchorY = 0
 
@@ -1441,10 +1601,11 @@ async function handleExcludeConfirm(excludedIds: number[]) {
       @mousedown.capture="onContainerMouseDown"
       @contextmenu="onContainerContextMenu"
     >
-      <!-- 코너 셀 -->
+      <!-- 코너 셀 (세로모드 숨김) -->
       <div
+        v-if="!isPortrait"
         class="absolute z-30 bg-muted border-b border-r border-border flex flex-col items-center justify-center text-xs font-medium"
-        :style="{ width: `${LEFT_HEADER_WIDTH}px`, height: `${activeHeaderHeight}px` }"
+        :style="{ width: `${leftHeaderWidth}px`, height: `${activeHeaderHeight}px` }"
       >
         <!-- 일단위화면: 공종/세부공종 -->
         <template v-if="!isWeeklyMode">
@@ -1504,7 +1665,7 @@ async function handleExcludeConfirm(excludedIds: number[]) {
       <!-- 날짜 헤더 바 -->
       <div
         class="absolute top-0 right-0 bg-muted/80 border-b border-border z-20 overflow-hidden"
-        :style="{ left: `${LEFT_HEADER_WIDTH}px`, height: `${activeHeaderHeight}px` }"
+        :style="{ left: `${leftHeaderWidth}px`, height: `${activeHeaderHeight}px` }"
       >
         <div class="absolute w-full h-full" :style="{ transform: `translateX(${viewport.x}px)` }">
           <!-- Row 1: 년 -->
@@ -1608,20 +1769,34 @@ async function handleExcludeConfirm(excludedIds: number[]) {
         </div>
       </div>
 
-      <!-- 왼쪽 헤더 -->
+      <!-- 왼쪽 헤더 (세로모드 숨김) -->
       <LeftHeader
+        v-if="!isPortrait"
         :row-layout="rowLayout"
         :weekly-row-layout="weeklyRowLayout"
         :weekly-mode="isWeeklyMode"
         :viewport-y="viewport.y"
         :zoom="viewport.zoom"
         :header-height="activeHeaderHeight"
+        :divisions="refDivisions"
+        @add-division="handleAddDivision"
+        @update-division="handleUpdateDivision"
+        @delete-division="handleDeleteDivision"
+        @add-work-type="handleAddWorkType"
+        @update-work-type="handleUpdateWorkType"
+        @delete-work-type="handleDeleteWorkType"
+        @add-sub-work-type="handleAddSubWorkType"
+        @update-sub-work-type="handleUpdateSubWorkType"
+        @delete-sub-work-type="handleDeleteSubWorkType"
+        @reorder-divisions="handleReorderDivisions"
+        @reorder-work-types="handleReorderWorkTypes"
+        @reorder-sub-work-types="handleReorderSubWorkTypes"
       />
 
       <!-- VueFlow wrapper: 헤더/좌측 패널 아래 영역에만 배치 (좌표계 정렬) -->
       <div
         class="absolute right-0 bottom-0"
-        :style="{ top: `${activeHeaderHeight}px`, left: `${LEFT_HEADER_WIDTH}px` }"
+        :style="{ top: `${activeHeaderHeight}px`, left: `${leftHeaderWidth}px` }"
       >
         <VueFlow
           v-model:nodes="activeNodes"
@@ -1638,14 +1813,15 @@ async function handleExcludeConfirm(excludedIds: number[]) {
           :zoom-on-double-click="false"
           :disable-keyboard-a11y="true"
           :nodes-connectable="false"
-          @node-click="onNodeClick"
-          @node-context-menu="onNodeContextMenu"
-          @edge-context-menu="onEdgeContextMenu"
+          :nodes-draggable="!isPortrait"
+          @node-click="isPortrait ? undefined : onNodeClick($event)"
+          @node-context-menu="isPortrait ? undefined : onNodeContextMenu($event)"
+          @edge-context-menu="isPortrait ? undefined : onEdgeContextMenu($event)"
           @node-mouse-enter="setHoveredNode($event.node.id)"
           @node-mouse-leave="scheduleHoverClear"
           @node-drag="onNodeDrag"
           @node-drag-stop="onNodeDragStop"
-          @pane-click="onPaneClick"
+          @pane-click="isPortrait ? undefined : onPaneClick()"
         >
           <!-- 세로 줄 패턴 - 프로젝트 기간 내에서만 -->
           <svg
@@ -1782,8 +1958,8 @@ async function handleExcludeConfirm(excludedIds: number[]) {
         </VueFlow>
       </div>
 
-      <!-- 리사이즈 핸들 (VueFlow 바깥, 컨테이너 직속 — 노드 드래그 이벤트 간섭 방지) -->
-      <template v-if="resizeHandles && !connectingFrom">
+      <!-- 리사이즈 핸들 (세로모드 숨김) -->
+      <template v-if="resizeHandles && !connectingFrom && !isPortrait">
         <!-- 왼쪽 모서리 ◀▶ — scale 중심: 노드 왼쪽 모서리 중앙 -->
         <div
           class="absolute z-40 cursor-col-resize flex items-center justify-center"
@@ -2180,21 +2356,27 @@ async function handleExcludeConfirm(excludedIds: number[]) {
         </div>
 
         <!-- 부재 -->
-        <div v-if="td.componentDivisions.length > 0" class="space-y-1.5">
+        <div class="space-y-1.5">
           <div class="flex items-center gap-1">
             <label class="text-sm font-medium">부재</label>
             <ReferenceEditTrigger type="component" @refresh="td.loadReferenceData" />
           </div>
           <div class="space-y-1">
-            <span class="text-xs text-muted-foreground">부재대분류</span>
-            <div class="flex flex-wrap gap-1.5">
+            <span class="text-xs text-muted-foreground">부재구분</span>
+            <div class="flex gap-1.5">
               <button
-                v-for="cd in td.componentDivisions" :key="cd.id"
                 class="px-3 py-1 text-sm rounded-md border transition-colors"
-                :class="td.selectedComponentDivisionId === String(cd.id) ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-background border-border text-foreground hover:bg-muted'"
-                @click="td.handleComponentDivisionChange(td.selectedComponentDivisionId === String(cd.id) ? '' : String(cd.id))"
+                :class="td.selectedIsStructure === true ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-background border-border text-foreground hover:bg-muted'"
+                @click="td.handleIsStructureChange(td.selectedIsStructure === true ? null : true)"
               >
-                {{ cd.name }}
+                구조
+              </button>
+              <button
+                class="px-3 py-1 text-sm rounded-md border transition-colors"
+                :class="td.selectedIsStructure === false ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-background border-border text-foreground hover:bg-muted'"
+                @click="td.handleIsStructureChange(td.selectedIsStructure === false ? null : false)"
+              >
+                비구조
               </button>
             </div>
           </div>
@@ -2212,7 +2394,7 @@ async function handleExcludeConfirm(excludedIds: number[]) {
               </button>
             </div>
           </div>
-          <div v-else-if="td.selectedComponentDivisionId" class="text-sm text-muted-foreground">
+          <div v-else-if="td.selectedIsStructure != null" class="text-sm text-muted-foreground">
             등록된 부재 타입 없음
           </div>
         </div>

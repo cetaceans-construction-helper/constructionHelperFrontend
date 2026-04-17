@@ -37,7 +37,7 @@ export interface Object2D {
   componentCodeId: number | null
   componentCode: string | null
   componentTypeName: string | null
-  componentDivisionName: string | null
+  isStructure: boolean | null
   gridLabel: string | null // 백엔드 계산값 (예: "A~C / 1~2")
 }
 
@@ -50,7 +50,7 @@ export interface ViewTransform {
 }
 
 export interface CcodeFilter {
-  componentDivisionId: number | null
+  isStructure: boolean | null
   componentTypeId: number | null
   componentCodeId: number | null
 }

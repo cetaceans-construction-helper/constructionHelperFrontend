@@ -149,21 +149,3 @@ export interface UpdateUserToProjectPayload {
   projectRole?: string
   systemRoleId: number
 }
-
-// Worker
-export interface Worker {
-  id: number
-  workerName: string
-  phoneNumber: string
-  registrationNumber: string
-  confirmed: boolean
-  registrationCardUrl: string | null
-}
-
-export interface UpdateWorkerPayload {
-  name: string
-  phoneNumber: string
-  registrationNumber: string
-  confirmed: boolean
-  registrationCardUrl?: string
-}

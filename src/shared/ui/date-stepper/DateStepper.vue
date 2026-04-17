@@ -26,6 +26,8 @@ import { cn } from '@/shared/utils/cn'
 
 const props = defineProps<{
   modelValue: string
+  minDate?: string
+  maxDate?: string
 }>()
 
 const emit = defineEmits<{
@@ -37,6 +39,24 @@ const popoverOpen = ref(false)
 const calendarValue = computed(() => {
   try {
     return parseDate(props.modelValue)
+  } catch {
+    return undefined
+  }
+})
+
+const minCalendarValue = computed(() => {
+  if (!props.minDate) return undefined
+  try {
+    return parseDate(props.minDate)
+  } catch {
+    return undefined
+  }
+})
+
+const maxCalendarValue = computed(() => {
+  if (!props.maxDate) return undefined
+  try {
+    return parseDate(props.maxDate)
   } catch {
     return undefined
   }
@@ -58,6 +78,9 @@ function changeDate(days: number) {
   emit('update:modelValue', `${y}-${m}-${d}`)
 }
 
+const isAtMin = computed(() => !!props.minDate && props.modelValue <= props.minDate)
+const isAtMax = computed(() => !!props.maxDate && props.modelValue >= props.maxDate)
+
 function onDateClick(date: DateValue) {
   emit('update:modelValue', date.toString())
   popoverOpen.value = false
@@ -66,7 +89,7 @@ function onDateClick(date: DateValue) {
 
 <template>
   <div class="flex items-center gap-2">
-    <Button variant="outline" size="icon-sm" @click="changeDate(-1)">
+    <Button variant="outline" size="icon-sm" :disabled="isAtMin" @click="changeDate(-1)">
       <Minus class="w-4 h-4" />
     </Button>
 
@@ -94,6 +117,8 @@ function onDateClick(date: DateValue) {
             locale="ko"
             weekday-format="short"
             :model-value="calendarValue"
+            :min-value="minCalendarValue"
+            :max-value="maxCalendarValue"
             v-slot="{ weekDays, grid }"
           >
             <CalendarHeader class="flex items-center justify-between pb-2">
@@ -172,7 +197,7 @@ function onDateClick(date: DateValue) {
       </PopoverPortal>
     </PopoverRoot>
 
-    <Button variant="outline" size="icon-sm" @click="changeDate(1)">
+    <Button variant="outline" size="icon-sm" :disabled="isAtMax" @click="changeDate(1)">
       <Plus class="w-4 h-4" />
     </Button>
   </div>

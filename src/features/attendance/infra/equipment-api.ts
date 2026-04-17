@@ -4,8 +4,7 @@ import apiClient from '@/shared/network-core/apiClient'
 export interface EquipmentDeploymentEntry {
   equipmentSpecId: number
   count: number
-  workTime: number
-  companyToProjectId: number
+  workTypeId: number
 }
 
 // 장비투입 생성 요청
@@ -21,10 +20,10 @@ export interface EquipmentDeploymentByDateItem {
   equipmentTypeId: number
   equipmentTypeName: string
   count: number
-  workTime: number
   companyId: string
   companyName: string
   companyDisplayName: string
+  workTypeId: number
   workTypeName: string | null
 }
 

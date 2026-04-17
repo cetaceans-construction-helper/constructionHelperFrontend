@@ -5,16 +5,19 @@ import type {
   EquipmentDeploymentByDateItem,
 } from '@/features/attendance/public'
 import type { DeliveryQuantityByDate } from '@/features/material/public'
-import { workApi, type WorkPhotoResponse, type WorkResponse } from '@/shared/network-core/apis/work'
-import { skippedWorkApi } from '@/shared/network-core/apis/skippedWork'
 import { useProjectStore } from '@/app/context/stores/project'
 import type { WeatherByDateResponse } from '@/shared/network-core/contracts/calendar'
 import type {
+  ActualWorkGroup,
   AttendanceGroup,
   EquipmentGroup,
-  PhotoWithWork,
-  WorkPhotoDialogExpose,
 } from '@/features/dashboard/model/dashboard-types'
+import type {
+  ActualWorkResponse,
+  CreateActualWorkPayload,
+  UpdateActualWorkPayload,
+} from '@/shared/network-core/apis/actualWork'
+import { workApi } from '@/shared/network-core/apis/work'
 import { formatLocalDate } from '@/features/dashboard/use-cases/dashboard-date'
 import { loadDashboardData } from '@/features/dashboard/use-cases/load-dashboard-data'
 import { dashboardRepository } from '@/features/dashboard/infra/dashboard-repository'
@@ -32,36 +35,97 @@ export const useDashboardPage = () => {
   const router = useRouter()
   const dayNames = ['일', '월', '화', '수', '목', '금', '토']
 
+  function nextDayString(dateStr: string): string {
+    const d = new Date(dateStr + 'T00:00:00')
+    d.setDate(d.getDate() + 1)
+    return formatLocalDate(d)
+  }
+
   const selectedDateString = ref(formatLocalDate(new Date()))
   const today = computed(() => new Date(selectedDateString.value + 'T00:00:00'))
   const todayString = computed(() => selectedDateString.value)
   const todayDayName = computed(() => dayNames[today.value.getDay()] ?? '알수없음')
 
+  // 내일 (다음 작업일) — 기본값 today+1, DateStepper 로 변경 가능
+  const tomorrowDateString = ref(nextDayString(selectedDateString.value))
+  // DateStepper 최소값 — 내일(today+1) 밑으로는 감소 불가
+  const tomorrowMinDateString = computed(() => nextDayString(selectedDateString.value))
+  const tomorrowDateLabel = computed(() => {
+    if (!tomorrowDateString.value) return ''
+    const d = new Date(tomorrowDateString.value + 'T00:00:00')
+    return `${d.getMonth() + 1}월 ${d.getDate()}일 (${dayNames[d.getDay()]}요일)`
+  })
+
   // 데이터 상태
-  const todayWorks = ref<WorkResponse[]>([])
-  const tomorrowWorks = ref<WorkResponse[]>([])
-  const nextWorkDateLabel = ref('')
-  const nextWorkDateString = ref('')
-  const simpleTomorrowWorks = ref<WorkResponse[]>([])
-  const simpleTomorrowDateLabel = ref('')
-  const simpleTomorrowDateString = ref('')
-  const tomorrowWorkMode = ref<1 | 2>(1)
+  const todayActualWorks = ref<ActualWorkResponse[]>([])
+  const tomorrowActualWorks = ref<ActualWorkResponse[]>([])
   const todayAttendance = ref<AttendanceByDateItem[]>([])
   const todayDeliveryQuantities = ref<DeliveryQuantityByDate[]>([])
   const todayEquipment = ref<EquipmentDeploymentByDateItem[]>([])
   const isLoading = ref(false)
 
-  // 사진 관련 상태
-  const photoObjectUrls = ref<Map<number, string>>(new Map())
-  const fileInputRef = ref<HTMLInputElement | null>(null)
-  const selectedWorkForPhoto = ref<WorkResponse | null>(null)
-  const photoDialogRef = ref<WorkPhotoDialogExpose | null>(null)
+  // workTypeId 기준 그룹핑 헬퍼
+  const groupByWorkType = (aws: ActualWorkResponse[]): Map<number, ActualWorkGroup> => {
+    const grouped = new Map<number, ActualWorkGroup>()
+    for (const aw of aws) {
+      const key = aw.workTypeId
+      if (!grouped.has(key)) {
+        grouped.set(key, { workTypeName: aw.workTypeName || '미분류', items: [] })
+      }
+      grouped.get(key)!.items.push(aw)
+    }
+    return grouped
+  }
 
-  // 사진 프리뷰 다이얼로그 상태
-  const pendingPhotos = ref<File[]>([])
-  const pendingPhotoDescriptions = ref<string[]>([])
-  const photoPreviewDialogOpen = ref(false)
-  const isUploadingPhotos = ref(false)
+  const todayWorksByType = computed(() => groupByWorkType(todayActualWorks.value))
+  const tomorrowWorksByType = computed(() => groupByWorkType(tomorrowActualWorks.value))
+
+  // ActualWork CRUD wrappers
+  const createActualWork = async (payload: CreateActualWorkPayload): Promise<boolean> => {
+    try {
+      await dashboardRepository.createActualWork(payload)
+      await refreshData()
+      analyticsClient.trackAction('dashboard', 'create_actual_work', 'success')
+      return true
+    } catch (error: unknown) {
+      console.error('실제 작업 생성 실패:', error)
+      analyticsClient.trackAction('dashboard', 'create_actual_work', 'fail')
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+      return false
+    }
+  }
+
+  const updateActualWork = async (id: number, payload: UpdateActualWorkPayload): Promise<boolean> => {
+    try {
+      await dashboardRepository.updateActualWork(id, payload)
+      await refreshData()
+      analyticsClient.trackAction('dashboard', 'update_actual_work', 'success')
+      return true
+    } catch (error: unknown) {
+      console.error('실제 작업 수정 실패:', error)
+      analyticsClient.trackAction('dashboard', 'update_actual_work', 'fail')
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+      return false
+    }
+  }
+
+  const deleteActualWork = async (id: number): Promise<void> => {
+    try {
+      await dashboardRepository.deleteActualWork(id)
+      await refreshData()
+      analyticsClient.trackAction('dashboard', 'delete_actual_work', 'success')
+    } catch (error: unknown) {
+      console.error('실제 작업 삭제 실패:', error)
+      analyticsClient.trackAction('dashboard', 'delete_actual_work', 'fail')
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+    }
+  }
+
+  // ========== 작업 사진 (ActualWork 기반) ==========
+  const photoObjectUrls = ref<Map<number, string>>(new Map())
 
   const revokeAllObjectUrls = () => {
     for (const url of photoObjectUrls.value.values()) {
@@ -72,226 +136,44 @@ export const useDashboardPage = () => {
 
   const loadAllPhotos = async () => {
     revokeAllObjectUrls()
-    const photoEntries = todayWorks.value.flatMap((work) => work.photos ?? [])
-
-    const results = await Promise.allSettled(
-      photoEntries.map((photo) =>
-        dashboardRepository.downloadWorkPhoto(photo.thumbnailUrl)
-          .then((url) => ({ photoId: photo.photoId, url }))
-      )
-    )
-
     const newUrls = new Map<number, string>()
-    for (const result of results) {
-      if (result.status === 'fulfilled') {
-        newUrls.set(result.value.photoId, result.value.url)
+    for (const aw of todayActualWorks.value) {
+      for (const photo of aw.photos ?? []) {
+        try {
+          newUrls.set(photo.photoId, await workApi.downloadWorkPhoto(photo.url))
+        } catch {
+          // 개별 사진 실패 무시
+        }
       }
     }
     photoObjectUrls.value = newUrls
   }
 
-  const triggerPhotoUpload = (work: WorkResponse) => {
-    selectedWorkForPhoto.value = work
-    fileInputRef.value?.click()
-  }
-
-  const onPhotoFileChange = (event: Event) => {
-    const input = event.target as HTMLInputElement
-    const files = input.files ? Array.from(input.files) : []
-    input.value = ''
-    if (files.length === 0 || !selectedWorkForPhoto.value) return
-
-    pendingPhotos.value = files
-    pendingPhotoDescriptions.value = files.map(() => '')
-    photoPreviewDialogOpen.value = true
-  }
-
-  const confirmPhotoUpload = async () => {
-    if (!selectedWorkForPhoto.value || pendingPhotos.value.length === 0) return
-    isUploadingPhotos.value = true
+  const uploadPhotos = async (actualWorkId: number, files: File[]): Promise<boolean> => {
+    if (files.length === 0) return false
     try {
-      const descriptions = pendingPhotoDescriptions.value.some((d) => d.trim())
-        ? pendingPhotoDescriptions.value
-        : undefined
-      await dashboardRepository.createWorkPhoto(
-        selectedWorkForPhoto.value.workId,
-        todayString.value,
-        pendingPhotos.value,
-        descriptions,
-      )
-      photoPreviewDialogOpen.value = false
-      todayWorks.value = await dashboardRepository.getWorkListByDate(todayString.value)
+      await workApi.createWorkPhoto(actualWorkId, selectedDateString.value, files)
+      await refreshData()
       await loadAllPhotos()
-      analyticsClient.trackAction('dashboard', 'upload_photo', 'success')
+      analyticsClient.trackAction('dashboard', 'upload_work_photo', 'success')
+      return true
     } catch (error: unknown) {
       console.error('사진 업로드 실패:', error)
-      analyticsClient.trackAction('dashboard', 'upload_photo', 'fail')
+      analyticsClient.trackAction('dashboard', 'upload_work_photo', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
-    } finally {
-      isUploadingPhotos.value = false
-      pendingPhotos.value = []
-      pendingPhotoDescriptions.value = []
-      selectedWorkForPhoto.value = null
+      return false
     }
-  }
-
-  const cancelPhotoUpload = () => {
-    photoPreviewDialogOpen.value = false
-    pendingPhotos.value = []
-    pendingPhotoDescriptions.value = []
-    selectedWorkForPhoto.value = null
-  }
-
-  const allTodayPhotos = computed<PhotoWithWork[]>(() => {
-    const result: PhotoWithWork[] = []
-    for (const work of todayWorks.value) {
-      if (!work.photos) continue
-      for (const photo of work.photos) {
-        result.push({ photo, workName: work.workName })
-      }
-    }
-    return result
-  })
-
-  const openPhotoDialog = async (photo: WorkPhotoResponse) => {
-    const thumbnailUrl = photoObjectUrls.value.get(photo.photoId)
-    if (!thumbnailUrl) return
-    const originalUrl = await dashboardRepository.downloadWorkPhoto(photo.url)
-    photoDialogRef.value?.openDialog(photo, originalUrl)
   }
 
   const onPhotoUpdated = async () => {
-    todayWorks.value = await dashboardRepository.getWorkListByDate(todayString.value)
+    await refreshData()
     await loadAllPhotos()
   }
 
-  const todayWorksByType = computed(() => {
-    const grouped = new Map<string, WorkResponse[]>()
-    for (const work of todayWorks.value) {
-      const workType = work.workType || '미분류'
-      if (!grouped.has(workType)) grouped.set(workType, [])
-      grouped.get(workType)?.push(work)
-    }
-    return grouped
+  onUnmounted(() => {
+    revokeAllObjectUrls()
   })
-
-  const skipWork = async (workId: number) => {
-    try {
-      await skippedWorkApi.createSkippedWork(workId, todayString.value)
-      const work = todayWorks.value.find(w => w.workId === workId)
-      if (work) work.isSkipped = true
-      todayWorks.value = [...todayWorks.value]
-      analyticsClient.trackAction('dashboard', 'skip_work', 'success')
-    } catch (error: any) {
-      console.error('작업 숨기기 실패:', error)
-      analyticsClient.trackAction('dashboard', 'skip_work', 'fail')
-      alert(error.response?.data?.message || error.message)
-    }
-  }
-
-  const unskipWork = async (workId: number) => {
-    try {
-      await skippedWorkApi.deleteSkippedWork(workId, todayString.value)
-      const work = todayWorks.value.find(w => w.workId === workId)
-      if (work) work.isSkipped = false
-      todayWorks.value = [...todayWorks.value]
-      analyticsClient.trackAction('dashboard', 'unskip_work', 'success')
-    } catch (error: any) {
-      console.error('작업 숨기기 취소 실패:', error)
-      analyticsClient.trackAction('dashboard', 'unskip_work', 'fail')
-      alert(error.response?.data?.message || error.message)
-    }
-  }
-
-  const deleteWork = async (workId: number) => {
-    try {
-      await workApi.deleteWork(workId)
-      await loadData()
-      analyticsClient.trackAction('dashboard', 'delete_work', 'success')
-    } catch (error: any) {
-      console.error('작업 삭제 실패:', error)
-      analyticsClient.trackAction('dashboard', 'delete_work', 'fail')
-      alert(error.response?.data?.message || error.message)
-    }
-  }
-
-  const skipTomorrowWork = async (workId: number) => {
-    try {
-      await skippedWorkApi.createSkippedWork(workId, activeTomorrowDateString.value)
-      const work = activeTomorrowWorks.value.find(w => w.workId === workId)
-      if (work) work.isSkipped = true
-      // reactivity trigger
-      tomorrowWorks.value = [...tomorrowWorks.value]
-      simpleTomorrowWorks.value = [...simpleTomorrowWorks.value]
-      analyticsClient.trackAction('dashboard', 'skip_tomorrow_work', 'success')
-    } catch (error: any) {
-      console.error('작업 숨기기 실패:', error)
-      analyticsClient.trackAction('dashboard', 'skip_tomorrow_work', 'fail')
-      alert(error.response?.data?.message || error.message)
-    }
-  }
-
-  const unskipTomorrowWork = async (workId: number) => {
-    try {
-      await skippedWorkApi.deleteSkippedWork(workId, activeTomorrowDateString.value)
-      const work = activeTomorrowWorks.value.find(w => w.workId === workId)
-      if (work) work.isSkipped = false
-      tomorrowWorks.value = [...tomorrowWorks.value]
-      simpleTomorrowWorks.value = [...simpleTomorrowWorks.value]
-      analyticsClient.trackAction('dashboard', 'unskip_tomorrow_work', 'success')
-    } catch (error: any) {
-      console.error('작업 숨기기 취소 실패:', error)
-      analyticsClient.trackAction('dashboard', 'unskip_tomorrow_work', 'fail')
-      alert(error.response?.data?.message || error.message)
-    }
-  }
-
-  const tomorrowWorksByType = computed(() => {
-    const grouped = new Map<string, WorkResponse[]>()
-    for (const work of tomorrowWorks.value) {
-      const workType = work.workType || '미분류'
-      if (!grouped.has(workType)) grouped.set(workType, [])
-      grouped.get(workType)?.push(work)
-    }
-    return grouped
-  })
-
-  const simpleTomorrowWorksByType = computed(() => {
-    const grouped = new Map<string, WorkResponse[]>()
-    for (const work of simpleTomorrowWorks.value) {
-      const workType = work.workType || '미분류'
-      if (!grouped.has(workType)) grouped.set(workType, [])
-      grouped.get(workType)?.push(work)
-    }
-    return grouped
-  })
-
-  const activeTomorrowWorks = computed(() =>
-    tomorrowWorkMode.value === 1 ? tomorrowWorks.value : simpleTomorrowWorks.value,
-  )
-
-  const activeTomorrowDateLabel = computed(() =>
-    tomorrowWorkMode.value === 1 ? nextWorkDateLabel.value : simpleTomorrowDateLabel.value,
-  )
-
-  const activeTomorrowDateString = computed(() =>
-    tomorrowWorkMode.value === 1 ? nextWorkDateString.value : simpleTomorrowDateString.value,
-  )
-
-  const activeTomorrowWorksByType = computed(() => {
-    const grouped = new Map<string, WorkResponse[]>()
-    for (const work of activeTomorrowWorks.value) {
-      const workType = work.workType || '미분류'
-      if (!grouped.has(workType)) grouped.set(workType, [])
-      grouped.get(workType)?.push(work)
-    }
-    return grouped
-  })
-
-  const toggleTomorrowWorkMode = () => {
-    tomorrowWorkMode.value = tomorrowWorkMode.value === 1 ? 2 : 1
-  }
 
   const deliveryByWorkType = computed(() => {
     const grouped = new Map<string, DeliveryQuantityByDate[]>()
@@ -360,19 +242,11 @@ export const useDashboardPage = () => {
   const generateHomepageDailyReport = async () => {
     isCreatingHomepageDailyReport.value = true
     try {
-      // skipped 작업 제외
-      const filteredTodayWorksByType = new Map<string, WorkResponse[]>()
-      for (const [wt, works] of todayWorksByType.value) {
-        const filtered = works.filter(w => !w.isSkipped)
-        if (filtered.length > 0) filteredTodayWorksByType.set(wt, filtered)
-      }
-
       await createHomepageDailyReport({
         todayDayName: todayDayName.value,
         todayWeather: todayWeather.value,
-        todayWorksByType: filteredTodayWorksByType,
+        todayWorksByType: todayWorksByType.value,
         tomorrowWorksByType: tomorrowWorksByType.value,
-        simpleTomorrowWorksByType: simpleTomorrowWorksByType.value,
         deliveryByWorkType: deliveryByWorkType.value,
         equipmentByGroup: equipmentByGroup.value,
         attendanceByGroup: attendanceByGroup.value,
@@ -442,84 +316,110 @@ export const useDashboardPage = () => {
     }
   }
 
-  const loadData = async () => {
+  // loadData 내부에서 tomorrowDateString 을 재설정할 때 watch 가 재귀 호출되지 않도록 방어
+  let isBulkLoading = false
+
+  /**
+   * @param resolveTomorrow true 면 서버 API 로 다음 작업일을 재결정. false 면 현재 tomorrowDateString 유지
+   *                        (CRUD 후 같은 날짜에 머물도록)
+   */
+  const loadData = async (resolveTomorrow = true) => {
     if (!projectStore.selectedProjectId) return
 
     isLoading.value = true
+    isBulkLoading = true
     try {
-      const data = await loadDashboardData(dashboardRepository, todayString.value)
+      if (resolveTomorrow) {
+        // 서버에서 다음 작업일 결정 (실적 존재하는 가장 빠른 날짜, 없으면 today+1)
+        try {
+          const next = await dashboardRepository.getNextDateWithActualWorkChecker(todayString.value)
+          if (next.date) tomorrowDateString.value = next.date
+        } catch (error) {
+          console.error('다음 작업일 조회 실패, today+1 로 폴백:', error)
+          tomorrowDateString.value = nextDayString(todayString.value)
+        }
+      }
+
+      // 대시보드 데이터 로드
+      const data = await loadDashboardData(
+        dashboardRepository,
+        todayString.value,
+        tomorrowDateString.value,
+      )
 
       todayWeather.value = data.weather
-      todayWorks.value = data.todayWorks
-      tomorrowWorks.value = data.tomorrowWorks
-      nextWorkDateLabel.value = data.nextWorkDateLabel
-      nextWorkDateString.value = data.nextWorkDateString
-      simpleTomorrowWorks.value = data.simpleTomorrowWorks
-      simpleTomorrowDateLabel.value = data.simpleTomorrowDateLabel
-      simpleTomorrowDateString.value = data.simpleTomorrowDateString
+      todayActualWorks.value = data.todayActualWorks
+      tomorrowActualWorks.value = data.tomorrowActualWorks
       todayAttendance.value = data.attendance
       todayDeliveryQuantities.value = data.deliveryQuantities
       todayEquipment.value = data.equipment
 
+      // 사진 ObjectURL 재로딩
       await loadAllPhotos()
     } catch (error) {
       console.error('대시보드 데이터 로드 실패:', error)
     } finally {
+      isBulkLoading = false
       isLoading.value = false
     }
   }
 
-  watch(selectedDateString, () => loadData())
+  /** CRUD 후 리프레시 — 현재 tomorrowDateString 유지 */
+  const refreshData = () => loadData(false)
+
+  const loadTomorrowOnly = async () => {
+    if (!projectStore.selectedProjectId) return
+    try {
+      tomorrowActualWorks.value = tomorrowDateString.value
+        ? await dashboardRepository.getActualWorkListByDate(tomorrowDateString.value)
+        : []
+    } catch (error) {
+      console.error('다음 작업일 actualWork 로드 실패:', error)
+    }
+  }
+
+  watch(selectedDateString, () => {
+    // 오늘 날짜가 바뀌면 loadData 가 서버 API 로 다음 작업일 재결정
+    loadData()
+  })
+
+  watch(tomorrowDateString, (newDate, oldDate) => {
+    if (newDate === oldDate) return
+    if (isBulkLoading) return
+    loadTomorrowOnly()
+  })
 
   onMounted(() => loadData())
 
-  onUnmounted(() => {
-    revokeAllObjectUrls()
-  })
-
   return {
-    allTodayPhotos,
     attendanceByGroup,
-    cancelPhotoUpload,
     confirmExcludeAndCreate,
-    confirmPhotoUpload,
     deliveryByWorkType,
     equipmentByGroup,
     generateHomepageDailyReport,
     isCreatingHomepageDailyReport,
-    isUploadingPhotos,
-    fileInputRef,
     generateDailyReport,
     isCreatingDailyReport,
     isLoading,
-    onPhotoFileChange,
-    onPhotoUpdated,
-    openPhotoDialog,
-    pendingPhotos,
-    pendingPhotoDescriptions,
-    photoDialogRef,
-    photoObjectUrls,
-    photoPreviewDialogOpen,
-    deleteWork,
-    skipWork,
-    unskipWork,
     showExcludeDialog,
     selectedDateString,
     today,
     todayWeather,
     todayDayName,
     todayString,
-    nextWorkDateLabel,
     todayWorksByType,
-    tomorrowWorkMode,
-    activeTomorrowWorksByType,
-    activeTomorrowDateLabel,
-    activeTomorrowDateString,
-    skipTomorrowWork,
-    unskipTomorrowWork,
-    toggleTomorrowWorkMode,
+    tomorrowWorksByType,
+    tomorrowDateString,
+    tomorrowMinDateString,
+    tomorrowDateLabel,
     loadData,
-    triggerPhotoUpload,
+    createActualWork,
+    updateActualWork,
+    deleteActualWork,
     validateResult,
+    photoObjectUrls,
+    uploadPhotos,
+    onPhotoUpdated,
+    todayActualWorks,
   }
 }

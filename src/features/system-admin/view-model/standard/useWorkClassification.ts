@@ -1,28 +1,31 @@
-import { ref, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import {
   referenceApi,
   type IdNameResponse,
   type WorkTypeResponse,
   type SubWorkTypeResponse,
-  type WorkStepResponse,
 } from '@/shared/network-core/apis/reference'
-import { standardApi } from '@/shared/network-core/apis/standard'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 export function useWorkClassification() {
   const divisions = ref<IdNameResponse[]>([])
   const workTypes = ref<WorkTypeResponse[]>([])
   const subWorkTypes = ref<SubWorkTypeResponse[]>([])
-  const workSteps = ref<WorkStepResponse[]>([])
 
   const selectedDivisionId = ref<number | null>(null)
+  // Division → isStructure → WorkType 계층. 필터 겸 새 WorkType 생성 시의 isStructure 값.
+  const selectedIsStructure = ref<boolean | null>(null)
   const selectedWorkTypeId = ref<number | null>(null)
   const selectedSubWorkTypeId = ref<number | null>(null)
+
+  const filteredWorkTypes = computed(() => {
+    if (selectedIsStructure.value == null) return workTypes.value
+    return workTypes.value.filter((wt) => wt.isStructure === selectedIsStructure.value)
+  })
 
   const newDivisionName = ref('')
   const newWorkTypeName = ref('')
   const newSubWorkTypeName = ref('')
-  const newWorkStepName = ref('')
 
   const isCreating = ref(false)
   const isDeleting = ref(false)
@@ -52,27 +55,25 @@ export function useWorkClassification() {
     }
   }
 
-  const loadWorkSteps = async (subWorkTypeId: number) => {
-    try {
-      workSteps.value = await referenceApi.getWorkStepList(subWorkTypeId)
-    } catch (error) {
-      console.error('WorkStep 목록 로드 실패:', error)
-    }
-  }
-
   // 선택
   const selectDivision = (id: number) => {
     selectedDivisionId.value = id
+    selectedIsStructure.value = null
     selectedWorkTypeId.value = null
     selectedSubWorkTypeId.value = null
     subWorkTypes.value = []
-    workSteps.value = []
+  }
+
+  const selectIsStructure = (value: boolean) => {
+    selectedIsStructure.value = selectedIsStructure.value === value ? null : value
+    selectedWorkTypeId.value = null
+    selectedSubWorkTypeId.value = null
+    subWorkTypes.value = []
   }
 
   const selectWorkType = (id: number) => {
     selectedWorkTypeId.value = id
     selectedSubWorkTypeId.value = null
-    workSteps.value = []
   }
 
   const selectSubWorkType = (id: number) => {
@@ -106,10 +107,18 @@ export function useWorkClassification() {
     if (isCreating.value) return
     const name = newWorkTypeName.value.trim()
     if (!name || !selectedDivisionId.value) return
+    if (selectedIsStructure.value == null) {
+      alert('구조/비구조를 먼저 선택하세요.')
+      return
+    }
 
     isCreating.value = true
     try {
-      const result = await referenceApi.createWorkType(selectedDivisionId.value, name)
+      const result = await referenceApi.createWorkType(
+        selectedDivisionId.value,
+        name,
+        selectedIsStructure.value,
+      )
       newWorkTypeName.value = ''
       await loadWorkTypes(selectedDivisionId.value)
       selectWorkType(result.id)
@@ -146,27 +155,6 @@ export function useWorkClassification() {
     }
   }
 
-  const addWorkStep = async () => {
-    if (isCreating.value) return
-    const name = newWorkStepName.value.trim()
-    if (!name || !selectedSubWorkTypeId.value) return
-
-    isCreating.value = true
-    try {
-      await referenceApi.createWorkStep(selectedSubWorkTypeId.value, name)
-      newWorkStepName.value = ''
-      await loadWorkSteps(selectedSubWorkTypeId.value)
-      analyticsClient.trackAction('admin_master_data', 'create_work_step', 'success')
-    } catch (error: unknown) {
-      console.error('WorkStep 추가 실패:', error)
-      analyticsClient.trackAction('admin_master_data', 'create_work_step', 'fail')
-      const err = error as { response?: { data?: { message?: string } }; message?: string }
-      alert(err.response?.data?.message || err.message)
-    } finally {
-      isCreating.value = false
-    }
-  }
-
   // 삭제
   const deleteDivision = async (id: number) => {
     if (isDeleting.value) return
@@ -179,7 +167,6 @@ export function useWorkClassification() {
         selectedSubWorkTypeId.value = null
         workTypes.value = []
         subWorkTypes.value = []
-        workSteps.value = []
       }
       divisions.value = divisions.value.filter((d) => d.id !== id)
       analyticsClient.trackAction('admin_master_data', 'delete_division', 'success')
@@ -202,7 +189,6 @@ export function useWorkClassification() {
         selectedWorkTypeId.value = null
         selectedSubWorkTypeId.value = null
         subWorkTypes.value = []
-        workSteps.value = []
       }
       workTypes.value = workTypes.value.filter((wt) => wt.id !== id)
       analyticsClient.trackAction('admin_master_data', 'delete_work_type', 'success')
@@ -223,30 +209,12 @@ export function useWorkClassification() {
       await referenceApi.deleteSubWorkType(id)
       if (selectedSubWorkTypeId.value === id) {
         selectedSubWorkTypeId.value = null
-        workSteps.value = []
       }
       subWorkTypes.value = subWorkTypes.value.filter((swt) => swt.id !== id)
       analyticsClient.trackAction('admin_master_data', 'delete_sub_work_type', 'success')
     } catch (error: unknown) {
       console.error('SubWorkType 삭제 실패:', error)
       analyticsClient.trackAction('admin_master_data', 'delete_sub_work_type', 'fail')
-      const err = error as { response?: { data?: { message?: string } }; message?: string }
-      alert(err.response?.data?.message || err.message)
-    } finally {
-      isDeleting.value = false
-    }
-  }
-
-  const deleteWorkStep = async (id: number) => {
-    if (isDeleting.value) return
-    isDeleting.value = true
-    try {
-      await referenceApi.deleteWorkStep(id)
-      workSteps.value = workSteps.value.filter((ws) => ws.id !== id)
-      analyticsClient.trackAction('admin_master_data', 'delete_work_step', 'success')
-    } catch (error: unknown) {
-      console.error('WorkStep 삭제 실패:', error)
-      analyticsClient.trackAction('admin_master_data', 'delete_work_step', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -270,21 +238,30 @@ export function useWorkClassification() {
     }
   }
 
-  const updateWorkTypeName = async (id: number, name: string, displayName?: string) => {
+  const updateWorkTypeName = async (id: number, name: string) => {
     try {
       await referenceApi.updateWorkType({ id, name })
-      if (displayName != null) {
-        await referenceApi.updateWorkTypeDisplayName(id, displayName)
-      }
       const item = workTypes.value.find((wt) => wt.id === id)
-      if (item) {
-        item.name = name
-        if (displayName != null) item.displayName = displayName
-      }
+      if (item) item.name = name
       analyticsClient.trackAction('admin_master_data', 'update_work_type', 'success')
     } catch (error: unknown) {
       console.error('WorkType 이름 수정 실패:', error)
       analyticsClient.trackAction('admin_master_data', 'update_work_type', 'fail')
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      alert(err.response?.data?.message || err.message)
+      if (selectedDivisionId.value) await loadWorkTypes(selectedDivisionId.value)
+    }
+  }
+
+  const updateWorkTypeIsStructure = async (id: number, isStructure: boolean) => {
+    try {
+      await referenceApi.updateWorkType({ id, isStructure })
+      const item = workTypes.value.find((wt) => wt.id === id)
+      if (item) item.isStructure = isStructure
+      analyticsClient.trackAction('admin_master_data', 'update_work_type_is_structure', 'success')
+    } catch (error: unknown) {
+      console.error('WorkType 구조플래그 수정 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'update_work_type_is_structure', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
       if (selectedDivisionId.value) await loadWorkTypes(selectedDivisionId.value)
@@ -306,21 +283,6 @@ export function useWorkClassification() {
     }
   }
 
-  const updateWorkStepName = async (id: number, name: string) => {
-    try {
-      await referenceApi.updateWorkStep({ id, name })
-      const item = workSteps.value.find((ws) => ws.id === id)
-      if (item) item.name = name
-      analyticsClient.trackAction('admin_master_data', 'update_work_step', 'success')
-    } catch (error: unknown) {
-      console.error('WorkStep 이름 수정 실패:', error)
-      analyticsClient.trackAction('admin_master_data', 'update_work_step', 'fail')
-      const err = error as { response?: { data?: { message?: string } }; message?: string }
-      alert(err.response?.data?.message || err.message)
-      if (selectedSubWorkTypeId.value) await loadWorkSteps(selectedSubWorkTypeId.value)
-    }
-  }
-
   // 정렬 변경
   const reorderDivisions = async (ids: number[]) => {
     try {
@@ -337,7 +299,12 @@ export function useWorkClassification() {
   const reorderWorkTypes = async (ids: number[]) => {
     if (!selectedDivisionId.value) return
     try {
-      await referenceApi.updateWorkType({ ids, parentId: selectedDivisionId.value })
+      const payload: { ids: number[]; parentId: number; isStructure?: boolean } = {
+        ids,
+        parentId: selectedDivisionId.value,
+      }
+      if (selectedIsStructure.value != null) payload.isStructure = selectedIsStructure.value
+      await referenceApi.updateWorkType(payload)
       await loadWorkTypes(selectedDivisionId.value)
     } catch (error: unknown) {
       console.error('WorkType 정렬 실패:', error)
@@ -360,161 +327,48 @@ export function useWorkClassification() {
     }
   }
 
-  const reorderWorkSteps = async (ids: number[]) => {
-    if (!selectedSubWorkTypeId.value) return
-    try {
-      await referenceApi.updateWorkStep({ ids, parentId: selectedSubWorkTypeId.value })
-      await loadWorkSteps(selectedSubWorkTypeId.value)
-    } catch (error: unknown) {
-      console.error('WorkStep 정렬 실패:', error)
-      const err = error as { response?: { data?: { message?: string } }; message?: string }
-      alert(err.response?.data?.message || err.message)
-      if (selectedSubWorkTypeId.value) await loadWorkSteps(selectedSubWorkTypeId.value)
-    }
-  }
-
-  // ========== 표준 매핑 ==========
-
-  const stdDivisions = ref<IdNameResponse[]>([])
-  const stdWorkTypes = ref<{ id: number; name: string }[]>([])
-  const stdSubWorkTypes = ref<{ id: number; name: string }[]>([])
-  const stdWorkSteps = ref<{ id: number; name: string }[]>([])
-
-  const loadStdDivisions = async () => {
-    try {
-      stdDivisions.value = await standardApi.division.getList()
-    } catch (error) {
-      console.error('StdDivision 로드 실패:', error)
-    }
-  }
-
-  const setDivisionStandard = async (id: number, standardId: number | null) => {
-    try {
-      await referenceApi.updateDivision({ id, standardId })
-      const item = divisions.value.find((d) => d.id === id)
-      if (item) item.standardId = standardId
-    } catch (error: unknown) {
-      console.error('Division 표준 매핑 실패:', error)
-      const err = error as { response?: { data?: { message?: string } }; message?: string }
-      alert(err.response?.data?.message || err.message)
-    }
-  }
-
-  const setWorkTypeStandard = async (id: number, standardId: number | null) => {
-    try {
-      await referenceApi.updateWorkType({ id, standardId })
-      const item = workTypes.value.find((wt) => wt.id === id)
-      if (item) item.standardId = standardId
-    } catch (error: unknown) {
-      console.error('WorkType 표준 매핑 실패:', error)
-      const err = error as { response?: { data?: { message?: string } }; message?: string }
-      alert(err.response?.data?.message || err.message)
-    }
-  }
-
-  const setSubWorkTypeStandard = async (id: number, standardId: number | null) => {
-    try {
-      await referenceApi.updateSubWorkType({ id, standardId })
-      const item = subWorkTypes.value.find((swt) => swt.id === id)
-      if (item) item.standardId = standardId
-    } catch (error: unknown) {
-      console.error('SubWorkType 표준 매핑 실패:', error)
-      const err = error as { response?: { data?: { message?: string } }; message?: string }
-      alert(err.response?.data?.message || err.message)
-    }
-  }
-
-  const setWorkStepStandard = async (id: number, standardId: number | null) => {
-    try {
-      await referenceApi.updateWorkStep({ id, standardId })
-      const item = workSteps.value.find((ws) => ws.id === id)
-      if (item) item.standardId = standardId
-    } catch (error: unknown) {
-      console.error('WorkStep 표준 매핑 실패:', error)
-      const err = error as { response?: { data?: { message?: string } }; message?: string }
-      alert(err.response?.data?.message || err.message)
-    }
-  }
-
   // 캐스케이딩 로드
   watch(selectedDivisionId, (id) => {
     workTypes.value = []
-    stdWorkTypes.value = []
-    if (id) {
-      loadWorkTypes(id)
-      const div = divisions.value.find((d) => d.id === id)
-      if (div?.standardId) {
-        standardApi.workType.getList(div.standardId).then((list) => { stdWorkTypes.value = list })
-      }
-    }
+    if (id) loadWorkTypes(id)
   })
 
   watch(selectedWorkTypeId, (id) => {
     subWorkTypes.value = []
-    stdSubWorkTypes.value = []
-    if (id) {
-      loadSubWorkTypes(id)
-      const wt = workTypes.value.find((w) => w.id === id)
-      if (wt?.standardId) {
-        standardApi.subWorkType.getList(wt.standardId).then((list) => { stdSubWorkTypes.value = list })
-      }
-    }
-  })
-
-  watch(selectedSubWorkTypeId, (id) => {
-    workSteps.value = []
-    stdWorkSteps.value = []
-    if (id) {
-      loadWorkSteps(id)
-      const swt = subWorkTypes.value.find((s) => s.id === id)
-      if (swt?.standardId) {
-        standardApi.workStep.getList(swt.standardId).then((list) => { stdWorkSteps.value = list })
-      }
-    }
+    if (id) loadSubWorkTypes(id)
   })
 
   return {
     divisions,
     workTypes,
+    filteredWorkTypes,
     subWorkTypes,
-    workSteps,
     selectedDivisionId,
+    selectedIsStructure,
     selectedWorkTypeId,
     selectedSubWorkTypeId,
     newDivisionName,
     newWorkTypeName,
     newSubWorkTypeName,
-    newWorkStepName,
     isCreating,
     isDeleting,
     loadDivisions,
     selectDivision,
+    selectIsStructure,
     selectWorkType,
     selectSubWorkType,
     addDivision,
     addWorkType,
     addSubWorkType,
-    addWorkStep,
     deleteDivision,
     deleteWorkType,
     deleteSubWorkType,
-    deleteWorkStep,
     updateDivisionName,
     updateWorkTypeName,
+    updateWorkTypeIsStructure,
     updateSubWorkTypeName,
-    updateWorkStepName,
     reorderDivisions,
     reorderWorkTypes,
     reorderSubWorkTypes,
-    reorderWorkSteps,
-    stdDivisions,
-    stdWorkTypes,
-    stdSubWorkTypes,
-    stdWorkSteps,
-    loadStdDivisions,
-    setDivisionStandard,
-    setWorkTypeStandard,
-    setSubWorkTypeStandard,
-    setWorkStepStandard,
   }
 }

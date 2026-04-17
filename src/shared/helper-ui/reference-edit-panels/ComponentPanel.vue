@@ -17,24 +17,8 @@ import SortableReferenceList from '@/shared/helper-ui/SortableReferenceList.vue'
 import { useComponentCode } from '@/features/project-admin/master-data/public'
 
 const {
-  componentDivisions,
-  selectedComponentDivisionId,
-  newComponentDivisionName,
-  isCreatingDivision,
-  isDeletingDivision,
-  loadComponentDivisions,
-  addComponentDivision,
-  deleteComponentDivision,
-  updateComponentDivisionName,
-  reorderComponentDivisions,
+  selectedIsStructure,
   componentTypes,
-  newComponentTypeName,
-  isCreatingType,
-  isDeletingType,
-  addComponentType,
-  deleteComponentType,
-  updateComponentTypeName,
-  reorderComponentTypes,
   componentCodes,
   selectedComponentTypeId,
   newComponentCode,
@@ -44,8 +28,8 @@ const {
   deleteComponentCode,
 } = useComponentCode()
 
-function selectComponentDivision(id: number) {
-  selectedComponentDivisionId.value = id
+function selectIsStructure(value: boolean) {
+  selectedIsStructure.value = selectedIsStructure.value === value ? null : value
 }
 
 function selectComponentType(id: number) {
@@ -72,7 +56,7 @@ async function confirmDelete() {
 }
 
 async function load() {
-  await loadComponentDivisions()
+  // no-op; panel 내부에서 토글로 로드
 }
 
 defineExpose({ load })
@@ -81,62 +65,36 @@ defineExpose({ load })
 <template>
   <div class="grid grid-cols-3 gap-4">
     <div class="space-y-2">
-      <p class="text-xs text-muted-foreground font-medium">부재 대분류</p>
-      <div class="flex gap-1">
-        <Input
-          v-model="newComponentDivisionName"
-          placeholder="이름 입력"
-          class="h-8 text-sm"
-          @keydown.enter="(e: KeyboardEvent) => { if (!e.isComposing) addComponentDivision() }"
-        />
-        <Button
-          size="sm"
-          class="h-8 shrink-0"
-          :disabled="isCreatingDivision || !newComponentDivisionName.trim()"
-          @click="addComponentDivision"
+      <p class="text-xs text-muted-foreground font-medium">부재 구분</p>
+      <div class="flex gap-2">
+        <button
+          class="flex-1 px-3 py-2 text-sm rounded-md border transition-colors"
+          :class="selectedIsStructure === true ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-background border-border text-foreground hover:bg-muted'"
+          @click="selectIsStructure(true)"
         >
-          추가
-        </Button>
+          구조
+        </button>
+        <button
+          class="flex-1 px-3 py-2 text-sm rounded-md border transition-colors"
+          :class="selectedIsStructure === false ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-background border-border text-foreground hover:bg-muted'"
+          @click="selectIsStructure(false)"
+        >
+          비구조
+        </button>
       </div>
-      <SortableReferenceList
-        :items="componentDivisions"
-        :selected-id="selectedComponentDivisionId"
-        :disabled="isDeletingDivision"
-        @select="selectComponentDivision"
-        @delete="(id, name) => openDeleteDialog(id, name, deleteComponentDivision)"
-        @update-name="({ id, name }) => updateComponentDivisionName(id, name)"
-        @reorder="reorderComponentDivisions"
-      />
     </div>
 
     <div class="space-y-2">
       <p class="text-xs text-muted-foreground font-medium">부재 타입</p>
-      <div class="flex gap-1">
-        <Input
-          v-model="newComponentTypeName"
-          placeholder="이름 입력"
-          class="h-8 text-sm"
-          :disabled="selectedComponentDivisionId == null"
-          @keydown.enter="(e: KeyboardEvent) => { if (!e.isComposing) addComponentType() }"
-        />
-        <Button
-          size="sm"
-          class="h-8 shrink-0"
-          :disabled="isCreatingType || !newComponentTypeName.trim() || selectedComponentDivisionId == null"
-          @click="addComponentType"
-        >
-          추가
-        </Button>
-      </div>
+      <p class="text-[10px] text-muted-foreground">※ 시스템 관리자가 관리합니다. 여기서는 선택만 가능.</p>
       <SortableReferenceList
         :items="componentTypes"
         :selected-id="selectedComponentTypeId"
-        :disabled="isDeletingType"
-        :empty-message="selectedComponentDivisionId == null ? '대분류를 선택하세요' : '항목 없음'"
+        :sortable="false"
+        :deletable="false"
+        :editable="false"
+        :empty-message="selectedIsStructure == null ? '구조/비구조을 선택하세요' : '항목 없음'"
         @select="selectComponentType"
-        @delete="(id, name) => openDeleteDialog(id, name, deleteComponentType)"
-        @update-name="({ id, name }) => updateComponentTypeName(id, name)"
-        @reorder="reorderComponentTypes"
       />
     </div>
 

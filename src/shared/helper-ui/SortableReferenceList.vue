@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick, onBeforeUnmount } from 'vue'
 import draggable from 'vuedraggable'
-import { Menu, Pencil, Check, X, Info } from 'lucide-vue-next'
+import { Menu, Pencil, Check, X } from 'lucide-vue-next'
 import { Input } from '@/shared/ui/input'
 
 interface ListItem {
@@ -21,7 +21,6 @@ const props = withDefaults(
     unitEditable?: boolean
     unitKey?: string
     unitLabel?: string
-    standardMappable?: boolean
   }>(),
   {
     selectedId: null,
@@ -33,7 +32,6 @@ const props = withDefaults(
     unitEditable: false,
     unitKey: 'unit',
     unitLabel: '단위',
-    standardMappable: false,
   },
 )
 
@@ -42,7 +40,6 @@ const emit = defineEmits<{
   delete: [id: number, name: string]
   'update-name': [payload: { id: number; name: string; unit?: string }]
   reorder: [ids: number[]]
-  'map-standard': [id: number]
 }>()
 
 const localItems = ref<ListItem[]>([])
@@ -113,6 +110,28 @@ function onEditKeydown(e: KeyboardEvent) {
     cancelEdit()
   }
 }
+
+// 편집 중일 때 편집 행 바깥 클릭 시 편집 해제 (변경 내용 저장 후 종료)
+function handleOutsidePointer(e: PointerEvent) {
+  if (editingId.value == null) return
+  const target = e.target as HTMLElement | null
+  if (!target) return
+  // Reka UI 의 AlertDialog 등 Portal 로 body 로 이동한 요소 클릭 시 편집 유지
+  if (target.closest('[data-editing-row="true"]') || target.closest('[role="dialog"]')) return
+  confirmEdit()
+}
+
+watch(editingId, (id) => {
+  if (id != null) {
+    document.addEventListener('pointerdown', handleOutsidePointer, true)
+  } else {
+    document.removeEventListener('pointerdown', handleOutsidePointer, true)
+  }
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', handleOutsidePointer, true)
+})
 </script>
 
 <template>
@@ -133,6 +152,7 @@ function onEditKeydown(e: KeyboardEvent) {
             'border-border hover:bg-muted/50': !selectable || selectedId !== element.id,
             'cursor-pointer': selectable && editingId !== element.id,
           }"
+          :data-editing-row="editingId === element.id ? 'true' : undefined"
           @click="onItemClick(element.id)"
         >
           <!-- 드래그 핸들 -->
@@ -172,15 +192,8 @@ function onEditKeydown(e: KeyboardEvent) {
             </span>
           </template>
 
-          <!-- 표준 매핑 버튼 -->
-          <button
-            v-if="standardMappable && editingId !== element.id"
-            class="p-0.5 rounded hover:bg-blue-500/10 text-muted-foreground hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-            :disabled="disabled"
-            @click.stop="emit('map-standard', element.id)"
-          >
-            <Info class="w-3 h-3" />
-          </button>
+          <!-- 편집 모드 전용 커스텀 액션 슬롯 -->
+          <slot v-if="editingId === element.id" name="edit-actions" :item="element" />
 
           <!-- 수정 버튼 (Pencil / Check) -->
           <button

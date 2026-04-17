@@ -91,6 +91,16 @@ export function createMeshFromApiData(model: Object3d): THREE.Mesh {
   mesh.castShadow = true
   mesh.receiveShadow = true
 
+  // 얇은 엣지 아웃라인
+  const edges = new THREE.EdgesGeometry(geometry, 30)
+  const edgeMaterial = new THREE.LineBasicMaterial({
+    color: 0x000000,
+    opacity: 0.15,
+    transparent: true,
+  })
+  const edgeLines = new THREE.LineSegments(edges, edgeMaterial)
+  mesh.add(edgeLines)
+
   mesh.userData = {
     dbId: model.id,
   }

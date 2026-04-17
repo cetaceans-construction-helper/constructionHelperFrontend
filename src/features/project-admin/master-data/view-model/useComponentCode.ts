@@ -2,8 +2,9 @@ import { ref, watch, computed } from 'vue'
 import {
   referenceApi,
   type IdNameResponse,
+  type ComponentTypeResponse,
   type ComponentCodeResponse,
-  type ComponentCodeMappingResponse,
+  type CcodeDetailResponse,
   type WorkTypeResponse,
   type SubWorkTypeResponse,
   type WorkStepResponse,
@@ -11,23 +12,15 @@ import {
   type MaterialSpecResponse,
   type CreateTasksResponse,
 } from '@/shared/network-core/apis/reference'
-import { standardApi } from '@/shared/network-core/apis/standard'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 export function useComponentCode() {
-  // 부재 대분류 관리
-  const componentDivisions = ref<IdNameResponse[]>([])
-  const selectedComponentDivisionId = ref<number | null>(null)
-  const newComponentDivisionName = ref('')
-  const isCreatingDivision = ref(false)
-  const isDeletingDivision = ref(false)
-
-  // 부재 타입 관리
-  const componentTypes = ref<IdNameResponse[]>([])
-  const newComponentTypeName = ref('')
-  const isCreatingType = ref(false)
-
-  const isDeletingType = ref(false)
+  // 구조/비구조 구분 (true=구조, false=비구조)
+  const selectedIsStructure = ref<boolean | null>(null)
+  // 부재 타입 (선택 전용: system-admin 에서 CRUD 관리)
+  const componentTypes = ref<ComponentTypeResponse[]>([])
+  // 전역 부재 타입 (이름 lookup용; 분류 필터와 무관)
+  const componentTypeLookupMap = ref<Map<number, string>>(new Map())
 
   // 부재 코드 관리
   const componentCodes = ref<ComponentCodeResponse[]>([])
@@ -37,7 +30,7 @@ export function useComponentCode() {
   const isDeletingCode = ref(false)
 
   // 매핑 관리
-  const allMappings = ref<ComponentCodeMappingResponse[]>([])
+  const allMappings = ref<CcodeDetailResponse[]>([])
   const selectedComponentCodeIds = ref<number[]>([]) // 다중선택
   const isCreatingMapping = ref(false)
   const isDeletingMapping = ref(false)
@@ -79,172 +72,27 @@ export function useComponentCode() {
   const createTasksResult = ref<CreateTasksResponse | null>(null)
   const showCreateTasksResult = ref(false)
 
-  // ========== 부재 대분류 관련 ==========
+  // ========== 부재 타입 관련 (isStructure 기반) ==========
 
-  const loadComponentDivisions = async () => {
+  const loadComponentTypes = async (isStructure?: boolean) => {
     try {
-      componentDivisions.value = await referenceApi.getComponentDivisionList()
-    } catch (error) {
-      console.error('ComponentDivision 목록 로드 실패:', error)
-    }
-  }
-
-  const addComponentDivision = async () => {
-    if (isCreatingDivision.value) return
-    const name = newComponentDivisionName.value.trim()
-    if (!name) return
-
-    isCreatingDivision.value = true
-    try {
-      const result = await referenceApi.createComponentDivision(name)
-      newComponentDivisionName.value = ''
-      await loadComponentDivisions()
-      selectedComponentDivisionId.value = result.id
-      analyticsClient.trackAction('admin_master_data', 'create_component_division', 'success')
-    } catch (error: unknown) {
-      console.error('ComponentDivision 추가 실패:', error)
-      analyticsClient.trackAction('admin_master_data', 'create_component_division', 'fail')
-      const err = error as { response?: { data?: { message?: string } }; message?: string }
-      alert(err.response?.data?.message || err.message)
-    } finally {
-      isCreatingDivision.value = false
-    }
-  }
-
-  const deleteComponentDivision = async (id: number) => {
-    if (isDeletingDivision.value) return
-    isDeletingDivision.value = true
-    try {
-      await referenceApi.deleteComponentDivision(id)
-      if (selectedComponentDivisionId.value === id) {
-        selectedComponentDivisionId.value = null
-        componentTypes.value = []
-        selectedComponentTypeId.value = null
-        componentCodes.value = []
-        selectedComponentCodeIds.value = []
-      }
-      componentDivisions.value = componentDivisions.value.filter((cd) => cd.id !== id)
-      analyticsClient.trackAction('admin_master_data', 'delete_component_division', 'success')
-    } catch (error: unknown) {
-      console.error('ComponentDivision 삭제 실패:', error)
-      analyticsClient.trackAction('admin_master_data', 'delete_component_division', 'fail')
-      const err = error as { response?: { data?: { message?: string } }; message?: string }
-      alert(err.response?.data?.message || err.message)
-    } finally {
-      isDeletingDivision.value = false
-    }
-  }
-
-  const updateComponentDivisionName = async (id: number, name: string) => {
-    try {
-      await referenceApi.updateComponentDivision({ id, name })
-      const item = componentDivisions.value.find((cd) => cd.id === id)
-      if (item) item.name = name
-      analyticsClient.trackAction('admin_master_data', 'update_component_division', 'success')
-    } catch (error: unknown) {
-      console.error('ComponentDivision 이름 수정 실패:', error)
-      analyticsClient.trackAction('admin_master_data', 'update_component_division', 'fail')
-      const err = error as { response?: { data?: { message?: string } }; message?: string }
-      alert(err.response?.data?.message || err.message)
-      await loadComponentDivisions()
-    }
-  }
-
-  const reorderComponentDivisions = async (ids: number[]) => {
-    try {
-      await referenceApi.updateComponentDivision({ ids })
-      await loadComponentDivisions()
-    } catch (error: unknown) {
-      console.error('ComponentDivision 정렬 실패:', error)
-      const err = error as { response?: { data?: { message?: string } }; message?: string }
-      alert(err.response?.data?.message || err.message)
-      await loadComponentDivisions()
-    }
-  }
-
-  // ========== 부재 타입 관련 ==========
-
-  const loadComponentTypes = async (componentDivisionId?: number) => {
-    try {
-      componentTypes.value = await referenceApi.getComponentTypeList(componentDivisionId)
+      componentTypes.value = await referenceApi.getComponentTypeList(isStructure)
     } catch (error) {
       console.error('ComponentType 목록 로드 실패:', error)
     }
   }
 
-  const addComponentType = async () => {
-    if (isCreatingType.value) return
-    if (!selectedComponentDivisionId.value) return
-    const name = newComponentTypeName.value.trim()
-    if (!name) return
-
-    isCreatingType.value = true
+  const loadAllComponentTypesForLookup = async () => {
     try {
-      const result = await referenceApi.createComponentType(selectedComponentDivisionId.value, name)
-      newComponentTypeName.value = ''
-      await loadComponentTypes(selectedComponentDivisionId.value)
-      selectedComponentTypeId.value = result.id
-      analyticsClient.trackAction('admin_master_data', 'create_component_type', 'success')
-    } catch (error: unknown) {
-      console.error('ComponentType 추가 실패:', error)
-      analyticsClient.trackAction('admin_master_data', 'create_component_type', 'fail')
-      const err = error as { response?: { data?: { message?: string } }; message?: string }
-      alert(err.response?.data?.message || err.message)
-    } finally {
-      isCreatingType.value = false
+      const all = await referenceApi.getComponentTypeList()
+      componentTypeLookupMap.value = new Map(all.map((ct) => [ct.id, ct.name]))
+    } catch (error) {
+      console.error('ComponentType lookup 로드 실패:', error)
     }
   }
 
-  const deleteComponentType = async (id: number) => {
-    if (isDeletingType.value) return
-    isDeletingType.value = true
-    try {
-      await referenceApi.deleteComponentType(id)
-      if (selectedComponentTypeId.value === id) {
-        selectedComponentTypeId.value = null
-        componentCodes.value = []
-        selectedComponentCodeIds.value = []
-      }
-      componentTypes.value = componentTypes.value.filter((ct) => ct.id !== id)
-      analyticsClient.trackAction('admin_master_data', 'delete_component_type', 'success')
-    } catch (error: unknown) {
-      console.error('ComponentType 삭제 실패:', error)
-      analyticsClient.trackAction('admin_master_data', 'delete_component_type', 'fail')
-      const err = error as { response?: { data?: { message?: string } }; message?: string }
-      alert(err.response?.data?.message || err.message)
-    } finally {
-      isDeletingType.value = false
-    }
-  }
-
-  // 수정 (이름 변경)
-  const updateComponentTypeName = async (id: number, name: string) => {
-    try {
-      await referenceApi.updateComponentType({ id, name })
-      const item = componentTypes.value.find((ct) => ct.id === id)
-      if (item) item.name = name
-      analyticsClient.trackAction('admin_master_data', 'update_component_type', 'success')
-    } catch (error: unknown) {
-      console.error('ComponentType 이름 수정 실패:', error)
-      analyticsClient.trackAction('admin_master_data', 'update_component_type', 'fail')
-      const err = error as { response?: { data?: { message?: string } }; message?: string }
-      alert(err.response?.data?.message || err.message)
-      if (selectedComponentDivisionId.value) await loadComponentTypes(selectedComponentDivisionId.value)
-    }
-  }
-
-  // 정렬 변경
-  const reorderComponentTypes = async (ids: number[]) => {
-    if (!selectedComponentDivisionId.value) return
-    try {
-      await referenceApi.updateComponentType({ ids, parentId: selectedComponentDivisionId.value })
-      await loadComponentTypes(selectedComponentDivisionId.value)
-    } catch (error: unknown) {
-      console.error('ComponentType 정렬 실패:', error)
-      const err = error as { response?: { data?: { message?: string } }; message?: string }
-      alert(err.response?.data?.message || err.message)
-      if (selectedComponentDivisionId.value) await loadComponentTypes(selectedComponentDivisionId.value)
-    }
+  const getComponentTypeName = (id: number): string => {
+    return componentTypeLookupMap.value.get(id) ?? ''
   }
 
   // ========== 부재 코드 관련 ==========
@@ -350,7 +198,7 @@ export function useComponentCode() {
 
   const loadAllMappings = async () => {
     try {
-      allMappings.value = await referenceApi.getComponentCodeMappingList()
+      allMappings.value = await referenceApi.getCcodeDetailList()
       // 매핑 목록이 갱신되면 선택 초기화
       selectedMappingIds.value = []
     } catch (error) {
@@ -435,7 +283,7 @@ export function useComponentCode() {
       for (const componentCodeId of selectedComponentCodeIds.value) {
         for (const workStepId of selectedWorkStepIds.value) {
           try {
-            const result = await referenceApi.createComponentCodeMapping({
+            const result = await referenceApi.createCcodeDetail({
               componentCodeId,
               workStepId,
             })
@@ -458,10 +306,10 @@ export function useComponentCode() {
       alert(messages.join(', ') || '매핑 완료')
 
       await loadAllMappings()
-      analyticsClient.trackAction('admin_master_data', 'create_component_code_mapping', 'success')
+      analyticsClient.trackAction('admin_master_data', 'create_ccode_detail', 'success')
     } catch (error: unknown) {
       console.error('매핑 추가 실패:', error)
-      analyticsClient.trackAction('admin_master_data', 'create_component_code_mapping', 'fail')
+      analyticsClient.trackAction('admin_master_data', 'create_ccode_detail', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -469,17 +317,17 @@ export function useComponentCode() {
     }
   }
 
-  const deleteCwmMapping = async (id: number) => {
+  const deleteCcodeDetail = async (id: number) => {
     if (isDeletingMapping.value) return
     isDeletingMapping.value = true
     try {
-      await referenceApi.deleteCwmMapping(id)
+      await referenceApi.deleteCcodeDetail(id)
       allMappings.value = allMappings.value.filter((m) => m.id !== id)
       selectedMappingIds.value = selectedMappingIds.value.filter((v) => v !== id)
-      analyticsClient.trackAction('admin_master_data', 'delete_component_code_mapping', 'success')
+      analyticsClient.trackAction('admin_master_data', 'delete_ccode_detail', 'success')
     } catch (error: unknown) {
-      console.error('CwmMapping 삭제 실패:', error)
-      analyticsClient.trackAction('admin_master_data', 'delete_component_code_mapping', 'fail')
+      console.error('CcodeDetail 삭제 실패:', error)
+      analyticsClient.trackAction('admin_master_data', 'delete_ccode_detail', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -495,7 +343,7 @@ export function useComponentCode() {
 
     isApplyingMaterial.value = true
     try {
-      const result = await referenceApi.updateComponentCodeMapping({
+      const result = await referenceApi.updateCcodeDetail({
         ids: selectedMappingIds.value,
         materialSpecId: Number(materialApplyForm.value.materialSpecId),
       })
@@ -505,10 +353,10 @@ export function useComponentCode() {
       // 자재 적용 폼 초기화
       materialApplyForm.value.materialTypeId = ''
       materialApplyForm.value.materialSpecId = ''
-      analyticsClient.trackAction('admin_master_data', 'update_component_code_mapping', 'success')
+      analyticsClient.trackAction('admin_master_data', 'update_ccode_detail', 'success')
     } catch (error: unknown) {
       console.error('자재 적용 실패:', error)
-      analyticsClient.trackAction('admin_master_data', 'update_component_code_mapping', 'fail')
+      analyticsClient.trackAction('admin_master_data', 'update_ccode_detail', 'fail')
       const err = error as { response?: { data?: { message?: string } }; message?: string }
       alert(err.response?.data?.message || err.message)
     } finally {
@@ -537,53 +385,11 @@ export function useComponentCode() {
 
   // ========== Watch: 캐스케이딩 셀렉트 ==========
 
-  // ========== 표준 매핑 ==========
-
-  const stdComponentDivisions = ref<IdNameResponse[]>([])
-  const stdComponentTypes = ref<{ id: number; name: string }[]>([])
-
-  const loadStdComponentDivisions = async () => {
-    try {
-      stdComponentDivisions.value = await standardApi.componentDivision.getList()
-    } catch (error) {
-      console.error('StdComponentDivision 로드 실패:', error)
-    }
-  }
-
-  const setComponentDivisionStandard = async (id: number, standardId: number | null) => {
-    try {
-      await referenceApi.updateComponentDivision({ id, standardId })
-      const item = componentDivisions.value.find((cd) => cd.id === id)
-      if (item) item.standardId = standardId
-    } catch (error: unknown) {
-      console.error('ComponentDivision 표준 매핑 실패:', error)
-      const err = error as { response?: { data?: { message?: string } }; message?: string }
-      alert(err.response?.data?.message || err.message)
-    }
-  }
-
-  const setComponentTypeStandard = async (id: number, standardId: number | null) => {
-    try {
-      await referenceApi.updateComponentType({ id, standardId })
-      const item = componentTypes.value.find((ct) => ct.id === id)
-      if (item) item.standardId = standardId
-    } catch (error: unknown) {
-      console.error('ComponentType 표준 매핑 실패:', error)
-      const err = error as { response?: { data?: { message?: string } }; message?: string }
-      alert(err.response?.data?.message || err.message)
-    }
-  }
-
-  watch(selectedComponentDivisionId, (divisionId) => {
+  watch(selectedIsStructure, (isStructure) => {
     componentTypes.value = []
     selectedComponentTypeId.value = null
-    stdComponentTypes.value = []
-    if (divisionId) {
-      loadComponentTypes(divisionId)
-      const cd = componentDivisions.value.find((d) => d.id === divisionId)
-      if (cd?.standardId) {
-        standardApi.componentType.getList(cd.standardId).then((list) => { stdComponentTypes.value = list })
-      }
+    if (isStructure != null) {
+      loadComponentTypes(isStructure)
     }
   })
 
@@ -679,28 +485,14 @@ export function useComponentCode() {
   )
 
   return {
-    // 부재 대분류
-    componentDivisions,
-    selectedComponentDivisionId,
-    newComponentDivisionName,
-    isCreatingDivision,
-    isDeletingDivision,
-    loadComponentDivisions,
-    addComponentDivision,
-    deleteComponentDivision,
-    updateComponentDivisionName,
-    reorderComponentDivisions,
+    // 구조/비구조 구분
+    selectedIsStructure,
 
-    // 부재 타입
+    // 부재 타입 (선택 전용: system-admin 에서 CRUD)
     componentTypes,
-    newComponentTypeName,
-    isCreatingType,
-    isDeletingType,
     loadComponentTypes,
-    addComponentType,
-    deleteComponentType,
-    updateComponentTypeName,
-    reorderComponentTypes,
+    loadAllComponentTypesForLookup,
+    getComponentTypeName,
 
     // 부재 코드
     componentCodes,
@@ -722,7 +514,7 @@ export function useComponentCode() {
     filteredMappings,
     isCreatingMapping,
     isDeletingMapping,
-    deleteCwmMapping,
+    deleteCcodeDetail,
     divisions,
     workTypes,
     subWorkTypes,
@@ -762,11 +554,5 @@ export function useComponentCode() {
     showCreateTasksResult,
     createTasks,
 
-    // 표준에서 가져오기
-    stdComponentDivisions,
-    stdComponentTypes,
-    loadStdComponentDivisions,
-    setComponentDivisionStandard,
-    setComponentTypeStandard,
   }
 }

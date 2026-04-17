@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/features/auth/public'
 import { Button } from '@/shared/ui/button'
@@ -19,28 +19,34 @@ import UserManagementArea from '@/features/system-admin/ui/components/UserManage
 import ProjectManagementArea from '@/features/system-admin/ui/components/ProjectManagementArea.vue'
 import RoleManagementArea from '@/features/system-admin/ui/components/RoleManagementArea.vue'
 import MappingManagementArea from '@/features/system-admin/ui/components/MappingManagementArea.vue'
-import WorkerManagementArea from '@/features/system-admin/ui/components/WorkerManagementArea.vue'
-import StandardWorkClassificationArea from '@/features/system-admin/ui/components/StandardWorkClassificationArea.vue'
-import StandardMaterialArea from '@/features/system-admin/ui/components/StandardMaterialArea.vue'
-import StandardEquipmentArea from '@/features/system-admin/ui/components/StandardEquipmentArea.vue'
-import StandardComponentArea from '@/features/system-admin/ui/components/StandardComponentArea.vue'
-import StandardLaborArea from '@/features/system-admin/ui/components/StandardLaborArea.vue'
-import WorkRulesArea from '@/features/system-admin/ui/components/WorkRulesArea.vue'
+import WorkClassificationArea from '@/features/system-admin/ui/components/standard/WorkClassificationArea.vue'
+import WorkStepArea from '@/features/system-admin/ui/components/standard/WorkStepArea.vue'
+import ComponentTypeArea from '@/features/system-admin/ui/components/standard/ComponentTypeArea.vue'
+import MaterialMasterArea from '@/features/system-admin/ui/components/standard/MaterialMasterArea.vue'
+import EquipmentMasterArea from '@/features/system-admin/ui/components/standard/EquipmentMasterArea.vue'
+import LaborTypeArea from '@/features/system-admin/ui/components/standard/LaborTypeArea.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
 
-type MenuId = 'project' | 'worker' | 'company' | 'common' | 'standard'
+type MenuId = 'project' | 'company' | 'common' | 'standard'
 
 const menus: { id: MenuId; label: string }[] = [
   { id: 'project', label: '프로젝트관리' },
-  { id: 'worker', label: '작업자관리' },
   { id: 'company', label: '사용자/회사관리' },
   { id: 'common', label: '공용 설정' },
   { id: 'standard', label: '표준 데이터' },
 ]
 
-const activeMenu = ref<MenuId>('project')
+const MENU_STORAGE_KEY = 'systemAdmin:activeMenu'
+const savedMenu = sessionStorage.getItem(MENU_STORAGE_KEY) as MenuId | null
+const activeMenu = ref<MenuId>(
+  savedMenu && menus.some((m) => m.id === savedMenu) ? savedMenu : 'project',
+)
+
+watch(activeMenu, (id) => {
+  sessionStorage.setItem(MENU_STORAGE_KEY, id)
+})
 
 const handleLogout = async () => {
   await authStore.logout()
@@ -129,17 +135,6 @@ onUnmounted(() => {
             </Card>
           </template>
 
-          <template v-if="activeMenu === 'worker'">
-            <Card>
-              <CardHeader>
-                <CardTitle>작업자 관리</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <WorkerManagementArea />
-              </CardContent>
-            </Card>
-          </template>
-
           <template v-if="activeMenu === 'company'">
             <Card>
               <CardHeader>
@@ -174,55 +169,55 @@ onUnmounted(() => {
           <template v-if="activeMenu === 'standard'">
             <Card>
               <CardHeader>
-                <CardTitle>표준 공종분류</CardTitle>
+                <CardTitle>공종분류</CardTitle>
               </CardHeader>
               <CardContent>
-                <StandardWorkClassificationArea />
+                <WorkClassificationArea />
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
-                <CardTitle>표준 자재</CardTitle>
+                <CardTitle>부재타입</CardTitle>
               </CardHeader>
               <CardContent>
-                <StandardMaterialArea />
+                <ComponentTypeArea />
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
-                <CardTitle>표준 장비</CardTitle>
+                <CardTitle>작업절차</CardTitle>
               </CardHeader>
               <CardContent>
-                <StandardEquipmentArea />
+                <WorkStepArea />
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
-                <CardTitle>표준 부재</CardTitle>
+                <CardTitle>자재</CardTitle>
               </CardHeader>
               <CardContent>
-                <StandardComponentArea />
+                <MaterialMasterArea />
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
-                <CardTitle>표준 직종</CardTitle>
+                <CardTitle>장비</CardTitle>
               </CardHeader>
               <CardContent>
-                <StandardLaborArea />
+                <EquipmentMasterArea />
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
-                <CardTitle>작업 규칙</CardTitle>
+                <CardTitle>직종</CardTitle>
               </CardHeader>
               <CardContent>
-                <WorkRulesArea />
+                <LaborTypeArea />
               </CardContent>
             </Card>
           </template>

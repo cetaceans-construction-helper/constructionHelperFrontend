@@ -20,7 +20,7 @@ function toObject2D(res: Object2DResponse): Object2D {
     componentCodeId: res.componentCodeId,
     componentCode: res.componentCode,
     componentTypeName: res.componentTypeName,
-    componentDivisionName: res.componentDivisionName,
+    isStructure: res.isStructure,
     gridLabel: res.axisLabel || null,
   }
 }
@@ -65,7 +65,7 @@ export const useFloorPlanStore = defineStore('floorPlan', () => {
   const activeMode = ref<ToolMode>('select')
   const transform = ref<ViewTransform>({ offsetX: 0, offsetY: 0, scale: 0.02 })
   const ccodeFilter = ref<CcodeFilter>({
-    componentDivisionId: null,
+    isStructure: null,
     componentTypeId: null,
     componentCodeId: null,
   })
@@ -197,7 +197,7 @@ export const useFloorPlanStore = defineStore('floorPlan', () => {
   // --- 이미지 업로드 ---
 
   async function uploadDrawingImage(file: File) {
-    let d = currentDrawing.value
+    const d = currentDrawing.value
 
     if (!d) {
       const zoneId = currentZoneId.value
@@ -280,8 +280,12 @@ export const useFloorPlanStore = defineStore('floorPlan', () => {
     const axisName = name ?? `${prefix}${axes.value.length + 1}`
 
     try {
-      const res = await drawingAxisApi.createDrawingAxis({ isX: type === 'x', name: axisName, position: Math.round(position) })
-      axes.value = [...axes.value, toAxisLine(res)]
+      const results = await drawingAxisApi.createDrawingAxis([{ isX: type === 'x', name: axisName, position: Math.round(position) }])
+      for (const res of results) {
+        const axis = toAxisLine(res)
+        if (axis.type === 'x') xAxes.value = [...xAxes.value, axis]
+        else yAxes.value = [...yAxes.value, axis]
+      }
       await reloadCurrentObjects()
     } catch (e: any) {
       console.error('축 생성 실패:', e)
@@ -292,8 +296,8 @@ export const useFloorPlanStore = defineStore('floorPlan', () => {
 
   async function updateAxisValue(axisId: number, position: number) {
     try {
-      const res = await drawingAxisApi.updateDrawingAxis(axisId, { position: Math.round(position) })
-      replaceAxis(res)
+      const results = await drawingAxisApi.updateDrawingAxis([{ id: axisId, position: Math.round(position) }])
+      for (const res of results) replaceAxis(res)
       await reloadCurrentObjects()
     } catch (e: any) {
       console.error('축 위치 수정 실패:', e)
@@ -304,14 +308,10 @@ export const useFloorPlanStore = defineStore('floorPlan', () => {
 
   async function updateAxisValues(updates: { axisId: number; position: number }[]) {
     try {
-      const results = await Promise.all(
-        updates.map(({ axisId, position }) =>
-          drawingAxisApi.updateDrawingAxis(axisId, { position: Math.round(position) }),
-        ),
+      const results = await drawingAxisApi.updateDrawingAxis(
+        updates.map(({ axisId, position }) => ({ id: axisId, position: Math.round(position) })),
       )
-      for (const res of results) {
-        replaceAxis(res)
-      }
+      for (const res of results) replaceAxis(res)
       await reloadCurrentObjects()
     } catch (e: any) {
       console.error('축 위치 수정 실패:', e)
@@ -322,8 +322,8 @@ export const useFloorPlanStore = defineStore('floorPlan', () => {
 
   async function updateAxisLabel(axisId: number, label: string) {
     try {
-      const res = await drawingAxisApi.updateDrawingAxis(axisId, { name: label })
-      replaceAxis(res)
+      const results = await drawingAxisApi.updateDrawingAxis([{ id: axisId, name: label }])
+      for (const res of results) replaceAxis(res)
       await reloadCurrentObjects()
     } catch (e: any) {
       console.error('축 이름 수정 실패:', e)
@@ -465,7 +465,7 @@ export const useFloorPlanStore = defineStore('floorPlan', () => {
   function clearSelection() { selectedBoxIds.value = new Set() }
 
   function setCcodeFilter(f: Partial<CcodeFilter>) { ccodeFilter.value = { ...ccodeFilter.value, ...f } }
-  function clearCcodeFilter() { ccodeFilter.value = { componentDivisionId: null, componentTypeId: null, componentCodeId: null } }
+  function clearCcodeFilter() { ccodeFilter.value = { isStructure: null, componentTypeId: null, componentCodeId: null } }
 
   return {
     xAxes, yAxes, sortedXAxes, sortedYAxes,

@@ -31,7 +31,7 @@ export const getMaterialOrderStatusBadgeClass = (status: string): string => {
 }
 
 export const formatMaterialOrderLineLocation = (line: MaterialOrderLineResponse): string => {
-  const parts = [line.zoneName, line.floorName, line.sectionName, line.usageName].filter(Boolean)
+  const parts = [line.zoneName, line.floorName].filter(Boolean)
   return parts.length > 0 ? parts.join(' ') : '-'
 }
 

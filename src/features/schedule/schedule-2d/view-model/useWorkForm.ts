@@ -2,6 +2,7 @@ import { ref, watch } from 'vue'
 import {
   referenceApi,
   type IdNameResponse,
+  type ComponentTypeResponse,
   type WorkTypeResponse,
   type SubWorkTypeResponse,
 } from '@/shared/network-core/apis/reference'
@@ -21,13 +22,10 @@ export function useWorkForm(onWorkCreated: (mutation: MutationResponse) => void,
     division_id: '',
     work_type_id: '',
     sub_work_type_id: '',
-    component_division_id: '',
+    is_structure: null as boolean | null,
     component_type_ids: [] as string[],
     zone_ids: [] as number[],
     floor_ids: [] as number[],
-    // TODO: section/usage 임시 비활성화
-    // section_ids: [] as number[],
-    // usage_ids: [] as number[],
     start_date: today,
     work_days: 7,
     isWorkingOnHoliday: true,
@@ -39,24 +37,17 @@ export function useWorkForm(onWorkCreated: (mutation: MutationResponse) => void,
   const workTypes = ref<WorkTypeResponse[]>([])
   const subWorkTypes = ref<SubWorkTypeResponse[]>([])
 
-  // 부재 대분류/타입 옵션
-  const componentDivisions = ref<IdNameResponse[]>([])
-  const componentTypes = ref<IdNameResponse[]>([])
+  // 부재타입 옵션
+  const componentTypes = ref<ComponentTypeResponse[]>([])
   const isLoadingComponentTypes = ref(false)
 
   // 위치 분류 옵션 (IdNameResponse 사용)
   const locationOptions = ref<{
     zone: IdNameResponse[]
     floor: IdNameResponse[]
-    // TODO: section/usage 임시 비활성화
-    // section: IdNameResponse[]
-    // usage: IdNameResponse[]
   }>({
     zone: [],
     floor: [],
-    // TODO: section/usage 임시 비활성화
-    // section: [],
-    // usage: [],
   })
 
   // 프로젝트 목록
@@ -75,9 +66,6 @@ export function useWorkForm(onWorkCreated: (mutation: MutationResponse) => void,
       component_type_ids,
       zone_ids,
       floor_ids,
-      // TODO: section/usage 임시 비활성화
-      // section_ids,
-      // usage_ids,
       isWorkingOnHoliday,
       annotation,
     } = workFormState.value
@@ -92,17 +80,14 @@ export function useWorkForm(onWorkCreated: (mutation: MutationResponse) => void,
     try {
       const payload = {
         subWorkTypeId: Number(sub_work_type_id),
-        ...(component_type_ids.length > 0 && workFormState.value.component_division_id && {
-          componentTypes: [{ componentDivisionId: Number(workFormState.value.component_division_id), componentTypeIds: component_type_ids.map(Number) }],
+        ...(component_type_ids.length > 0 && workFormState.value.is_structure != null && {
+          componentTypes: [{ isStructure: workFormState.value.is_structure, componentTypeIds: component_type_ids.map(Number) }],
         }),
         startDate: start_date,
         workLeadTime: work_days,
         isWorkingOnHoliday,
         zoneIds: zone_ids,
         floorIds: floor_ids,
-        // TODO: section/usage 임시 비활성화
-        // sectionIds: section_ids,
-        // usageIds: usage_ids,
         ...(annotation && { annotation }),
         scheduleVersionId: getScheduleVersion?.() ?? 0,
       }
@@ -126,26 +111,18 @@ export function useWorkForm(onWorkCreated: (mutation: MutationResponse) => void,
   // 초기 데이터 로드
   const loadInitialData = async () => {
     try {
-      // TODO: section/usage 임시 비활성화
-      const [divisionList, zones, floors, /* sections, usages, */ projectList, componentDivisionList] = await Promise.all([
+      const [divisionList, zones, floors, projectList] = await Promise.all([
         referenceApi.getDivisionList(),
         referenceApi.getZoneList(),
         referenceApi.getFloorList(),
-        // referenceApi.getSectionList(),
-        // referenceApi.getUsageList(),
         projectApi.getProjects(),
-        referenceApi.getComponentDivisionList(),
       ])
 
       divisions.value = divisionList
       projects.value = projectList
-      componentDivisions.value = componentDivisionList
       locationOptions.value = {
         zone: zones,
         floor: floors,
-        // TODO: section/usage 임시 비활성화
-        // section: sections,
-        // usage: usages,
       }
     } catch (error) {
       console.error('초기 데이터 로드 실패:', error)
@@ -217,7 +194,6 @@ export function useWorkForm(onWorkCreated: (mutation: MutationResponse) => void,
     divisions,
     workTypes,
     subWorkTypes,
-    componentDivisions,
     componentTypes,
     isLoadingComponentTypes,
     locationOptions,

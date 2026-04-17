@@ -16,11 +16,9 @@ import {
   ClipboardCheck,
   Wrench,
   Database,
-  Users,
   FileCheck,
   CalendarOff,
   Upload,
-  RefreshCw,
   Globe,
   Map,
   ChevronRight,
@@ -68,6 +66,7 @@ const sections = [
   { id: 'dashboard', label: '대시보드', shortLabel: '대시', path: '/helper/dashboard' },
   { id: 'document', label: '문서생성', shortLabel: '문서', path: '/helper/document/daily-report' },
   { id: 'process', label: '공정관리', shortLabel: '공정', path: '/helper/schedule/2d' },
+  { id: '3d-model', label: '3D모델', shortLabel: '3D', path: '/helper/3d-model' },
   // { id: 'attendance', label: '출역관리', shortLabel: '출역', path: '/helper/attendance/input' },
   { id: 'material', label: '자원관리', shortLabel: '자원', path: '/helper/material/delivery' },
   // { id: 'floor-plan', label: '도면관리', shortLabel: '도면', path: '/helper/floor-plan' },
@@ -100,13 +99,11 @@ const menusBySection: Record<string, MenuItem[]> = {
   document: [],
   admin: [
     { id: 'master-data', label: '기준정보 관리', path: '/helper/admin', icon: Database },
-    { id: 'resource-info', label: '자원정보 관리', path: '/helper/admin/resource', icon: Users },
     { id: 'document-setting', label: '자재검수요청서', path: '/helper/admin/document', icon: FileCheck },
     { id: 'daily-report-setting', label: '작업일보', path: '/helper/admin/daily-report', icon: FileText },
     { id: 'holiday', label: '휴일관리', path: '/helper/admin/holiday', icon: CalendarOff },
     { id: 'bulk-deployment', label: '대량 출역 입력', path: '/helper/admin/bulk-deployment', icon: Upload },
     { id: 'homepage-setting', label: '홈페이지 입력정보', path: '/helper/admin/homepage-setting', icon: Globe },
-    { id: 'rebuild-work-names', label: '공정명 재생성 (임시)', path: '/helper/admin/rebuild-work-names', icon: RefreshCw },
   ],
 }
 
@@ -176,6 +173,7 @@ function toggleDocMenu(id: string) {
 const currentSection = computed(() => {
   const path = route.path
   if (path.startsWith('/helper/dashboard')) return 'dashboard'
+  if (path.startsWith('/helper/3d-model')) return '3d-model'
   if (path.startsWith('/helper/schedule')) return 'process'
   // if (path.startsWith('/helper/attendance')) return 'attendance'
   if (path.startsWith('/helper/material')) return 'material'
@@ -320,31 +318,30 @@ onUnmounted(() => {
   <SidebarProvider v-model:open="sidebarOpen">
     <div class="min-h-screen flex flex-col w-full">
       <!-- Header with Sections (1단계: Section) -->
-      <header class="sticky top-0 z-40 h-[65px] border-b border-border bg-background">
+      <header class="sticky top-0 z-40 border-b border-border bg-background" :class="isPortrait ? 'h-[50px]' : 'h-[65px]'">
         <div class="flex items-center justify-between p-3 h-full">
           <!-- Logo -->
-          <div class="flex items-center gap-3 px-3 shrink-0 hidden [@media(min-aspect-ratio:3/2)]:flex">
-            <img src="@/app/public-home/assets/logo.png" alt="CONELP" class="h-8" />
+          <div class="flex items-center gap-3 px-3 shrink-0">
+            <img src="@/app/public-home/assets/logo.png" alt="CONELP" :class="isPortrait ? 'h-6' : 'h-8'" />
           </div>
 
-          <!-- Section Buttons (Segmented Design) -->
-          <div class="flex-1 flex justify-center min-w-0">
+          <!-- Section Buttons (Segmented Design) — 세로모드 숨김 -->
+          <div v-if="!isPortrait" class="flex-1 flex justify-center min-w-0">
             <div class="inline-flex rounded-lg bg-muted p-1.5">
               <Button
                 v-for="section in sections"
                 :key="section.id"
                 :variant="currentSection === section.id ? 'default' : 'ghost'"
                 @click="selectSection(section.id)"
-                class="rounded-md text-base px-2 [@media(min-aspect-ratio:1/1)]:px-4 py-2"
+                class="rounded-md text-base px-4 py-2"
               >
-                <span class="hidden [@media(min-aspect-ratio:1/1)]:inline">{{ section.label }}</span>
-                <span class="[@media(min-aspect-ratio:1/1)]:hidden">{{ section.shortLabel }}</span>
+                {{ section.label }}
               </Button>
             </div>
           </div>
 
           <!-- User Actions -->
-          <div class="flex items-center gap-3 shrink-0">
+          <div class="flex items-center gap-3 shrink-0 ml-auto">
             <Select v-model="selectedProject" :disabled="isLoadingProjects">
               <SelectTrigger class="w-40 [@media(min-aspect-ratio:3/2)]:w-72 h-10 text-base">
                 <SelectValue :placeholder="isLoadingProjects ? '로딩 중...' : '프로젝트 선택'" />
@@ -364,7 +361,7 @@ onUnmounted(() => {
       <div class="flex flex-1 relative">
         <!-- Floating Sidebar (2단계: Menu) - 대시보드에서는 숨김 -->
         <Sidebar
-          v-if="currentSection !== 'dashboard' && currentSection !== 'process'"
+          v-if="currentSection !== 'dashboard' && currentSection !== 'process' && currentSection !== '3d-model'"
           :collapsible="isPortrait ? 'offcanvas' : 'none'"
           class="border-r shadow-lg"
           :style="currentSection === 'document' ? { '--sidebar-width': '240px' } : {}"
@@ -450,7 +447,7 @@ onUnmounted(() => {
 
         <!-- 세로모드 햄버거 버튼 -->
         <button
-          v-if="isPortrait && currentSection !== 'dashboard' && currentSection !== 'process'"
+          v-if="isPortrait && currentSection !== 'dashboard' && currentSection !== 'process' && currentSection !== '3d-model'"
           class="fixed top-[69px] z-50 p-2 bg-primary text-primary-foreground rounded-md shadow-sm transition-[left] duration-200 ease-linear"
           :style="{ left: sidebarOpen ? `calc(${currentSection === 'document' ? '240px' : 'var(--sidebar-width)'} + 4px)` : '4px' }"
           @click="sidebarOpen = !sidebarOpen"
@@ -460,11 +457,26 @@ onUnmounted(() => {
 
         <!-- Content Area - RouterView로 각 페이지 렌더링 -->
         <div class="flex-1 w-full flex flex-col" @click="isPortrait && sidebarOpen ? (sidebarOpen = false) : undefined">
-          <div class="flex-1 flex flex-col min-h-0" :class="currentSection === 'process' ? '' : 'p-4'">
+          <div class="flex-1 flex flex-col min-h-0" :class="currentSection === 'process' || currentSection === '3d-model' ? '' : 'p-4'">
             <RouterView />
           </div>
         </div>
       </div>
+
+      <!-- Footer 네비게이션 (세로모드) -->
+      <footer v-if="isPortrait" class="sticky bottom-0 z-40 border-t border-border bg-background">
+        <div class="grid h-14" :style="{ gridTemplateColumns: `repeat(${sections.length}, 1fr)` }">
+          <Button
+            v-for="section in sections"
+            :key="section.id"
+            :variant="currentSection === section.id ? 'default' : 'ghost'"
+            @click="selectSection(section.id)"
+            class="rounded-none text-base font-bold h-full"
+          >
+            {{ section.shortLabel }}
+          </Button>
+        </div>
+      </footer>
     </div>
   </SidebarProvider>
 </template>

@@ -16,11 +16,8 @@ import type {
   CreateUserToProjectPayload,
   UpdateUserToProjectPayload,
   User,
-  Worker,
-  UpdateWorkerPayload,
   UpdateUserPayload,
 } from '@/features/system-admin/model/system-admin-types'
-import type { WorkRule } from '@/features/system-admin/model/standard-types'
 
 export const systemAdminApi = {
   // Company
@@ -155,17 +152,6 @@ export const systemAdminApi = {
     return data
   },
 
-  // Worker
-  async getWorkerList(params?: { isConfirmed?: boolean }): Promise<Worker[]> {
-    const { data } = await apiClient.get<Worker[]>('/super/getWorkerList', { params })
-    return data
-  },
-
-  async updateWorker(workerId: number, payload: UpdateWorkerPayload): Promise<Worker> {
-    const { data } = await apiClient.put<Worker>(`/super/updateWorker/${workerId}`, payload)
-    return data
-  },
-
   // Company-Project 삭제
   async deleteCompanyToProject(id: number): Promise<void> {
     await apiClient.delete(`/companyProject/deleteCompanyToProject/${id}`)
@@ -174,23 +160,5 @@ export const systemAdminApi = {
   // User-Project 삭제
   async deleteUserToProject(id: number): Promise<void> {
     await apiClient.delete(`/userProject/deleteUserToProject/${id}`)
-  },
-
-  // WorkRules CUD (super 전용)
-  async createWorkRules(payload: {
-    stdWorkTypeId?: number | null
-    stdSubWorkTypeId?: number | null
-    rules: string
-  }): Promise<WorkRule> {
-    const { data } = await apiClient.post<WorkRule>('/super/workRules/createWorkRules', payload)
-    return data
-  },
-
-  async updateWorkRules(id: number, payload: { rules: string }): Promise<void> {
-    await apiClient.put(`/super/workRules/updateWorkRules/${id}`, payload)
-  },
-
-  async deleteWorkRules(id: number): Promise<void> {
-    await apiClient.delete(`/super/workRules/deleteWorkRules/${id}`)
   },
 }

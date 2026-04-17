@@ -25,12 +25,12 @@ export interface Object3d {
   zoneName: string | null
   floorId: number | null
   floorName: string | null
-  sectionId: number | null
-  sectionName: string | null
-  usageId: number | null
-  usageName: string | null
+  isStructure: boolean | null
+  componentTypeId: number | null
+  componentTypeName: string | null
   componentCodeId: number | null
   componentCode: string | null
+  axisLabel: string | null
 }
 
 // GET /api/task/getTaskList?object3dId=N 응답 항목

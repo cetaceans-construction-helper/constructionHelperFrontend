@@ -12,10 +12,6 @@ export interface MaterialOrderLineResponse {
   zoneName: string | null
   floorId: number | null
   floorName: string | null
-  sectionId: number | null
-  sectionName: string | null
-  usageId: number | null
-  usageName: string | null
   quantity: number
 }
 
@@ -71,8 +67,7 @@ export interface MaterialDeliveryDetailFloor {
 export interface MaterialDeliveryDetailComponentType {
   componentTypeId: number
   componentTypeName: string
-  componentDivisionId: number
-  componentDivisionName: string
+  isStructure: boolean
 }
 
 export interface MaterialDeliveryDetail {

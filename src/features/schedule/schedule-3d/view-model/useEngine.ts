@@ -47,20 +47,31 @@ export function useEngine(containerRef: Ref<HTMLElement | null>, options?: Engin
   }
 
   /**
-   * 왼쪽으로 30도 회전 (y축 기준)
+   * 축선 렌더링
    */
-  const rotateLeft = () => {
+  const loadAxisLines = (xAxes: { name: string; position: number }[], yAxes: { name: string; position: number }[]) => {
     if (!engine.value) return
-    engine.value.rotateZ(30)
+    engine.value.addAxisLines(xAxes, yAxes)
   }
 
   /**
-   * 오른쪽으로 30도 회전 (y축 기준)
+   * 탑뷰 전환
    */
-  const rotateRight = () => {
+  const setTopView = () => {
     if (!engine.value) return
-    engine.value.rotateZ(-30)
+    engine.value.setTopView()
   }
+
+  /**
+   * 기본 뷰 복귀
+   */
+  const resetView = () => {
+    if (!engine.value) return
+    engine.value.resetView()
+  }
+
+  const zoomIn = () => { engine.value?.zoomIn() }
+  const zoomOut = () => { engine.value?.zoomOut() }
 
   /**
    * 엔진 인스턴스 가져오기
@@ -89,8 +100,11 @@ export function useEngine(containerRef: Ref<HTMLElement | null>, options?: Engin
     loadError,
     init,
     loadApiModel,
-    rotateLeft,
-    rotateRight,
+    loadAxisLines,
+    setTopView,
+    resetView,
+    zoomIn,
+    zoomOut,
     getEngine,
     cleanup,
   }

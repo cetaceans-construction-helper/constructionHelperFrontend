@@ -133,7 +133,7 @@ const isAnyLoading = computed(() => {
                 <span class="text-muted-foreground">
                   {{ item.equipmentTypeName }} {{ item.equipmentSpecName }}
                 </span>
-                <span class="font-medium">{{ item.count }}대 {{ item.workTime }}시간</span>
+                <span class="font-medium">{{ item.count }}대</span>
               </div>
             </div>
           </div>

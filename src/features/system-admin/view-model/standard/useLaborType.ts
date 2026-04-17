@@ -81,7 +81,6 @@ export function useLaborType() {
       await referenceApi.createLaborType({
         name,
         workTypeId,
-        subWorkTypeId: null,
       })
       newLaborTypeName.value = ''
       await loadLaborTypes(workTypeId)

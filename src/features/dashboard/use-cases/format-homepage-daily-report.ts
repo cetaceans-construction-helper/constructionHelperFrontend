@@ -1,13 +1,16 @@
-import type { WorkResponse } from '@/shared/network-core/apis/work'
 import type { DeliveryQuantityByDate } from '@/features/material/public'
-import type { AttendanceGroup, EquipmentGroup } from '@/features/dashboard/model/dashboard-types'
+import type {
+  ActualWorkGroup,
+  AttendanceGroup,
+  EquipmentGroup,
+} from '@/features/dashboard/model/dashboard-types'
 
-export function formatWorksByType(worksByType: Map<string, WorkResponse[]>): string {
+export function formatWorksByType(worksByType: Map<number, ActualWorkGroup>): string {
   const lines: string[] = []
-  for (const [workType, works] of worksByType) {
-    lines.push(`■ ${workType}`)
-    for (const work of works) {
-      lines.push(`- ${work.workName}`)
+  for (const [, group] of worksByType) {
+    lines.push(`■ ${group.workTypeName}`)
+    for (const aw of group.items) {
+      lines.push(`- ${aw.workName}`)
     }
     lines.push('')
   }

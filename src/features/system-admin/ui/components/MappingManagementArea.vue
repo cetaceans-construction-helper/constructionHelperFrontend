@@ -38,6 +38,7 @@ import { Label } from '@/shared/ui/label'
 import { Input } from '@/shared/ui/input'
 import { Separator } from '@/shared/ui/separator'
 import { useMappingManagement } from '@/features/system-admin/view-model/useMappingManagement'
+import { systemAdminApi } from '@/features/system-admin/infra/system-admin-api'
 import type {
   CreateCompanyToProjectPayload,
   CreateUserToProjectPayload,
@@ -170,22 +171,78 @@ const resetUserToProjectForm = () => {
   }
 }
 
-// 추가 Dialog용: 선택된 프로젝트에 매핑된 CompanyToProject만
+// 다이얼로그 전용: 테이블의 companyToProjectFilter 와 독립적으로 선택한 프로젝트의 CompanyToProject 를 직접 로드
+const dialogCompanyToProjectList = ref<CompanyToProject[]>([])
+const isLoadingDialogCompanyToProject = ref(false)
+
+async function loadDialogCompanyToProjectList(projectId: string) {
+  if (!projectId) {
+    dialogCompanyToProjectList.value = []
+    return
+  }
+  isLoadingDialogCompanyToProject.value = true
+  try {
+    dialogCompanyToProjectList.value = await systemAdminApi.getCompanyToProjectList({ projectId })
+  } catch (error) {
+    console.error('회사-프로젝트 매핑 (다이얼로그용) 로드 실패:', error)
+    dialogCompanyToProjectList.value = []
+  } finally {
+    isLoadingDialogCompanyToProject.value = false
+  }
+}
+
+// 선택된 사용자의 회사 id
+const selectedUserCompanyId = computed(() => {
+  const u = users.value.find((x) => x.id === userToProjectForm.value.userId)
+  return u?.companyId
+})
+
+// 편집 중 사용자의 회사 id
+const editingUserCompanyId = computed(() => {
+  const u = editingUserToProject.value
+    ? users.value.find((x) => x.id === editingUserToProject.value!.userId)
+    : undefined
+  return u?.companyId
+})
+
+// 추가 Dialog: 선택한 프로젝트의 전체 회사 매핑 (상단), 사용자 회사 매칭이 있으면 자동 선택
 const filteredCompanyToProjectForCreate = computed(() =>
-  companyToProjectList.value.filter((m) => m.projectId === userToProjectForm.value.projectId)
+  dialogCompanyToProjectList.value.filter((m) => m.projectId === userToProjectForm.value.projectId),
 )
 
-// 수정 Dialog용: 편집 대상의 프로젝트에 매핑된 CompanyToProject만
+// 수정 Dialog: 편집 대상 프로젝트의 전체 회사 매핑
 const filteredCompanyToProjectForEdit = computed(() =>
-  companyToProjectList.value.filter((m) => m.projectId === editingUserToProject.value?.projectId)
+  dialogCompanyToProjectList.value.filter(
+    (m) => m.projectId === editingUserToProject.value?.projectId,
+  ),
 )
 
-// 프로젝트 변경 시 소속회사 초기화
+// 프로젝트 변경 시: 해당 프로젝트의 매핑 재로드
 watch(
   () => userToProjectForm.value.projectId,
-  () => {
+  async (projectId) => {
     userToProjectForm.value.companyToProjectId = 0
-  }
+    if (projectId) {
+      await loadDialogCompanyToProjectList(projectId)
+      // 사용자 회사와 일치하는 매핑이 있으면 자동 선택
+      const match = dialogCompanyToProjectList.value.find(
+        (m) => m.companyId === selectedUserCompanyId.value,
+      )
+      if (match) userToProjectForm.value.companyToProjectId = match.id
+    }
+  },
+)
+
+// 사용자 변경 시: 이미 로드된 매핑에서 사용자 회사 일치하는거 자동 선택
+watch(
+  () => userToProjectForm.value.userId,
+  () => {
+    if (!userToProjectForm.value.projectId) return
+    const match = dialogCompanyToProjectList.value.find(
+      (m) => m.companyId === selectedUserCompanyId.value,
+    )
+    if (match) userToProjectForm.value.companyToProjectId = match.id
+  },
 )
 
 const handleCreateUserToProject = async () => {
@@ -209,13 +266,14 @@ const editUserToProjectForm = ref<UpdateUserToProjectPayload>({
   systemRoleId: 0,
 })
 
-const openEditUserToProjectDialog = (mapping: UserToProject) => {
+const openEditUserToProjectDialog = async (mapping: UserToProject) => {
   editingUserToProject.value = mapping
   editUserToProjectForm.value = {
     companyToProjectId: mapping.companyToProjectId,
     projectRole: mapping.projectRole || '',
     systemRoleId: mapping.systemRoleId,
   }
+  await loadDialogCompanyToProjectList(mapping.projectId)
   isEditUserToProjectDialogOpen.value = true
 }
 
@@ -587,13 +645,13 @@ onMounted(() => {
           </div>
           <div class="grid gap-2">
             <Label>소속회사 *</Label>
-            <Select v-model="userToProjectForm.companyToProjectId" :disabled="!userToProjectForm.projectId">
+            <Select v-model="userToProjectForm.companyToProjectId" :disabled="!userToProjectForm.projectId || isLoadingDialogCompanyToProject">
               <SelectTrigger>
-                <SelectValue placeholder="소속회사 선택" />
+                <SelectValue :placeholder="isLoadingDialogCompanyToProject ? '로딩 중...' : (filteredCompanyToProjectForCreate.length === 0 ? '이 프로젝트에 매핑된 회사 없음' : '소속회사 선택')" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem v-for="m in filteredCompanyToProjectForCreate" :key="m.id" :value="m.id">
-                  {{ m.companyName }}
+                  {{ m.companyName }}<span v-if="selectedUserCompanyId === m.companyId" class="text-xs text-primary ml-1">(사용자 회사)</span>
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -642,13 +700,13 @@ onMounted(() => {
           </div>
           <div class="grid gap-2">
             <Label>소속회사 *</Label>
-            <Select v-model="editUserToProjectForm.companyToProjectId">
+            <Select v-model="editUserToProjectForm.companyToProjectId" :disabled="isLoadingDialogCompanyToProject">
               <SelectTrigger>
-                <SelectValue placeholder="소속회사 선택" />
+                <SelectValue :placeholder="isLoadingDialogCompanyToProject ? '로딩 중...' : (filteredCompanyToProjectForEdit.length === 0 ? '이 프로젝트에 매핑된 회사 없음' : '소속회사 선택')" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem v-for="m in filteredCompanyToProjectForEdit" :key="m.id" :value="m.id">
-                  {{ m.companyName }}
+                  {{ m.companyName }}<span v-if="editingUserCompanyId === m.companyId" class="text-xs text-primary ml-1">(사용자 회사)</span>
                 </SelectItem>
               </SelectContent>
             </Select>

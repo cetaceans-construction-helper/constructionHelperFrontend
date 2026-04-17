@@ -2,77 +2,122 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 
 /**
- * 3D 객체 회전 컨트롤러
- * OrbitControls 관리 기능 제공
+ * 3D 카메라 컨트롤러
+ * - 우클릭 드래그: 회전
+ * - Space+드래그: 패닝
+ * - 휠: 줌
  */
 export class RotationController {
   private target: THREE.Object3D | null = null
   private controls: OrbitControls | null = null
   private domElement: HTMLElement | null = null
-  private wheelHandler: ((e: WheelEvent) => void) | null = null
+  private isSpaceDown = false
+  private isPortrait = false
+  private portraitMql: MediaQueryList
+  private boundKeyDown: (e: KeyboardEvent) => void
+  private boundKeyUp: (e: KeyboardEvent) => void
+  private boundContextMenu: (e: Event) => void
+  private boundPortraitChange: (e: MediaQueryListEvent | MediaQueryList) => void
 
-  /**
-   * OrbitControls 초기화 (Engine에서 이동)
-   */
+  constructor() {
+    this.boundKeyDown = this.onKeyDown.bind(this)
+    this.boundKeyUp = this.onKeyUp.bind(this)
+    this.boundContextMenu = (e: Event) => e.preventDefault()
+    this.portraitMql = window.matchMedia('(max-aspect-ratio: 1/1)')
+    this.boundPortraitChange = (e) => {
+      this.isPortrait = e.matches
+      this.updateMode()
+    }
+  }
+
   initControls(camera: THREE.Camera, domElement: HTMLElement): void {
     this.domElement = domElement
     this.controls = new OrbitControls(camera, domElement)
-    this.controls.enableDamping = true
-    this.controls.dampingFactor = 0.05
-    this.controls.enableZoom = false // 기본 줌 비활성화 (커스텀 휠 핸들러 사용)
-    this.controls.enablePan = false // 드래그 이동 비활성화
-    this.controls.enableRotate = false // 마우스 드래그 회전 비활성화
-
-    // 휠 줌 핸들러
-    this.wheelHandler = (e: WheelEvent) => {
-      if (this.controls) {
-        e.preventDefault()
-        const zoomSpeed = 0.001
-        const delta = e.deltaY * zoomSpeed
-        const camera = this.controls.object as THREE.PerspectiveCamera
-        camera.position.multiplyScalar(1 + delta)
-        this.controls.update()
-      }
+    this.controls.enableDamping = false
+    this.controls.enableZoom = true
+    this.controls.enableRotate = true
+    this.controls.enablePan = false
+    this.controls.mouseButtons = {
+      LEFT: null as unknown as THREE.MOUSE,
+      MIDDLE: THREE.MOUSE.DOLLY,
+      RIGHT: THREE.MOUSE.ROTATE,
     }
-    domElement.addEventListener('wheel', this.wheelHandler, { passive: false })
+    // 터치: 한 손가락 패닝, 두 손가락 줌
+    this.controls.touches = {
+      ONE: THREE.TOUCH.PAN,
+      TWO: THREE.TOUCH.DOLLY_PAN,
+    }
+
+    // 세로모드 감지
+    this.isPortrait = this.portraitMql.matches
+    this.portraitMql.addEventListener('change', this.boundPortraitChange as (e: MediaQueryListEvent) => void)
+    this.updateMode()
+
+    domElement.addEventListener('contextmenu', this.boundContextMenu)
+    window.addEventListener('keydown', this.boundKeyDown)
+    window.addEventListener('keyup', this.boundKeyUp)
   }
 
-  /**
-   * OrbitControls 가져오기
-   */
+  private onKeyDown(e: KeyboardEvent): void {
+    if (e.code === 'Space' && !this.isSpaceDown) {
+      e.preventDefault()
+      this.isSpaceDown = true
+      this.updateMode()
+    }
+  }
+
+  private onKeyUp(e: KeyboardEvent): void {
+    if (e.code === 'Space') {
+      this.isSpaceDown = false
+      this.updateMode()
+    }
+  }
+
+  private updateMode(): void {
+    if (!this.controls) return
+    if (this.isPortrait) {
+      // 세로모드: 좌드래그=패닝, 스크롤 캡처 안함 (버튼 줌만)
+      this.controls.enableRotate = false
+      this.controls.enablePan = true
+      this.controls.enableZoom = false
+      this.controls.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: null as unknown as THREE.MOUSE, RIGHT: null as unknown as THREE.MOUSE }
+      if (this.domElement) this.domElement.style.cursor = 'default'
+    } else if (this.isSpaceDown) {
+      this.controls.enableRotate = false
+      this.controls.enablePan = true
+      this.controls.enableZoom = true
+      this.controls.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE }
+      if (this.domElement) this.domElement.style.cursor = 'move'
+    } else {
+      this.controls.enableRotate = true
+      this.controls.enablePan = false
+      this.controls.enableZoom = true
+      this.controls.mouseButtons = { LEFT: null as unknown as THREE.MOUSE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE }
+      if (this.domElement) this.domElement.style.cursor = 'default'
+    }
+  }
+
   getControls(): OrbitControls | null {
     return this.controls
   }
 
-  /**
-   * 회전 대상 객체 설정
-   */
   setTarget(object: THREE.Object3D | null): void {
     this.target = object
   }
 
-  /**
-   * 현재 회전 대상 가져오기
-   */
   getTarget(): THREE.Object3D | null {
     return this.target
   }
 
-  /**
-   * 애니메이션 루프에서 호출 - OrbitControls 업데이트
-   */
   update(): void {
     this.controls?.update()
   }
 
-  /**
-   * 정리
-   */
   dispose(): void {
-    if (this.wheelHandler && this.domElement) {
-      this.domElement.removeEventListener('wheel', this.wheelHandler)
-      this.wheelHandler = null
-    }
+    if (this.domElement) this.domElement.removeEventListener('contextmenu', this.boundContextMenu)
+    this.portraitMql.removeEventListener('change', this.boundPortraitChange as (e: MediaQueryListEvent) => void)
+    window.removeEventListener('keydown', this.boundKeyDown)
+    window.removeEventListener('keyup', this.boundKeyUp)
     this.controls?.dispose()
     this.controls = null
     this.target = null

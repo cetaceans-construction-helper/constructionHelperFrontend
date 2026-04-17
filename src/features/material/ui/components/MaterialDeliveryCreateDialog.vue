@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from '@/shared/ui/select'
 import ReferenceEditTrigger from '@/shared/helper-ui/ReferenceEditTrigger.vue'
-import { referenceApi, type MaterialTypeResponse, type IdNameResponse } from '@/shared/network-core/apis/reference'
+import { referenceApi, type MaterialTypeResponse, type IdNameResponse, type ComponentTypeResponse } from '@/shared/network-core/apis/reference'
 import { materialOrderApi } from '@/features/material/infra/material-order-api'
 import { validateDirectMaterialDeliveryInput } from '@/features/material/model/material-order-rules'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
@@ -42,9 +42,8 @@ const zones = ref<IdNameResponse[]>([])
 const floors = ref<IdNameResponse[]>([])
 const selectedZoneIds = ref<number[]>([])
 const selectedFloorIds = ref<number[]>([])
-const componentDivisions = ref<IdNameResponse[]>([])
-const componentTypes = ref<IdNameResponse[]>([])
-const selectedComponentDivisionId = ref('')
+const componentTypes = ref<ComponentTypeResponse[]>([])
+const selectedIsStructure = ref<boolean | null>(null)
 const selectedComponentTypeIds = ref<number[]>([])
 const isLoadingComponentTypes = ref(false)
 
@@ -52,15 +51,14 @@ function toggleId(list: number[], id: number): number[] {
   return list.includes(id) ? list.filter((v) => v !== id) : [...list, id]
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleComponentDivisionChange(divisionId: any) {
-  selectedComponentDivisionId.value = String(divisionId ?? '')
+async function handleIsStructureChange(value: boolean | null) {
+  selectedIsStructure.value = value
   selectedComponentTypeIds.value = []
   componentTypes.value = []
-  if (!divisionId) return
+  if (value == null) return
   isLoadingComponentTypes.value = true
   try {
-    componentTypes.value = await referenceApi.getComponentTypeList(Number(divisionId))
+    componentTypes.value = await referenceApi.getComponentTypeList(value)
   } catch {
     componentTypes.value = []
   } finally {
@@ -99,21 +97,19 @@ watch(() => props.open, async (opened) => {
     selectedMaterialTypeId.value = props.defaultMaterialTypeId ?? ''
     selectedZoneIds.value = []
     selectedFloorIds.value = []
-    selectedComponentDivisionId.value = ''
+    selectedIsStructure.value = null
     selectedComponentTypeIds.value = []
     componentTypes.value = []
 
     try {
-      const [mtList, zoneList, floorList, compDivList] = await Promise.all([
+      const [mtList, zoneList, floorList] = await Promise.all([
         referenceApi.getMaterialTypeList(),
         referenceApi.getZoneList(),
         referenceApi.getFloorList(),
-        referenceApi.getComponentDivisionList(),
       ])
       materialTypes.value = mtList
       zones.value = zoneList
       floors.value = floorList
-      componentDivisions.value = compDivList
     } catch (error: unknown) {
       console.error('기초 데이터 로드 실패:', error)
       const err = error as { response?: { data?: { message?: string } }; message?: string }
@@ -299,28 +295,27 @@ async function handleSave() {
         </div>
 
         <!-- 부재 -->
-        <div v-if="componentDivisions.length > 0" class="space-y-2">
+        <div class="space-y-2">
           <div class="flex items-center gap-1">
             <Label>부재</Label>
-            <ReferenceEditTrigger type="component" @refresh="async () => { componentDivisions = await referenceApi.getComponentDivisionList() }" />
+            <ReferenceEditTrigger type="component" @refresh="() => handleIsStructureChange(selectedIsStructure)" />
           </div>
-          <Select
-            :model-value="selectedComponentDivisionId"
-            @update:model-value="handleComponentDivisionChange"
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="부재 분류 선택" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem
-                v-for="div in componentDivisions"
-                :key="div.id"
-                :value="String(div.id)"
-              >
-                {{ div.name }}
-              </SelectItem>
-            </SelectContent>
-          </Select>
+          <div class="flex gap-1.5">
+            <button
+              class="px-3 py-1 text-sm rounded-md border transition-colors"
+              :class="selectedIsStructure === true ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-background border-border text-foreground hover:bg-muted'"
+              @click="handleIsStructureChange(selectedIsStructure === true ? null : true)"
+            >
+              구조
+            </button>
+            <button
+              class="px-3 py-1 text-sm rounded-md border transition-colors"
+              :class="selectedIsStructure === false ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-background border-border text-foreground hover:bg-muted'"
+              @click="handleIsStructureChange(selectedIsStructure === false ? null : false)"
+            >
+              비구조
+            </button>
+          </div>
           <div v-if="componentTypes.length > 0" class="flex flex-wrap gap-1.5">
             <button
               v-for="ct in componentTypes" :key="ct.id"

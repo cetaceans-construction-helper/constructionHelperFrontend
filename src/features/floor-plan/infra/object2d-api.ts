@@ -7,8 +7,7 @@ export interface Object2DResponse {
   componentCode: string | null
   componentTypeId: number | null
   componentTypeName: string | null
-  componentDivisionId: number | null
-  componentDivisionName: string | null
+  isStructure: boolean | null
   ltX: number
   ltY: number
   rbX: number

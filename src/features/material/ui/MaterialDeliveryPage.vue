@@ -69,6 +69,7 @@ import type {
   MaterialTypeResponse,
   IdNameResponse,
   WorkTypeResponse,
+  ComponentTypeResponse,
 } from '@/shared/network-core/apis/reference'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
 import { rotateImageFile } from '@/shared/utils/rotateImage'
@@ -149,10 +150,9 @@ const editWorkTypes = ref<WorkTypeResponse[]>([])
 const isLoadingEditWorkTypes = ref(false)
 const editZones = ref<IdNameResponse[]>([])
 const editFloors = ref<IdNameResponse[]>([])
-const editComponentDivisions = ref<IdNameResponse[]>([])
-const editComponentTypes = ref<IdNameResponse[]>([])
+const editComponentTypes = ref<ComponentTypeResponse[]>([])
 const isLoadingEditComponentTypes = ref(false)
-const selectedEditComponentDivisionId = ref('')
+const selectedEditIsStructure = ref<boolean | null>(null)
 
 function toggleId(list: number[], id: number): number[] {
   return list.includes(id) ? list.filter((v) => v !== id) : [...list, id]
@@ -555,14 +555,13 @@ async function loadWorkClassifications(delivery: MaterialDeliverySummary) {
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleEditComponentDivisionChange(divisionId: any) {
-  selectedEditComponentDivisionId.value = String(divisionId ?? '')
+async function handleEditIsStructureChange(value: boolean | null) {
+  selectedEditIsStructure.value = value
   editComponentTypes.value = []
-  if (!divisionId) return
+  if (value == null) return
   isLoadingEditComponentTypes.value = true
   try {
-    editComponentTypes.value = await referenceApi.getComponentTypeList(Number(divisionId))
+    editComponentTypes.value = await referenceApi.getComponentTypeList(value)
   } catch {
     editComponentTypes.value = []
   } finally {
@@ -799,30 +798,27 @@ async function toggleDelivery(delivery: MaterialDeliverySummary) {
       editWorkTypes.value = []
     }
 
-    // 존/층/부재분류 목록 로드
+    // 존/층 목록 로드
     try {
-      const [zoneList, floorList, compDivList] = await Promise.all([
+      const [zoneList, floorList] = await Promise.all([
         referenceApi.getZoneList(),
         referenceApi.getFloorList(),
-        referenceApi.getComponentDivisionList(),
       ])
       editZones.value = zoneList
       editFloors.value = floorList
-      editComponentDivisions.value = compDivList
 
-      // 부재타입: detail에 componentTypes가 있으면 첫번째의 divisionId로 로드
+      // 부재타입: detail에 componentTypes가 있으면 첫번째의 isStructure로 로드
       if (detail.componentTypes.length > 0 && detail.componentTypes[0]) {
-        const firstDivId = detail.componentTypes[0].componentDivisionId
-        selectedEditComponentDivisionId.value = String(firstDivId)
-        editComponentTypes.value = await referenceApi.getComponentTypeList(firstDivId)
+        const firstIsStructure = detail.componentTypes[0].isStructure
+        selectedEditIsStructure.value = firstIsStructure
+        editComponentTypes.value = await referenceApi.getComponentTypeList(firstIsStructure)
       } else {
-        selectedEditComponentDivisionId.value = ''
+        selectedEditIsStructure.value = null
         editComponentTypes.value = []
       }
     } catch {
       editZones.value = []
       editFloors.value = []
-      editComponentDivisions.value = []
       editComponentTypes.value = []
     }
 
@@ -1388,28 +1384,27 @@ onUnmounted(() => {
                   </div>
 
                   <!-- 부재 -->
-                  <div v-if="editComponentDivisions.length > 0" class="space-y-1.5">
+                  <div class="space-y-1.5">
                     <Label class="inline-flex items-center gap-1">
                       부재
-                      <ReferenceEditTrigger type="component" @refresh="async () => { editComponentDivisions = await referenceApi.getComponentDivisionList() }" />
+                      <ReferenceEditTrigger type="component" @refresh="() => handleEditIsStructureChange(selectedEditIsStructure)" />
                     </Label>
-                    <Select
-                      :model-value="selectedEditComponentDivisionId"
-                      @update:model-value="handleEditComponentDivisionChange"
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="부재 분류 선택" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem
-                          v-for="div in editComponentDivisions"
-                          :key="div.id"
-                          :value="String(div.id)"
-                        >
-                          {{ div.name }}
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div class="flex gap-1.5">
+                      <button
+                        class="px-3 py-1 text-sm rounded-md border transition-colors"
+                        :class="selectedEditIsStructure === true ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-background border-border text-foreground hover:bg-muted'"
+                        @click="handleEditIsStructureChange(selectedEditIsStructure === true ? null : true)"
+                      >
+                        구조
+                      </button>
+                      <button
+                        class="px-3 py-1 text-sm rounded-md border transition-colors"
+                        :class="selectedEditIsStructure === false ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-background border-border text-foreground hover:bg-muted'"
+                        @click="handleEditIsStructureChange(selectedEditIsStructure === false ? null : false)"
+                      >
+                        비구조
+                      </button>
+                    </div>
                     <div v-if="editComponentTypes.length > 0" class="flex flex-wrap gap-1.5">
                       <button
                         v-for="ct in editComponentTypes" :key="ct.id"

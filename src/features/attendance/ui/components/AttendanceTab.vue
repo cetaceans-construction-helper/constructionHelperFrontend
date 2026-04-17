@@ -36,12 +36,6 @@ const {
   incrementCount: incrementEquipmentCount,
   decrementCount: decrementEquipmentCount,
   setCount: setEquipmentCount,
-  getWorkTime,
-  incrementWorkTime,
-  decrementWorkTime,
-  setWorkTime,
-  setFullDay,
-  setHalfDay,
   submitEquipmentDeployment,
   init: initEquipment,
 } = useEquipmentDeployment(selectedDate, contractors)
@@ -132,18 +126,12 @@ onMounted(async () => {
               :is-loading="box.isLoading"
               :contractors="contractors"
               :get-count="getEquipmentCount"
-              :get-work-time="getWorkTime"
               @select-company="selectEquipmentCompany"
               @add-spec="addSpecToBox"
               @remove-spec="removeSpecFromBox"
               @increment-count="incrementEquipmentCount"
               @decrement-count="decrementEquipmentCount"
               @set-count="setEquipmentCount"
-              @increment-work-time="incrementWorkTime"
-              @decrement-work-time="decrementWorkTime"
-              @set-work-time="setWorkTime"
-              @set-full-day="setFullDay"
-              @set-half-day="setHalfDay"
             />
           </div>
         </div>

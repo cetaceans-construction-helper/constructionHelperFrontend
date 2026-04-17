@@ -34,27 +34,13 @@ import {
 import { useComponentCode } from '@/features/project-admin/master-data/view-model/useComponentCode'
 
 const {
-  // 부재 대분류
-  componentDivisions,
-  selectedComponentDivisionId,
-  newComponentDivisionName,
-  isCreatingDivision,
-  isDeletingDivision,
-  loadComponentDivisions,
-  addComponentDivision,
-  deleteComponentDivision,
-  updateComponentDivisionName,
-  reorderComponentDivisions,
+  // 구조/비구조 구분
+  selectedIsStructure,
 
-  // 부재 타입
+  // 부재 타입 (선택 전용: system-admin 에서 생성/수정/삭제)
   componentTypes,
-  newComponentTypeName,
-  isCreatingType,
-  isDeletingType,
-  addComponentType,
-  deleteComponentType,
-  updateComponentTypeName,
-  reorderComponentTypes,
+  loadAllComponentTypesForLookup,
+  getComponentTypeName,
 
   // 부재 코드
   componentCodes,
@@ -75,7 +61,7 @@ const {
   filteredMappings,
   isCreatingMapping,
   isDeletingMapping,
-  deleteCwmMapping,
+  deleteCcodeDetail,
   divisions,
   workTypes,
   subWorkTypes,
@@ -114,13 +100,6 @@ const {
   createTasksResult,
   showCreateTasksResult,
   createTasks,
-
-  // 표준 매핑
-  stdComponentDivisions,
-  stdComponentTypes,
-  loadStdComponentDivisions,
-  setComponentDivisionStandard,
-  setComponentTypeStandard,
 } = useComponentCode()
 
 // 매핑 테이블 접기/펼치기
@@ -133,16 +112,15 @@ const isComponentCodeListExpanded = ref(true)
 const isWorkStepListExpanded = ref(true)
 
 onMounted(() => {
-  loadComponentDivisions()
   loadDivisions()
   loadMaterialTypes()
   loadAllMappings()
-  loadStdComponentDivisions()
+  loadAllComponentTypesForLookup()
 })
 
-// 부재 대분류 선택
-function selectComponentDivision(id: number) {
-  selectedComponentDivisionId.value = id
+// 구조/비구조 토글
+function selectIsStructure(value: boolean) {
+  selectedIsStructure.value = selectedIsStructure.value === value ? null : value
 }
 
 // 부재 타입 선택
@@ -203,33 +181,6 @@ async function confirmDelete() {
   showDeleteDialog.value = false
 }
 
-// 표준 매핑 다이얼로그
-const showStdDialog = ref(false)
-const stdDialogTargetId = ref<number | null>(null)
-const stdDialogTargetName = ref('')
-const stdDialogSelectedStdId = ref<number | null>(null)
-const stdDialogOptions = ref<{ id: number; name: string }[]>([])
-const stdDialogSaveFn = ref<((id: number, stdId: number | null) => Promise<void>) | null>(null)
-
-type StdItem = { id: number; name: string; standardId?: number | null; [key: string]: unknown }
-
-function openStdDialog(id: number, items: StdItem[], stdOptions: { id: number; name: string }[], saveFn: (id: number, stdId: number | null) => Promise<void>) {
-  const item = items.find((i) => i.id === id)
-  if (!item) return
-  stdDialogTargetId.value = id
-  stdDialogTargetName.value = item.name
-  stdDialogSelectedStdId.value = item.standardId ?? null
-  stdDialogOptions.value = stdOptions
-  stdDialogSaveFn.value = saveFn
-  showStdDialog.value = true
-}
-
-async function saveStdMapping() {
-  if (stdDialogTargetId.value != null && stdDialogSaveFn.value) {
-    await stdDialogSaveFn.value(stdDialogTargetId.value, stdDialogSelectedStdId.value)
-  }
-  showStdDialog.value = false
-}
 </script>
 
 <template>
@@ -238,69 +189,39 @@ async function saveStdMapping() {
     <div>
       <h3 class="text-sm font-semibold mb-3">부재분류</h3>
       <div class="grid grid-cols-3 gap-4">
-        <!-- ComponentDivision 컬럼 -->
+        <!-- 구조/비구조 토글 -->
         <div class="space-y-2">
-          <p class="text-xs text-muted-foreground font-medium">부재 대분류 (ComponentDivision)</p>
-          <div class="flex gap-1">
-            <Input
-              v-model="newComponentDivisionName"
-              placeholder="이름 입력"
-              class="h-8 text-sm"
-              @keydown.enter="(e: KeyboardEvent) => { if (!e.isComposing) addComponentDivision() }"
-            />
-            <Button
-              size="sm"
-              class="h-8 shrink-0"
-              :disabled="isCreatingDivision || !newComponentDivisionName.trim()"
-              @click="addComponentDivision"
+          <p class="text-xs text-muted-foreground font-medium">부재 구분</p>
+          <div class="flex gap-2">
+            <button
+              class="flex-1 px-3 py-2 text-sm rounded-md border transition-colors"
+              :class="selectedIsStructure === true ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-background border-border text-foreground hover:bg-muted'"
+              @click="selectIsStructure(true)"
             >
-              추가
-            </Button>
+              구조
+            </button>
+            <button
+              class="flex-1 px-3 py-2 text-sm rounded-md border transition-colors"
+              :class="selectedIsStructure === false ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-background border-border text-foreground hover:bg-muted'"
+              @click="selectIsStructure(false)"
+            >
+              비구조
+            </button>
           </div>
-          <SortableReferenceList
-            :items="componentDivisions"
-            :selected-id="selectedComponentDivisionId"
-            :disabled="isDeletingDivision"
-            standard-mappable
-            @select="selectComponentDivision"
-            @delete="(id, name) => openDeleteDialog(id, name, deleteComponentDivision)"
-            @update-name="({ id, name }) => updateComponentDivisionName(id, name)"
-            @reorder="reorderComponentDivisions"
-            @map-standard="(id) => openStdDialog(id, componentDivisions, stdComponentDivisions, setComponentDivisionStandard)"
-          />
         </div>
 
-        <!-- ComponentType 컬럼 -->
+        <!-- ComponentType 컬럼 (선택 전용: 시스템관리에서 관리) -->
         <div class="space-y-2">
           <p class="text-xs text-muted-foreground font-medium">부재 타입 (ComponentType)</p>
-          <div class="flex gap-1">
-            <Input
-              v-model="newComponentTypeName"
-              placeholder="이름 입력"
-              class="h-8 text-sm"
-              :disabled="selectedComponentDivisionId == null"
-              @keydown.enter="(e: KeyboardEvent) => { if (!e.isComposing) addComponentType() }"
-            />
-            <Button
-              size="sm"
-              class="h-8 shrink-0"
-              :disabled="isCreatingType || !newComponentTypeName.trim() || selectedComponentDivisionId == null"
-              @click="addComponentType"
-            >
-              추가
-            </Button>
-          </div>
+          <p class="text-[10px] text-muted-foreground">※ 부재 타입은 시스템 관리자가 관리합니다. 여기서는 선택만 가능.</p>
           <SortableReferenceList
             :items="componentTypes"
             :selected-id="selectedComponentTypeId"
-            :disabled="isDeletingType"
-            :empty-message="selectedComponentDivisionId == null ? '대분류를 선택하세요' : '항목 없음'"
-            standard-mappable
+            :sortable="false"
+            :deletable="false"
+            :editable="false"
+            :empty-message="selectedIsStructure == null ? '구조/비구조을 선택하세요' : '항목 없음'"
             @select="selectComponentType"
-            @delete="(id, name) => openDeleteDialog(id, name, deleteComponentType)"
-            @update-name="({ id, name }) => updateComponentTypeName(id, name)"
-            @reorder="reorderComponentTypes"
-            @map-standard="(id) => openStdDialog(id, componentTypes, stdComponentTypes, setComponentTypeStandard)"
           />
         </div>
 
@@ -504,7 +425,10 @@ async function saveStdMapping() {
                   :model-value="selectedWorkStepIds.includes(ws.id)"
                   @update:model-value="() => toggleWorkStep(ws.id)"
                 />
-                {{ ws.name }}
+                <span>
+                  {{ ws.name }}
+                  <span class="text-xs text-muted-foreground">· {{ getComponentTypeName(ws.componentTypeId) }}</span>
+                </span>
               </label>
               <p v-if="workSteps.length === 0" class="text-xs text-muted-foreground text-center py-2">
                 항목 없음
@@ -566,15 +490,10 @@ async function saveStdMapping() {
                     @update:model-value="toggleAllMappings"
                   />
                 </th>
-                <th class="px-3 py-2 text-left font-medium">부재타입</th>
                 <th class="px-3 py-2 text-left font-medium">부재코드</th>
-                <th class="px-3 py-2 text-left font-medium">분류</th>
-                <th class="px-3 py-2 text-left font-medium">공종</th>
-                <th class="px-3 py-2 text-left font-medium">세부공종</th>
                 <th class="px-3 py-2 text-left font-medium">작업절차</th>
-                <th class="px-3 py-2 text-left font-medium">자재유형</th>
                 <th class="px-3 py-2 text-left font-medium">자재규격</th>
-                <th class="px-3 py-2 text-left font-medium">단위</th>
+                <th class="px-3 py-2 text-left font-medium">층</th>
                 <th class="w-10 px-2 text-center font-medium">삭제</th>
               </tr>
             </thead>
@@ -586,20 +505,15 @@ async function saveStdMapping() {
                     @update:model-value="() => toggleMapping(m.id)"
                   />
                 </td>
-                <td class="px-3 py-2">{{ m.componentTypeName }}</td>
                 <td class="px-3 py-2">{{ m.componentCodeName }}</td>
-                <td class="px-3 py-2">{{ m.divisionName }}</td>
-                <td class="px-3 py-2">{{ m.workTypeName }}</td>
-                <td class="px-3 py-2">{{ m.subWorkTypeName }}</td>
                 <td class="px-3 py-2">{{ m.workStepName }}</td>
-                <td class="px-3 py-2">{{ m.materialTypeName || '-' }}</td>
                 <td class="px-3 py-2">{{ m.materialSpecName || '-' }}</td>
-                <td class="px-3 py-2">{{ m.unitName || '-' }}</td>
+                <td class="px-3 py-2">{{ m.floorName || '-' }}</td>
                 <td class="px-2 text-center">
                   <button
                     class="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
                     :disabled="isDeletingMapping"
-                    @click.stop="openDeleteDialog(m.id, m.componentCodeName, deleteCwmMapping)"
+                    @click.stop="openDeleteDialog(m.id, m.componentCodeName, deleteCcodeDetail)"
                   >
                     <X class="w-3 h-3" />
                   </button>
@@ -706,29 +620,5 @@ async function saveStdMapping() {
       </DialogContent>
     </Dialog>
 
-    <!-- 표준 매핑 다이얼로그 -->
-    <Dialog :open="showStdDialog" @update:open="showStdDialog = $event">
-      <DialogContent class="max-w-sm">
-        <DialogHeader>
-          <DialogTitle>표준 매핑 — {{ stdDialogTargetName }}</DialogTitle>
-        </DialogHeader>
-        <div class="space-y-2 py-2">
-          <Select v-model="stdDialogSelectedStdId">
-            <SelectTrigger class="h-9">
-              <SelectValue placeholder="표준 항목 선택" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem v-for="std in stdDialogOptions" :key="std.id" :value="std.id">{{ std.name }}</SelectItem>
-            </SelectContent>
-          </Select>
-          <button v-if="stdDialogSelectedStdId" class="text-xs text-muted-foreground hover:text-foreground"
-            @click="stdDialogSelectedStdId = null">매핑 해제</button>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" @click="showStdDialog = false">취소</Button>
-          <Button @click="saveStdMapping">저장</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   </div>
 </template>

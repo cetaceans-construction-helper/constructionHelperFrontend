@@ -23,7 +23,6 @@ interface Props {
   isLoading: boolean
   contractors: Contractor[]
   getCount: (boxId: string, specId: number) => number
-  getWorkTime: (boxId: string, specId: number) => number
 }
 
 const props = defineProps<Props>()
@@ -35,11 +34,6 @@ const emit = defineEmits<{
   incrementCount: [boxId: string, specId: number]
   decrementCount: [boxId: string, specId: number]
   setCount: [boxId: string, specId: number, count: number]
-  incrementWorkTime: [boxId: string, specId: number]
-  decrementWorkTime: [boxId: string, specId: number]
-  setWorkTime: [boxId: string, specId: number, time: number]
-  setFullDay: [boxId: string, specId: number]
-  setHalfDay: [boxId: string, specId: number]
 }>()
 
 // 아직 추가되지 않은 장비규격만 필터
@@ -63,11 +57,6 @@ function handleSpecAdd(value: unknown) {
 function handleCountInput(specId: number, val: string | number) {
   const value = parseInt(String(val), 10)
   emit('setCount', props.boxId, specId, isNaN(value) ? 0 : value)
-}
-
-function handleWorkTimeInput(specId: number, val: string | number) {
-  const value = parseFloat(String(val))
-  emit('setWorkTime', props.boxId, specId, isNaN(value) ? 0 : value)
 }
 </script>
 
@@ -136,52 +125,6 @@ function handleWorkTimeInput(specId: number, val: string | number) {
           </div>
           <!-- 컨트롤 -->
           <div class="flex flex-col gap-1 pl-2">
-            <!-- 시간 컨트롤 -->
-            <div class="flex items-center gap-1">
-              <Button
-                variant="outline"
-                size="icon-sm"
-                @click="emit('decrementWorkTime', boxId, spec.id)"
-              >
-                <Minus class="w-3 h-3" />
-              </Button>
-              <Input
-                type="number"
-                class="w-16 text-center h-7 text-sm"
-                :model-value="getWorkTime(boxId, spec.id)"
-                min="0"
-                step="0.5"
-                @input="(e: Event) => handleWorkTimeInput(spec.id, (e.target as HTMLInputElement).value)"
-              />
-              <Button
-                variant="outline"
-                size="icon-sm"
-                @click="emit('incrementWorkTime', boxId, spec.id)"
-              >
-                <Plus class="w-3 h-3" />
-              </Button>
-              <span class="text-xs text-muted-foreground">시간</span>
-              <!-- 전일/반일 버튼 -->
-              <div class="flex items-center gap-1 ml-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  class="h-7 px-2 text-xs"
-                  @click="emit('setFullDay', boxId, spec.id)"
-                >
-                  전일
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  class="h-7 px-2 text-xs"
-                  @click="emit('setHalfDay', boxId, spec.id)"
-                >
-                  반일
-                </Button>
-              </div>
-            </div>
-
             <!-- 대수 컨트롤 -->
             <div class="flex items-center gap-1">
               <Button

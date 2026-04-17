@@ -13,7 +13,7 @@ import {
   AlertDialogTitle,
 } from '@/shared/ui/alert-dialog'
 import SortableReferenceList from '@/shared/helper-ui/SortableReferenceList.vue'
-import { useLaborType } from '@/features/project-admin/resource/public'
+import { useLaborType } from '@/features/system-admin/public'
 
 const {
   divisions,

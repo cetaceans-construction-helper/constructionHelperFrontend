@@ -2,12 +2,7 @@ import type {
   AttendanceByDateItem,
   EquipmentDeploymentByDateItem,
 } from '@/features/attendance/public'
-import type { WorkPhotoResponse } from '@/shared/network-core/apis/work'
-
-export interface PhotoWithWork {
-  photo: WorkPhotoResponse
-  workName: string
-}
+import type { ActualWorkResponse } from '@/shared/network-core/apis/actualWork'
 
 export interface AttendanceGroup {
   workTypeName: string
@@ -22,6 +17,8 @@ export interface EquipmentGroup {
   items: EquipmentDeploymentByDateItem[]
 }
 
-export interface WorkPhotoDialogExpose {
-  openDialog(photo: WorkPhotoResponse, imgUrl: string): void
+// 공종별 actualWork 그룹 (key = workTypeId)
+export interface ActualWorkGroup {
+  workTypeName: string
+  items: ActualWorkResponse[]
 }

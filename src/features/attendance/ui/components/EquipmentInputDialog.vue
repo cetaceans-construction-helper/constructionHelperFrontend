@@ -42,12 +42,6 @@ const {
   setCount,
   incrementCount,
   decrementCount,
-  getWorkTime,
-  setWorkTime,
-  incrementWorkTime,
-  decrementWorkTime,
-  setFullDay,
-  setHalfDay,
   submitEquipmentDeployment,
   init: initEquipment,
 } = useEquipmentDeployment(selectedDate, contractors)
@@ -96,18 +90,12 @@ async function handleSubmit() {
             :is-loading="box.isLoading"
             :contractors="contractors"
             :get-count="getCount"
-            :get-work-time="getWorkTime"
             @select-company="selectCompany"
             @add-spec="addSpecToBox"
             @remove-spec="removeSpecFromBox"
             @increment-count="incrementCount"
             @decrement-count="decrementCount"
             @set-count="setCount"
-            @increment-work-time="incrementWorkTime"
-            @decrement-work-time="decrementWorkTime"
-            @set-work-time="setWorkTime"
-            @set-full-day="setFullDay"
-            @set-half-day="setHalfDay"
           />
         </div>
       </div>

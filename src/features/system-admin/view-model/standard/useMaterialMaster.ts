@@ -1,11 +1,9 @@
 import { ref, watch } from 'vue'
 import {
   referenceApi,
-  type IdNameResponse,
   type MaterialTypeResponse,
   type MaterialSpecResponse,
 } from '@/shared/network-core/apis/reference'
-import { standardApi } from '@/shared/network-core/apis/standard'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
 
 export function useMaterialMaster() {
@@ -188,53 +186,11 @@ export function useMaterialMaster() {
     }
   }
 
-  // ========== 표준 매핑 ==========
-
-  const stdMaterialTypes = ref<IdNameResponse[]>([])
-  const stdMaterialSpecs = ref<{ id: number; name: string }[]>([])
-
-  const loadStdMaterialTypes = async () => {
-    try {
-      stdMaterialTypes.value = await standardApi.materialType.getList()
-    } catch (error) {
-      console.error('StdMaterialType 로드 실패:', error)
-    }
-  }
-
-  const setMaterialTypeStandard = async (id: number, standardId: number | null) => {
-    try {
-      await referenceApi.updateMaterialType({ id, standardId })
-      const item = materialTypes.value.find((mt) => mt.id === id)
-      if (item) item.standardId = standardId
-    } catch (error: unknown) {
-      console.error('MaterialType 표준 매핑 실패:', error)
-      const err = error as { response?: { data?: { message?: string } }; message?: string }
-      alert(err.response?.data?.message || err.message)
-    }
-  }
-
-  const setMaterialSpecStandard = async (id: number, standardId: number | null) => {
-    try {
-      await referenceApi.updateMaterialSpec({ id, standardId })
-      const item = materialSpecs.value.find((ms) => ms.id === id)
-      if (item) item.standardId = standardId
-    } catch (error: unknown) {
-      console.error('MaterialSpec 표준 매핑 실패:', error)
-      const err = error as { response?: { data?: { message?: string } }; message?: string }
-      alert(err.response?.data?.message || err.message)
-    }
-  }
-
   // 캐스케이딩 로드
   watch(selectedMaterialTypeId, (id) => {
     materialSpecs.value = []
-    stdMaterialSpecs.value = []
     if (id) {
       loadMaterialSpecs(id)
-      const mt = materialTypes.value.find((m) => m.id === id)
-      if (mt?.standardId) {
-        standardApi.materialSpec.getList(mt.standardId).then((list) => { stdMaterialSpecs.value = list })
-      }
     }
   })
 
@@ -257,10 +213,5 @@ export function useMaterialMaster() {
     updateMaterialSpecName,
     reorderMaterialTypes,
     reorderMaterialSpecs,
-    stdMaterialTypes,
-    stdMaterialSpecs,
-    loadStdMaterialTypes,
-    setMaterialTypeStandard,
-    setMaterialSpecStandard,
   }
 }

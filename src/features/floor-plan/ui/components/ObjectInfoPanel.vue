@@ -15,13 +15,13 @@ import { Trash2 } from 'lucide-vue-next'
 
 const store = useFloorPlanStore()
 const { selectedObjects, selectedBoxIds } = storeToRefs(store)
-const { componentDivisions, componentTypes, componentCodes, loadComponentTypes, loadComponentCodes } = useReferenceData()
+const { componentTypes, componentCodes, loadComponentTypes, loadComponentCodes } = useReferenceData()
 
-const editDivId = ref<number | null>(null)
+const editIsStructure = ref<boolean | null>(null)
 const editTypeId = ref<number | null>(null)
 
-watch(editDivId, (id) => {
-  if (id) loadComponentTypes(id)
+watch(editIsStructure, (value) => {
+  if (value != null) loadComponentTypes(value)
   editTypeId.value = null
 })
 
@@ -53,13 +53,21 @@ const hasSelection = computed(() => selectedObjects.value.length > 0)
     <div class="sticky top-0 bg-background border-b border-border p-2 flex flex-col gap-1.5">
       <div class="text-xs font-semibold">{{ selectedObjects.length }}개 선택됨 — 부재코드 매핑</div>
       <div class="flex gap-1">
-        <Select :model-value="editDivId?.toString() ?? undefined" @update:model-value="editDivId = $event ? Number($event) : null">
-          <SelectTrigger class="h-6 text-xs flex-1"><SelectValue placeholder="대분류" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem v-for="d in componentDivisions" :key="d.id" :value="d.id.toString()">{{ d.name }}</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select :model-value="editTypeId?.toString() ?? undefined" :disabled="!editDivId" @update:model-value="editTypeId = $event ? Number($event) : null">
+        <button
+          class="px-2 h-6 text-xs rounded border transition-colors"
+          :class="editIsStructure === true ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-background border-border text-foreground hover:bg-muted'"
+          @click="editIsStructure = editIsStructure === true ? null : true"
+        >
+          구조
+        </button>
+        <button
+          class="px-2 h-6 text-xs rounded border transition-colors"
+          :class="editIsStructure === false ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-background border-border text-foreground hover:bg-muted'"
+          @click="editIsStructure = editIsStructure === false ? null : false"
+        >
+          비구조
+        </button>
+        <Select :model-value="editTypeId?.toString() ?? undefined" :disabled="editIsStructure == null" @update:model-value="editTypeId = $event ? Number($event) : null">
           <SelectTrigger class="h-6 text-xs flex-1"><SelectValue placeholder="타입" /></SelectTrigger>
           <SelectContent>
             <SelectItem v-for="t in componentTypes" :key="t.id" :value="t.id.toString()">{{ t.name }}</SelectItem>
@@ -84,7 +92,7 @@ const hasSelection = computed(() => selectedObjects.value.length > 0)
           </Button>
         </div>
         <div class="text-muted-foreground">{{ obj.componentCode ?? '-' }}</div>
-        <div v-if="obj.componentDivisionName" class="text-muted-foreground">{{ obj.componentDivisionName }} / {{ obj.componentTypeName }}</div>
+        <div v-if="obj.isStructure != null || obj.componentTypeName" class="text-muted-foreground">{{ obj.isStructure === true ? '구조' : obj.isStructure === false ? '비구조' : '' }}{{ obj.componentTypeName ? ` / ${obj.componentTypeName}` : '' }}</div>
       </div>
     </div>
   </div>

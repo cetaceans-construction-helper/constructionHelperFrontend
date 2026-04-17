@@ -4,34 +4,34 @@ import apiClient from '@/shared/network-core/apiClient'
 export interface IdNameResponse {
   id: number
   name: string
-  standardId?: number | null
-  standardName?: string | null
 }
 
 // 공종 분류 타입
 export interface WorkTypeResponse {
   id: number
   name: string
-  displayName: string
   divisionId: number
-  standardId?: number | null
-  standardName?: string | null
+  isStructure: boolean
+}
+
+// 부재 타입 응답 (isStructure 포함)
+export interface ComponentTypeResponse {
+  id: number
+  name: string
+  isStructure: boolean
 }
 
 export interface SubWorkTypeResponse {
   id: number
   name: string
   workTypeId: number
-  standardId?: number | null
-  standardName?: string | null
 }
 
 export interface WorkStepResponse {
   id: number
   name: string
   subWorkTypeId: number
-  standardId?: number | null
-  standardName?: string | null
+  componentTypeId: number
 }
 
 // 직종(LaborType) 타입
@@ -40,18 +40,12 @@ export interface LaborTypeResponse {
   name: string
   workTypeId: number
   workTypeName: string
-  subWorkTypeId: number | null
-  subWorkTypeName: string | null
-  standardId?: number | null
-  standardName?: string | null
 }
 
 // 장비 마스터 타입
 export interface EquipmentTypeResponse {
   id: number
   name: string
-  standardId?: number | null
-  standardName?: string | null
 }
 
 export interface EquipmentSpecResponse {
@@ -59,8 +53,6 @@ export interface EquipmentSpecResponse {
   name: string
   equipmentTypeId: number
   equipmentTypeName: string
-  standardId?: number | null
-  standardName?: string | null
 }
 
 // 자재 마스터 타입
@@ -68,16 +60,12 @@ export interface MaterialTypeResponse {
   id: number
   name: string
   unit: string
-  standardId?: number | null
-  standardName?: string | null
 }
 
 export interface MaterialSpecResponse {
   id: number
   name: string
   materialTypeId: number
-  standardId?: number | null
-  standardName?: string | null
 }
 
 // 부재 코드 타입
@@ -87,20 +75,16 @@ export interface ComponentCodeResponse {
   code: string
 }
 
-export interface ComponentCodeMappingResponse {
+export interface CcodeDetailResponse {
   id: number
   componentCodeId: number
   componentCodeName: string
-  componentTypeName: string
   workStepId: number
   workStepName: string
-  subWorkTypeName: string
-  workTypeName: string
-  divisionName: string
   materialSpecId: number | null
   materialSpecName: string | null
-  materialTypeName: string | null
-  unitName: string | null
+  floorId: number | null
+  floorName: string | null
 }
 
 export interface MappingResultResponse {
@@ -126,11 +110,12 @@ export interface UpdateReferenceRequest {
   name?: string
   unit?: string
   ids?: number[]
-  standardId?: number | null
 }
 
 export interface UpdateChildReferenceRequest extends UpdateReferenceRequest {
   parentId?: number
+  componentTypeId?: number
+  isStructure?: boolean
 }
 
 export const referenceApi = {
@@ -141,11 +126,8 @@ export const referenceApi = {
     return data
   },
 
-  async createDivision(name: string, standardId?: number): Promise<IdNameResponse> {
-    const { data } = await apiClient.post<IdNameResponse>('/reference/createDivision', {
-      name,
-      ...(standardId != null && { standardId }),
-    })
+  async createDivision(name: string): Promise<IdNameResponse> {
+    const { data } = await apiClient.post<IdNameResponse>('/reference/createDivision', { name })
     return data
   },
 
@@ -156,11 +138,19 @@ export const referenceApi = {
     return data
   },
 
-  async createWorkType(divisionId: number, name: string, standardId?: number): Promise<WorkTypeResponse> {
+  // 이름 유사도 기반 WorkType 조회 (pgvector top-1)
+  async getWorkTypeDetail(name: string): Promise<WorkTypeResponse> {
+    const { data } = await apiClient.get<WorkTypeResponse>('/reference/getWorkTypeDetail', {
+      params: { name },
+    })
+    return data
+  },
+
+  async createWorkType(divisionId: number, name: string, isStructure: boolean): Promise<WorkTypeResponse> {
     const { data } = await apiClient.post<WorkTypeResponse>('/reference/createWorkType', {
       divisionId,
       name,
-      ...(standardId != null && { standardId }),
+      isStructure,
     })
     return data
   },
@@ -172,11 +162,10 @@ export const referenceApi = {
     return data
   },
 
-  async createSubWorkType(workTypeId: number, name: string, standardId?: number): Promise<SubWorkTypeResponse> {
+  async createSubWorkType(workTypeId: number, name: string): Promise<SubWorkTypeResponse> {
     const { data } = await apiClient.post<SubWorkTypeResponse>('/reference/createSubWorkType', {
       workTypeId,
       name,
-      ...(standardId != null && { standardId }),
     })
     return data
   },
@@ -188,11 +177,15 @@ export const referenceApi = {
     return data
   },
 
-  async createWorkStep(subWorkTypeId: number, name: string, standardId?: number): Promise<WorkStepResponse> {
-    const { data } = await apiClient.post<WorkStepResponse>('/reference/createWorkStep', {
+  async createWorkStep(
+    subWorkTypeId: number,
+    name: string,
+    componentTypeId: number,
+  ): Promise<WorkStepResponse> {
+    const { data } = await apiClient.post<WorkStepResponse>('/super/reference/createWorkStep', {
       subWorkTypeId,
       name,
-      ...(standardId != null && { standardId }),
+      componentTypeId,
     })
     return data
   },
@@ -204,11 +197,10 @@ export const referenceApi = {
     return data
   },
 
-  async createMaterialType(name: string, unit?: string, standardId?: number): Promise<MaterialTypeResponse> {
-    const { data } = await apiClient.post<MaterialTypeResponse>('/reference/createMaterialType', {
+  async createMaterialType(name: string, unit?: string): Promise<MaterialTypeResponse> {
+    const { data } = await apiClient.post<MaterialTypeResponse>('/super/reference/createMaterialType', {
       name,
       unit,
-      ...(standardId != null && { standardId }),
     })
     return data
   },
@@ -220,16 +212,15 @@ export const referenceApi = {
     return data
   },
 
-  async createMaterialSpec(materialTypeId: number, name: string, standardId?: number): Promise<MaterialSpecResponse> {
-    const { data } = await apiClient.post<MaterialSpecResponse>('/reference/createMaterialSpec', {
+  async createMaterialSpec(materialTypeId: number, name: string): Promise<MaterialSpecResponse> {
+    const { data } = await apiClient.post<MaterialSpecResponse>('/super/reference/createMaterialSpec', {
       materialTypeId,
       name,
-      ...(standardId != null && { standardId }),
     })
     return data
   },
 
-  // ========== 작업 위치 (Zone / Floor / Section / Usage) ==========
+  // ========== 작업 위치 (Zone / Floor) ==========
 
   async getZoneList(): Promise<IdNameResponse[]> {
     const { data } = await apiClient.get<IdNameResponse[]>('/reference/getZoneList')
@@ -251,53 +242,19 @@ export const referenceApi = {
     return data
   },
 
-  async getSectionList(): Promise<IdNameResponse[]> {
-    const { data } = await apiClient.get<IdNameResponse[]>('/reference/getSectionList')
-    return data
-  },
+  // ========== 부재 타입 (ComponentType → ComponentCode) — isStructure 기반 ==========
 
-  async createSection(name: string): Promise<IdNameResponse> {
-    const { data } = await apiClient.post<IdNameResponse>('/reference/createSection', { name })
-    return data
-  },
-
-  async getUsageList(): Promise<IdNameResponse[]> {
-    const { data } = await apiClient.get<IdNameResponse[]>('/reference/getUsageList')
-    return data
-  },
-
-  async createUsage(name: string): Promise<IdNameResponse> {
-    const { data } = await apiClient.post<IdNameResponse>('/reference/createUsage', { name })
-    return data
-  },
-
-  // ========== 부재 대분류 (ComponentDivision → ComponentType → ComponentCode) ==========
-
-  async getComponentDivisionList(): Promise<IdNameResponse[]> {
-    const { data } = await apiClient.get<IdNameResponse[]>('/reference/getComponentDivisionList')
-    return data
-  },
-
-  async createComponentDivision(name: string, standardId?: number): Promise<IdNameResponse> {
-    const { data } = await apiClient.post<IdNameResponse>('/reference/createComponentDivision', {
-      name,
-      ...(standardId != null && { standardId }),
+  async getComponentTypeList(isStructure?: boolean): Promise<ComponentTypeResponse[]> {
+    const { data } = await apiClient.get<ComponentTypeResponse[]>('/reference/getComponentTypeList', {
+      params: isStructure != null ? { isStructure } : undefined,
     })
     return data
   },
 
-  async getComponentTypeList(componentDivisionId?: number): Promise<IdNameResponse[]> {
-    const { data } = await apiClient.get<IdNameResponse[]>('/reference/getComponentTypeList', {
-      params: componentDivisionId != null ? { componentDivisionId } : undefined,
-    })
-    return data
-  },
-
-  async createComponentType(componentDivisionId: number, name: string, standardId?: number): Promise<IdNameResponse> {
-    const { data } = await apiClient.post<IdNameResponse>('/reference/createComponentType', {
-      componentDivisionId,
+  async createComponentType(name: string, isStructure: boolean): Promise<ComponentTypeResponse> {
+    const { data } = await apiClient.post<ComponentTypeResponse>('/super/reference/createComponentType', {
       name,
-      ...(standardId != null && { standardId }),
+      isStructure,
     })
     return data
   },
@@ -317,34 +274,32 @@ export const referenceApi = {
     return data
   },
 
-  async getComponentCodeMappingList(componentCodeId?: number): Promise<ComponentCodeMappingResponse[]> {
-    const { data } = await apiClient.get<ComponentCodeMappingResponse[]>(
-      '/reference/getComponentCodeMappingList',
+  async getCcodeDetailList(componentCodeId?: number): Promise<CcodeDetailResponse[]> {
+    const { data } = await apiClient.get<CcodeDetailResponse[]>(
+      '/reference/getCcodeDetailList',
       { params: componentCodeId != null ? { componentCodeId } : undefined },
     )
     return data
   },
 
-  async createComponentCodeMapping(params: {
-    componentCodeId?: number
-    componentTypeId?: number
-    workStepId?: number
-    subWorkTypeId?: number
-    workTypeId?: number
+  async createCcodeDetail(params: {
+    componentCodeId: number
+    workStepId: number
+    floorId?: number
   }): Promise<MappingResultResponse> {
     const { data } = await apiClient.post<MappingResultResponse>(
-      '/reference/createComponentCodeMapping',
+      '/super/reference/createCcodeDetail',
       params,
     )
     return data
   },
 
-  async updateComponentCodeMapping(params: {
+  async updateCcodeDetail(params: {
     ids: number[]
     materialSpecId: number
   }): Promise<UpdateMappingResultResponse> {
     const { data } = await apiClient.post<UpdateMappingResultResponse>(
-      '/reference/updateComponentCodeMapping',
+      '/super/reference/updateCcodeDetail',
       params,
     )
     return data
@@ -357,10 +312,9 @@ export const referenceApi = {
     return data
   },
 
-  async createEquipmentType(name: string, standardId?: number): Promise<EquipmentTypeResponse> {
-    const { data } = await apiClient.post<EquipmentTypeResponse>('/reference/createEquipmentType', {
+  async createEquipmentType(name: string): Promise<EquipmentTypeResponse> {
+    const { data } = await apiClient.post<EquipmentTypeResponse>('/super/reference/createEquipmentType', {
       name,
-      ...(standardId != null && { standardId }),
     })
     return data
   },
@@ -372,11 +326,10 @@ export const referenceApi = {
     return data
   },
 
-  async createEquipmentSpec(equipmentTypeId: number, name: string, standardId?: number): Promise<EquipmentSpecResponse> {
-    const { data } = await apiClient.post<EquipmentSpecResponse>('/reference/createEquipmentSpec', {
+  async createEquipmentSpec(equipmentTypeId: number, name: string): Promise<EquipmentSpecResponse> {
+    const { data } = await apiClient.post<EquipmentSpecResponse>('/super/reference/createEquipmentSpec', {
       equipmentTypeId,
       name,
-      ...(standardId != null && { standardId }),
     })
     return data
   },
@@ -401,43 +354,40 @@ export const referenceApi = {
   async createLaborType(params: {
     name: string
     workTypeId: number
-    subWorkTypeId?: number | null
-    standardId?: number
   }): Promise<LaborTypeResponse> {
     const { data } = await apiClient.post<LaborTypeResponse>(
-      '/reference/createLaborType',
+      '/super/reference/createLaborType',
       params,
     )
     return data
   },
 
   // ========== 수정 (이름 변경 + 정렬 변경) ==========
+  // Division/WorkType/SubWorkType 는 project-scoped (/reference/**, X-Project-Id 필수)
+  // 그 외 글로벌 RE 는 SUPER 전용 (/super/reference/**) 유지, Zone/Floor/ComponentCode 는 일반 사용자 (/reference/**)
 
-  // Top-level (9개)
+  // Top-level (project-scoped - 일반 사용자)
   async updateDivision(params: UpdateReferenceRequest): Promise<void> {
     await apiClient.post('/reference/updateDivision', params)
   },
 
   async updateMaterialType(params: UpdateReferenceRequest): Promise<void> {
-    await apiClient.post('/reference/updateMaterialType', params)
+    await apiClient.post('/super/reference/updateMaterialType', params)
   },
 
   async updateEquipmentType(params: UpdateReferenceRequest): Promise<void> {
-    await apiClient.post('/reference/updateEquipmentType', params)
-  },
-
-  async updateComponentDivision(params: UpdateReferenceRequest): Promise<void> {
-    await apiClient.post('/reference/updateComponentDivision', params)
+    await apiClient.post('/super/reference/updateEquipmentType', params)
   },
 
   async updateComponentType(params: UpdateChildReferenceRequest): Promise<void> {
-    await apiClient.post('/reference/updateComponentType', params)
+    await apiClient.post('/super/reference/updateComponentType', params)
   },
 
   async updateLaborType(params: UpdateReferenceRequest): Promise<void> {
-    await apiClient.post('/reference/updateLaborType', params)
+    await apiClient.post('/super/reference/updateLaborType', params)
   },
 
+  // Top-level (project-scoped - 일반 사용자)
   async updateZone(params: UpdateReferenceRequest): Promise<void> {
     await apiClient.post('/reference/updateZone', params)
   },
@@ -446,15 +396,7 @@ export const referenceApi = {
     await apiClient.post('/reference/updateFloor', params)
   },
 
-  async updateSection(params: UpdateReferenceRequest): Promise<void> {
-    await apiClient.post('/reference/updateSection', params)
-  },
-
-  async updateUsage(params: UpdateReferenceRequest): Promise<void> {
-    await apiClient.post('/reference/updateUsage', params)
-  },
-
-  // Child-level (6개)
+  // Child-level (project-scoped - 일반 사용자)
   async updateWorkType(params: UpdateChildReferenceRequest): Promise<void> {
     await apiClient.post('/reference/updateWorkType', params)
   },
@@ -463,23 +405,28 @@ export const referenceApi = {
     await apiClient.post('/reference/updateSubWorkType', params)
   },
 
+  // Child-level (글로벌 - SUPER)
+
   async updateWorkStep(params: UpdateChildReferenceRequest): Promise<void> {
-    await apiClient.post('/reference/updateWorkStep', params)
+    await apiClient.post('/super/reference/updateWorkStep', params)
   },
 
   async updateMaterialSpec(params: UpdateChildReferenceRequest): Promise<void> {
-    await apiClient.post('/reference/updateMaterialSpec', params)
+    await apiClient.post('/super/reference/updateMaterialSpec', params)
   },
 
   async updateEquipmentSpec(params: UpdateChildReferenceRequest): Promise<void> {
-    await apiClient.post('/reference/updateEquipmentSpec', params)
+    await apiClient.post('/super/reference/updateEquipmentSpec', params)
   },
 
+  // Child-level (project-scoped - 일반 사용자)
   async updateComponentCode(params: UpdateChildReferenceRequest): Promise<void> {
     await apiClient.post('/reference/updateComponentCode', params)
   },
 
   // ========== 삭제 ==========
+  // Division/WorkType/SubWorkType 는 project-scoped (/reference/**, X-Project-Id 필수)
+  // 그 외 글로벌 RE 는 SUPER 전용, Zone/Floor/ComponentCode 는 일반 사용자
 
   async deleteDivision(id: number): Promise<void> {
     await apiClient.delete(`/reference/deleteDivision/${id}`)
@@ -494,39 +441,40 @@ export const referenceApi = {
   },
 
   async deleteWorkStep(id: number): Promise<void> {
-    await apiClient.delete(`/reference/deleteWorkStep/${id}`)
+    await apiClient.delete(`/super/reference/deleteWorkStep/${id}`)
   },
 
   async deleteMaterialType(id: number): Promise<void> {
-    await apiClient.delete(`/reference/deleteMaterialType/${id}`)
+    await apiClient.delete(`/super/reference/deleteMaterialType/${id}`)
   },
 
   async deleteMaterialSpec(id: number): Promise<void> {
-    await apiClient.delete(`/reference/deleteMaterialSpec/${id}`)
+    await apiClient.delete(`/super/reference/deleteMaterialSpec/${id}`)
   },
 
   async deleteEquipmentType(id: number): Promise<void> {
-    await apiClient.delete(`/reference/deleteEquipmentType/${id}`)
+    await apiClient.delete(`/super/reference/deleteEquipmentType/${id}`)
   },
 
   async deleteEquipmentSpec(id: number): Promise<void> {
-    await apiClient.delete(`/reference/deleteEquipmentSpec/${id}`)
-  },
-
-  async deleteComponentDivision(id: number): Promise<void> {
-    await apiClient.delete(`/reference/deleteComponentDivision/${id}`)
+    await apiClient.delete(`/super/reference/deleteEquipmentSpec/${id}`)
   },
 
   async deleteComponentType(id: number): Promise<void> {
-    await apiClient.delete(`/reference/deleteComponentType/${id}`)
-  },
-
-  async deleteComponentCode(id: number): Promise<void> {
-    await apiClient.delete(`/reference/deleteComponentCode/${id}`)
+    await apiClient.delete(`/super/reference/deleteComponentType/${id}`)
   },
 
   async deleteLaborType(id: number): Promise<void> {
-    await apiClient.delete(`/reference/deleteLaborType/${id}`)
+    await apiClient.delete(`/super/reference/deleteLaborType/${id}`)
+  },
+
+  async deleteCcodeDetail(id: number): Promise<void> {
+    await apiClient.delete(`/super/reference/deleteCcodeDetail/${id}`)
+  },
+
+  // 삭제 (project-scoped - 일반 사용자)
+  async deleteComponentCode(id: number): Promise<void> {
+    await apiClient.delete(`/reference/deleteComponentCode/${id}`)
   },
 
   async deleteZone(id: number): Promise<void> {
@@ -535,24 +483,6 @@ export const referenceApi = {
 
   async deleteFloor(id: number): Promise<void> {
     await apiClient.delete(`/reference/deleteFloor/${id}`)
-  },
-
-  async deleteSection(id: number): Promise<void> {
-    await apiClient.delete(`/reference/deleteSection/${id}`)
-  },
-
-  async deleteUsage(id: number): Promise<void> {
-    await apiClient.delete(`/reference/deleteUsage/${id}`)
-  },
-
-  async deleteCwmMapping(id: number): Promise<void> {
-    await apiClient.delete(`/reference/deleteCwmMapping/${id}`)
-  },
-
-  // ========== WorkType displayName ==========
-
-  async updateWorkTypeDisplayName(workTypeId: number, displayName: string): Promise<void> {
-    await apiClient.put(`/reference/updateWorkTypeDisplayName/${workTypeId}`, { displayName })
   },
 
   // ========== 세부작업 생성 ==========

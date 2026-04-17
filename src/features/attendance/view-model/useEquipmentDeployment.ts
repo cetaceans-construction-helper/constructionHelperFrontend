@@ -11,7 +11,7 @@ import { analyticsClient } from '@/shared/analytics/analyticsClient'
 export interface EquipmentBox {
   id: string
   companyId: string | null
-  companyToProjectId: number | null
+  workTypeId: number | null
   companyName: string
   workTypeName: string
   selectedSpecs: EquipmentSpecResponse[]
@@ -40,44 +40,10 @@ export function useEquipmentDeployment(
   const isLoadingEquipment = ref(false)
   const equipmentBoxes = ref<EquipmentBox[]>([])
 
-  // workTime, count — ref<Map>으로 관리 (useAttendance의 laborCounts 패턴과 동일)
-  const equipmentWorkTimes = ref<Map<string, number>>(new Map())
   const equipmentCounts = ref<Map<string, number>>(new Map())
 
   function getKey(boxId: string, specId: number): string {
     return `${boxId}-${specId}`
-  }
-
-  function roundToHalf(time: number): number {
-    return Math.round(time * 2) / 2
-  }
-
-  // --- workTime ---
-  function getWorkTime(boxId: string, specId: number): number {
-    return equipmentWorkTimes.value.get(getKey(boxId, specId)) ?? 0
-  }
-
-  function setWorkTime(boxId: string, specId: number, time: number) {
-    const key = getKey(boxId, specId)
-    const newMap = new Map(equipmentWorkTimes.value)
-    newMap.set(key, roundToHalf(Math.max(0, time)))
-    equipmentWorkTimes.value = newMap
-  }
-
-  function incrementWorkTime(boxId: string, specId: number) {
-    setWorkTime(boxId, specId, getWorkTime(boxId, specId) + 0.5)
-  }
-
-  function decrementWorkTime(boxId: string, specId: number) {
-    setWorkTime(boxId, specId, getWorkTime(boxId, specId) - 0.5)
-  }
-
-  function setFullDay(boxId: string, specId: number) {
-    setWorkTime(boxId, specId, 8.0)
-  }
-
-  function setHalfDay(boxId: string, specId: number) {
-    setWorkTime(boxId, specId, 4.0)
   }
 
   // --- count ---
@@ -112,11 +78,8 @@ export function useEquipmentDeployment(
     box.selectedSpecs.push(spec)
 
     const key = getKey(boxId, specId)
-    const newWT = new Map(equipmentWorkTimes.value)
     const newCT = new Map(equipmentCounts.value)
-    newWT.set(key, 8)
     newCT.set(key, 1)
-    equipmentWorkTimes.value = newWT
     equipmentCounts.value = newCT
   }
 
@@ -127,11 +90,8 @@ export function useEquipmentDeployment(
     box.selectedSpecs = box.selectedSpecs.filter((s) => s.id !== specId)
 
     const key = getKey(boxId, specId)
-    const newWT = new Map(equipmentWorkTimes.value)
     const newCT = new Map(equipmentCounts.value)
-    newWT.delete(key)
     newCT.delete(key)
-    equipmentWorkTimes.value = newWT
     equipmentCounts.value = newCT
   }
 
@@ -160,7 +120,6 @@ export function useEquipmentDeployment(
   function populateBoxesFromDeployment() {
     equipmentBoxes.value = []
 
-    const newWT = new Map<string, number>()
     const newCT = new Map<string, number>()
 
     if (todayEquipment.value.length > 0) {
@@ -177,7 +136,7 @@ export function useEquipmentDeployment(
         if (!first) continue
         const boxId = `ebox-${++boxIdCounter}`
 
-        // contractors에서 companyToProjectId 조회
+        // contractors에서 workType 조회
         const contractor = contractors.value.find((c) => c.companyId === companyId)
 
         const selectedSpecs: EquipmentSpecResponse[] = []
@@ -185,7 +144,6 @@ export function useEquipmentDeployment(
           const spec = allEquipmentSpecs.value.find((s) => s.id === item.equipmentSpecId)
           if (spec) {
             selectedSpecs.push(spec)
-            newWT.set(getKey(boxId, spec.id), item.workTime)
             newCT.set(getKey(boxId, spec.id), item.count)
           }
         }
@@ -193,9 +151,9 @@ export function useEquipmentDeployment(
         equipmentBoxes.value.push({
           id: boxId,
           companyId,
-          companyToProjectId: contractor?.companyToProjectId ?? null,
+          workTypeId: first.workTypeId ?? contractor?.workTypeId ?? null,
           companyName: first.companyDisplayName,
-          workTypeName: contractor?.workTypeName || '',
+          workTypeName: first.workTypeName ?? contractor?.workTypeName ?? '',
           selectedSpecs,
           isLoading: false,
         })
@@ -214,7 +172,7 @@ export function useEquipmentDeployment(
       equipmentBoxes.value.push({
         id: boxId,
         companyId: company.companyId,
-        companyToProjectId: company.companyToProjectId,
+        workTypeId: company.workTypeId,
         companyName: company.companyDisplayName,
         workTypeName: company.workTypeName || '',
         selectedSpecs: [],
@@ -222,8 +180,6 @@ export function useEquipmentDeployment(
       })
     }
 
-    // 한 번에 재할당 → 확실한 reactivity 트리거
-    equipmentWorkTimes.value = newWT
     equipmentCounts.value = newCT
   }
 
@@ -232,7 +188,7 @@ export function useEquipmentDeployment(
     equipmentBoxes.value.push({
       id: `ebox-${++boxIdCounter}`,
       companyId: null,
-      companyToProjectId: null,
+      workTypeId: null,
       companyName: '',
       workTypeName: '',
       selectedSpecs: [],
@@ -256,17 +212,14 @@ export function useEquipmentDeployment(
     }
 
     // 기존 데이터 정리
-    const newWT = new Map(equipmentWorkTimes.value)
     const newCT = new Map(equipmentCounts.value)
     for (const spec of box.selectedSpecs) {
-      newWT.delete(getKey(boxId, spec.id))
       newCT.delete(getKey(boxId, spec.id))
     }
-    equipmentWorkTimes.value = newWT
     equipmentCounts.value = newCT
 
     box.companyId = company.companyId
-    box.companyToProjectId = company.companyToProjectId
+    box.workTypeId = company.workTypeId
     box.companyName = company.companyDisplayName
     box.workTypeName = company.workTypeName || ''
     box.selectedSpecs = []
@@ -275,13 +228,10 @@ export function useEquipmentDeployment(
   function removeEquipmentBox(boxId: string) {
     const box = equipmentBoxes.value.find((b) => b.id === boxId)
     if (box) {
-      const newWT = new Map(equipmentWorkTimes.value)
       const newCT = new Map(equipmentCounts.value)
       for (const spec of box.selectedSpecs) {
-        newWT.delete(getKey(boxId, spec.id))
         newCT.delete(getKey(boxId, spec.id))
       }
-      equipmentWorkTimes.value = newWT
       equipmentCounts.value = newCT
     }
     equipmentBoxes.value = equipmentBoxes.value.filter((b) => b.id !== boxId)
@@ -302,25 +252,23 @@ export function useEquipmentDeployment(
     for (const box of validBoxes) {
       if (!box.companyId) continue
 
-      // companyToProjectId가 null이면 contractors에서 재조회 (race condition 대응)
-      const companyToProjectId =
-        box.companyToProjectId ??
-        contractors.value.find((c) => c.companyId === box.companyId)?.companyToProjectId ??
+      // workTypeId가 null이면 contractors에서 재조회 (race condition 대응)
+      const workTypeId =
+        box.workTypeId ??
+        contractors.value.find((c) => c.companyId === box.companyId)?.workTypeId ??
         null
-      if (companyToProjectId == null) {
-        warnings.push(`${box.workTypeName || box.companyName}: 프로젝트 매핑 정보를 찾을 수 없습니다.`)
+      if (workTypeId == null) {
+        warnings.push(`${box.workTypeName || box.companyName}: 공종 정보를 찾을 수 없습니다.`)
         continue
       }
 
       for (const spec of box.selectedSpecs) {
         const key = getKey(box.id, spec.id)
         const count = equipmentCounts.value.get(key) ?? 0
-        const workTime = equipmentWorkTimes.value.get(key) ?? 0
         entries.push({
           equipmentSpecId: spec.id,
           count,
-          workTime,
-          companyToProjectId,
+          workTypeId,
         })
       }
     }
@@ -387,7 +335,6 @@ export function useEquipmentDeployment(
     todayEquipment,
     isLoadingEquipment,
     equipmentBoxes,
-    equipmentWorkTimes,
     equipmentCounts,
 
     init,
@@ -396,12 +343,6 @@ export function useEquipmentDeployment(
     removeEquipmentBox,
     addSpecToBox,
     removeSpecFromBox,
-    getWorkTime,
-    setWorkTime,
-    incrementWorkTime,
-    decrementWorkTime,
-    setFullDay,
-    setHalfDay,
     getCount,
     setCount,
     incrementCount,

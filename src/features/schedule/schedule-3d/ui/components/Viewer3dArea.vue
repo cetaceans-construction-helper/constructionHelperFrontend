@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Checkbox } from '@/shared/ui/checkbox'
@@ -18,11 +18,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/shared/ui/select'
-import { ChevronLeft, ChevronRight, Truck } from 'lucide-vue-next'
+import { Truck, ArrowDown, RotateCcw, Plus, Minus } from 'lucide-vue-next'
+import { useFloorPlanStore, drawingAxisApi } from '@/features/floor-plan/public'
+import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import SideTabBox from '@/shared/helper-ui/SideTabBox.vue'
 import {
   referenceApi,
+  type ComponentTypeResponse,
   type MaterialTypeResponse,
   type IdNameResponse,
   type WorkTypeResponse,
@@ -52,16 +55,193 @@ const props = defineProps<{
   showTodayOnly: boolean
   selectedWorkId: number | null
   isLoadingDaily: boolean
+  isPortrait: boolean
+  floors: { id: number; name: string }[]
+  zones: { id: number; name: string }[]
+  selectedFloorIds: number[]
+  selectedZoneIds: number[]
+  componentTypesByStructure: Map<string, ComponentTypeResponse[]>
+  selectedIsStructure: boolean | null
+  selectedComponentTypeId: number | null
 }>()
 
 const emit = defineEmits<{
-  rotateLeft: []
-  rotateRight: []
+  'top-view': []
+  'reset-view': []
   'date-change': [date: string]
   'toggle-today-only': [checked: boolean]
   'work-click': [workId: number]
   'tasks-updated': [updates: { taskId: number; quantity: number }[]]
+  'toggle-floor': [id: number]
+  'toggle-zone': [id: number]
+  'zoom-in': []
+  'zoom-out': []
+  'update-objects': [updates: { id: number; zoneId?: number | null; floorId?: number | null; componentCodeId?: number | null }[]]
+  'toggle-is-structure': [value: boolean]
+  'toggle-component-type': [id: number]
 }>()
+
+const isTopView = ref(false)
+
+function toggleTopView() {
+  isTopView.value = !isTopView.value
+  if (isTopView.value) {
+    emit('top-view')
+  } else {
+    emit('reset-view')
+  }
+}
+
+// 부재 편집 상태
+const editZoneId = ref<number | null>(null)
+const editFloorId = ref<number | null>(null)
+const editIsStructure = ref<boolean | null>(null)
+const editTypeId = ref<number | null>(null)
+const editColor = ref<string>('')
+const isSavingEdit = ref(false)
+
+// 부재코드 캐스케이드: isStructure → type → code
+const componentTypes = ref<ComponentTypeResponse[]>([])
+const componentCodes = ref<{ id: number; code: string }[]>([])
+
+async function selectIsStructure(value: boolean) {
+  editIsStructure.value = editIsStructure.value === value ? null : value
+  editTypeId.value = null
+  componentTypes.value = []
+  componentCodes.value = []
+  if (editIsStructure.value != null) {
+    try {
+      componentTypes.value = await referenceApi.getComponentTypeList(editIsStructure.value)
+    } catch { /* silent */ }
+  }
+}
+
+async function selectType(id: number) {
+  editTypeId.value = editTypeId.value === id ? null : id
+  componentCodes.value = []
+  if (editTypeId.value) {
+    try {
+      componentCodes.value = await referenceApi.getComponentCodeList(editTypeId.value)
+    } catch { /* silent */ }
+  }
+}
+
+const editComponentCodeId = ref<number | null>(null)
+
+function toggleZone(id: number) { editZoneId.value = editZoneId.value === id ? null : id }
+function toggleFloor(id: number) { editFloorId.value = editFloorId.value === id ? null : id }
+function toggleComponentCode(id: number) { editComponentCodeId.value = editComponentCodeId.value === id ? null : id }
+
+const hasEditChanges = computed(() =>
+  editZoneId.value != null || editFloorId.value != null || editComponentCodeId.value != null || editColor.value !== '',
+)
+
+async function handleSaveEdit() {
+  if (props.selectedObject3dIds.length === 0) return
+  isSavingEdit.value = true
+  try {
+    const updates = props.selectedObject3dIds.map(id => {
+      const update: Record<string, unknown> = { id }
+      if (editZoneId.value != null) update.zoneId = editZoneId.value
+      if (editFloorId.value != null) update.floorId = editFloorId.value
+      if (editComponentCodeId.value != null) update.componentCodeId = editComponentCodeId.value
+      if (editColor.value) {
+        const hex = editColor.value
+        update.layerColor = {
+          r: parseInt(hex.slice(1, 3), 16),
+          g: parseInt(hex.slice(3, 5), 16),
+          b: parseInt(hex.slice(5, 7), 16),
+          a: 255,
+        }
+      }
+      return update
+    })
+    emit('update-objects', updates as any)
+  } finally {
+    isSavingEdit.value = false
+    editZoneId.value = null
+    editFloorId.value = null
+    editIsStructure.value = null
+    editTypeId.value = null
+    editComponentCodeId.value = null
+    editColor.value = ''
+    componentTypes.value = []
+    componentCodes.value = []
+  }
+}
+
+// ========== 축설정 ==========
+interface LocalAxis { id: number | null; label: string; position: number }
+
+const axisStore = useFloorPlanStore()
+const { sortedXAxes, sortedYAxes } = storeToRefs(axisStore)
+const axisLocalX = ref<LocalAxis[]>([])
+const axisLocalY = ref<LocalAxis[]>([])
+const axisExpanded = ref(true)
+const axisSaving = ref(false)
+
+function axisLoadLocal() {
+  axisLocalX.value = sortedXAxes.value.map(a => ({ id: a.id, label: a.label, position: a.position }))
+  axisLocalY.value = sortedYAxes.value.map(a => ({ id: a.id, label: a.label, position: a.position }))
+}
+// 탭 전환 시 로드
+watch(() => sortedXAxes.value.length + sortedYAxes.value.length, axisLoadLocal, { immediate: true })
+
+function axisGetGap(axes: LocalAxis[], i: number): number {
+  if (i === 0) return axes[0]?.position ?? 0
+  return (axes[i]?.position ?? 0) - (axes[i - 1]?.position ?? 0)
+}
+
+function axisOnGapChange(axes: LocalAxis[], i: number, value: string) {
+  const num = parseInt(value, 10)
+  if (isNaN(num)) return
+  if (i === 0) {
+    const delta = num - axes[0]!.position
+    for (const a of axes) a.position += delta
+    return
+  }
+  const prevPos = axes[i - 1]?.position ?? 0
+  const delta = prevPos + num - axes[i]!.position
+  for (let j = i; j < axes.length; j++) axes[j]!.position += delta
+}
+
+function axisInsert(type: 'x' | 'y', afterIndex: number) {
+  const axes = type === 'x' ? axisLocalX.value : axisLocalY.value
+  const prefix = type === 'x' ? 'X' : 'Y'
+  const cur = axes[afterIndex]!
+  const next = axes[afterIndex + 1]
+  const pos = next ? Math.round((cur.position + next.position) / 2) : cur.position + 6000
+  axes.splice(afterIndex + 1, 0, { id: null, label: `${prefix}${axes.length + 1}`, position: pos })
+}
+
+function axisAddFirst(type: 'x' | 'y') {
+  const axes = type === 'x' ? axisLocalX.value : axisLocalY.value
+  const prefix = type === 'x' ? 'X' : 'Y'
+  if (axes.length === 0) axes.push({ id: null, label: `${prefix}1`, position: 0 })
+  else axes.push({ id: null, label: `${prefix}${axes.length + 1}`, position: axes[axes.length - 1]!.position + 6000 })
+}
+
+async function axisRemove(axes: LocalAxis[], i: number) {
+  const axis = axes[i]
+  if (axis?.id != null) {
+    try { await drawingAxisApi.deleteDrawingAxis(axis.id) }
+    catch (e: any) { alert(e.response?.data?.message || e.message); return }
+  }
+  axes.splice(i, 1)
+}
+
+async function axisSave() {
+  axisSaving.value = true
+  try {
+    const all = [...axisLocalX.value.map(a => ({ ...a, isX: true })), ...axisLocalY.value.map(a => ({ ...a, isX: false }))]
+    const toCreate = all.filter(a => a.id == null).map(a => ({ isX: a.isX, name: a.label, position: Math.round(a.position) }))
+    const toUpdate = all.filter(a => a.id != null).map(a => ({ id: a.id!, name: a.label, position: Math.round(a.position) }))
+    if (toCreate.length > 0) await drawingAxisApi.createDrawingAxis(toCreate)
+    if (toUpdate.length > 0) await drawingAxisApi.updateDrawingAxis(toUpdate)
+    await axisStore.loadAxes()
+  } catch (e: any) { alert(e.response?.data?.message || e.message) }
+  finally { axisSaving.value = false }
+}
 
 // 물량설정 다이얼로그 상태
 const showQuantityDialog = ref(false)
@@ -261,24 +441,89 @@ const groupedDailyWorks = computed<GroupedWorks>(() => {
         <p class="mt-1 text-xs text-red-500">{{ loadError }}</p>
       </div>
 
-      <!-- 왼쪽 회전 버튼 -->
-      <Button
-        variant="outline"
-        size="icon"
-        class="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white h-16 w-16"
-        @click="emit('rotateLeft')"
-      >
-        <ChevronLeft class="h-10 w-10" />
-      </Button>
+      <!-- 구역/층 필터 (하단) -->
+      <div class="absolute bottom-3 left-3 z-10 flex flex-col gap-1">
+        <div v-if="zones.length > 0" class="flex items-center gap-1">
+          <span class="text-xs text-muted-foreground font-medium mr-0.5">구역</span>
+          <Button
+            v-for="zone in zones"
+            :key="zone.id"
+            size="sm"
+            :variant="selectedZoneIds.includes(zone.id) ? 'default' : 'outline'"
+            :class="['h-7 px-2 text-xs', selectedZoneIds.includes(zone.id) ? '' : 'bg-white/80']"
+            @click="emit('toggle-zone', zone.id)"
+          >
+            {{ zone.name }}
+          </Button>
+        </div>
+        <div v-if="floors.length > 0" class="flex items-center gap-1">
+          <span class="text-xs text-muted-foreground font-medium mr-0.5">층</span>
+          <Button
+            v-for="floor in floors"
+            :key="floor.id"
+            size="sm"
+            :variant="selectedFloorIds.includes(floor.id) ? 'default' : 'outline'"
+            :class="['h-7 px-2 text-xs', selectedFloorIds.includes(floor.id) ? '' : 'bg-white/80']"
+            @click="emit('toggle-floor', floor.id)"
+          >
+            {{ floor.name }}
+          </Button>
+        </div>
+        <div class="flex items-center gap-1">
+          <span class="text-xs text-muted-foreground font-medium mr-0.5">부재</span>
+          <Button
+            size="sm"
+            :variant="selectedIsStructure === true ? 'default' : 'outline'"
+            :class="['h-7 px-2 text-xs', selectedIsStructure === true ? '' : 'bg-white/80']"
+            @click="emit('toggle-is-structure', true)"
+          >
+            구조
+          </Button>
+          <Button
+            size="sm"
+            :variant="selectedIsStructure === false ? 'default' : 'outline'"
+            :class="['h-7 px-2 text-xs', selectedIsStructure === false ? '' : 'bg-white/80']"
+            @click="emit('toggle-is-structure', false)"
+          >
+            비구조
+          </Button>
+        </div>
+        <div v-if="selectedIsStructure != null && (componentTypesByStructure.get(String(selectedIsStructure))?.length ?? 0) > 0" class="flex items-center gap-1 flex-wrap">
+          <span class="text-xs text-muted-foreground font-medium mr-0.5">타입</span>
+          <Button
+            v-for="ct in componentTypesByStructure.get(String(selectedIsStructure))"
+            :key="ct.id"
+            size="sm"
+            :variant="selectedComponentTypeId === ct.id ? 'default' : 'outline'"
+            :class="['h-7 px-2 text-xs', selectedComponentTypeId === ct.id ? '' : 'bg-white/80']"
+            @click="emit('toggle-component-type', ct.id)"
+          >
+            {{ ct.name }}
+          </Button>
+        </div>
+      </div>
 
-      <!-- 오른쪽 회전 버튼 -->
+      <!-- 세로모드 줌 버튼 (우하단) -->
+      <div v-if="isPortrait" class="absolute bottom-3 right-3 z-10 flex flex-col gap-1">
+        <Button variant="outline" size="icon" class="h-10 w-10 bg-white/80" @click="emit('zoom-in')">
+          <Plus class="h-5 w-5" />
+        </Button>
+        <Button variant="outline" size="icon" class="h-10 w-10 bg-white/80" @click="emit('zoom-out')">
+          <Minus class="h-5 w-5" />
+        </Button>
+      </div>
+
+      <!-- 탑뷰 토글 버튼 (세로모드에서는 숨김 — 항상 탑뷰) -->
       <Button
+        v-if="!isPortrait"
         variant="outline"
         size="icon"
-        class="absolute right-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white h-16 w-16"
-        @click="emit('rotateRight')"
+        class="absolute top-4 right-20 bg-white/80 hover:bg-white h-12 w-12"
+        :class="isTopView ? 'ring-2 ring-primary' : ''"
+        @click="toggleTopView"
+        :title="isTopView ? '기본 뷰' : '탑뷰'"
       >
-        <ChevronRight class="h-10 w-10" />
+        <component :is="isTopView ? RotateCcw : ArrowDown" class="size-7" />
       </Button>
 
       <!-- 발주서 생성 버튼 -->
@@ -291,10 +536,6 @@ const groupedDailyWorks = computed<GroupedWorks>(() => {
         <Truck class="size-7" />
       </Button>
 
-      <!-- 사용법 안내 -->
-      <div class="absolute bottom-3 right-3 text-xs text-muted-foreground/60 bg-background/50 px-2 py-1 rounded">
-        휠: 줌
-      </div>
     </div>
 
     <!-- 발주서 생성 다이얼로그 -->
@@ -414,12 +655,14 @@ const groupedDailyWorks = computed<GroupedWorks>(() => {
     <!-- 탭 박스 -->
     <SideTabBox
       :tabs="[
-        { value: 'daily', label: '작업 일보' },
         { value: 'object3d', label: '부재 정보' },
+        { value: 'daily', label: '작업 일보' },
         { value: 'schedule', label: '일정' },
-        { value: 'material', label: '자재' }
+        { value: 'material', label: '자재' },
+        { value: 'setting', label: '부재설정' },
+        { value: 'axis', label: '축설정' }
       ]"
-      default-tab="daily"
+      default-tab="object3d"
     >
       <template #default="{ activeTab }">
         <!-- 작업 일보 탭 -->
@@ -535,13 +778,18 @@ const groupedDailyWorks = computed<GroupedWorks>(() => {
 
         <!-- 부재 정보 탭 -->
         <div v-else-if="activeTab === 'object3d'">
-          <div v-if="!selectedObject3d" class="text-sm text-muted-foreground">
+          <div v-if="selectedObject3dIds.length === 0" class="text-sm text-muted-foreground">
             객체를 선택하면 부재 정보가 표시됩니다.
           </div>
           <div v-else class="space-y-4">
-            <!-- 부재 카드 -->
-            <div class="border border-border rounded-lg p-4 space-y-2">
-              <h4 class="text-sm font-semibold text-foreground">부재 정보</h4>
+            <!-- 선택 요약 -->
+            <div class="text-sm font-medium text-foreground">
+              {{ selectedObject3dIds.length }}개 부재 선택됨
+            </div>
+
+            <!-- 단일 선택 시 상세 정보 -->
+            <div v-if="selectedObject3d" class="border border-border rounded-lg p-3 space-y-2">
+              <h4 class="text-sm font-semibold text-foreground">상세 정보</h4>
               <div class="grid grid-cols-2 gap-y-1.5 text-sm">
                 <span class="text-muted-foreground">ID</span>
                 <span class="text-foreground">{{ selectedObject3d.id }}</span>
@@ -549,17 +797,15 @@ const groupedDailyWorks = computed<GroupedWorks>(() => {
                 <span class="text-foreground">{{ selectedObject3d.zoneName ?? '-' }}</span>
                 <span class="text-muted-foreground">층</span>
                 <span class="text-foreground">{{ selectedObject3d.floorName ?? '-' }}</span>
-                <span class="text-muted-foreground">구간</span>
-                <span class="text-foreground">{{ selectedObject3d.sectionName ?? '-' }}</span>
-                <span class="text-muted-foreground">용도</span>
-                <span class="text-foreground">{{ selectedObject3d.usageName ?? '-' }}</span>
                 <span class="text-muted-foreground">부재코드</span>
                 <span class="text-foreground">{{ selectedObject3d.componentCode ?? '-' }}</span>
+                <span class="text-muted-foreground">축선</span>
+                <span class="text-foreground">{{ selectedObject3d.axisLabel ?? '-' }}</span>
               </div>
             </div>
 
             <!-- 태스크 목록 -->
-            <div>
+            <div v-if="selectedObject3d">
               <div class="flex items-center justify-between mb-2">
                 <h4 class="text-sm font-semibold text-foreground">세부작업</h4>
                 <Button
@@ -597,6 +843,127 @@ const groupedDailyWorks = computed<GroupedWorks>(() => {
           </div>
         </div>
 
+        <!-- 설정 탭 -->
+        <div v-else-if="activeTab === 'setting'">
+          <div v-if="selectedObject3dIds.length === 0" class="text-sm text-muted-foreground">
+            객체를 선택하면 정보를 변경할 수 있습니다.
+          </div>
+          <div v-else class="space-y-3">
+            <div class="text-sm font-medium text-foreground">
+              {{ selectedObject3dIds.length }}개 부재 선택됨
+            </div>
+
+            <!-- 구역 -->
+            <div class="space-y-1">
+              <label class="text-xs text-muted-foreground">구역</label>
+              <div class="flex flex-wrap gap-1">
+                <Button
+                  size="sm"
+                  :variant="editZoneId === -1 ? 'default' : 'outline'"
+                  class="h-7 px-2 text-xs"
+                  @click="toggleZone(-1)"
+                >선택안함</Button>
+                <Button
+                  v-for="z in zones"
+                  :key="z.id"
+                  size="sm"
+                  :variant="editZoneId === z.id ? 'default' : 'outline'"
+                  class="h-7 px-2 text-xs"
+                  @click="toggleZone(z.id)"
+                >{{ z.name }}</Button>
+              </div>
+            </div>
+
+            <!-- 층 -->
+            <div class="space-y-1">
+              <label class="text-xs text-muted-foreground">층</label>
+              <div class="flex flex-wrap gap-1">
+                <Button
+                  v-for="f in floors"
+                  :key="f.id"
+                  size="sm"
+                  :variant="editFloorId === f.id ? 'default' : 'outline'"
+                  class="h-7 px-2 text-xs"
+                  @click="toggleFloor(f.id)"
+                >{{ f.name }}</Button>
+              </div>
+            </div>
+
+            <!-- 부재 구분 -->
+            <div class="space-y-1">
+              <label class="text-xs text-muted-foreground">부재구분</label>
+              <div class="flex gap-1">
+                <Button
+                  size="sm"
+                  :variant="editIsStructure === true ? 'default' : 'outline'"
+                  class="h-7 px-2 text-xs"
+                  @click="selectIsStructure(true)"
+                >구조</Button>
+                <Button
+                  size="sm"
+                  :variant="editIsStructure === false ? 'default' : 'outline'"
+                  class="h-7 px-2 text-xs"
+                  @click="selectIsStructure(false)"
+                >비구조</Button>
+              </div>
+            </div>
+
+            <!-- 부위타입 -->
+            <div v-if="componentTypes.length > 0" class="space-y-1">
+              <label class="text-xs text-muted-foreground">부위타입</label>
+              <div class="flex flex-wrap gap-1">
+                <Button
+                  v-for="t in componentTypes"
+                  :key="t.id"
+                  size="sm"
+                  :variant="editTypeId === t.id ? 'default' : 'outline'"
+                  class="h-7 px-2 text-xs"
+                  @click="selectType(t.id)"
+                >{{ t.name }}</Button>
+              </div>
+            </div>
+
+            <!-- 부재코드 -->
+            <div v-if="componentCodes.length > 0" class="space-y-1">
+              <label class="text-xs text-muted-foreground">부재코드</label>
+              <div class="flex flex-wrap gap-1">
+                <Button
+                  v-for="cc in componentCodes"
+                  :key="cc.id"
+                  size="sm"
+                  :variant="editComponentCodeId === cc.id ? 'default' : 'outline'"
+                  class="h-7 px-2 text-xs"
+                  @click="toggleComponentCode(cc.id)"
+                >{{ cc.code }}</Button>
+              </div>
+            </div>
+
+            <!-- 색상 -->
+            <div class="space-y-1">
+              <label class="text-xs text-muted-foreground">색상</label>
+              <div class="flex items-center gap-2">
+                <input
+                  type="color"
+                  :value="editColor || '#cccccc'"
+                  class="h-8 w-10 rounded border border-border cursor-pointer"
+                  @input="editColor = ($event.target as HTMLInputElement).value"
+                />
+                <span class="text-xs text-muted-foreground">{{ editColor || '변경 안함' }}</span>
+                <Button v-if="editColor" variant="ghost" size="sm" class="h-6 px-1 text-xs" @click="editColor = ''">초기화</Button>
+              </div>
+            </div>
+
+            <Button
+              size="sm"
+              class="w-full"
+              :disabled="!hasEditChanges || isSavingEdit"
+              @click="handleSaveEdit"
+            >
+              {{ isSavingEdit ? '저장 중...' : '일괄 적용' }}
+            </Button>
+          </div>
+        </div>
+
         <!-- 일정 탭 -->
         <div v-else-if="activeTab === 'schedule'" class="text-sm text-muted-foreground">
           일정 정보가 표시됩니다.
@@ -605,6 +972,53 @@ const groupedDailyWorks = computed<GroupedWorks>(() => {
         <!-- 자재 탭 -->
         <div v-else-if="activeTab === 'material'" class="text-sm text-muted-foreground">
           자재 정보가 표시됩니다.
+        </div>
+
+        <!-- 부재설정 탭 (기존 설정) -->
+        <!-- 이미 위에 v-else-if="activeTab === 'setting'" 으로 존재 -->
+
+        <!-- 축설정 탭 -->
+        <div v-else-if="activeTab === 'axis'" class="space-y-3">
+          <!-- X축 -->
+          <div class="border border-border rounded-lg overflow-hidden">
+            <button class="w-full flex items-center justify-between px-3 py-2 text-sm font-semibold text-red-500 bg-muted/50 hover:bg-muted" @click="axisExpanded = !axisExpanded">
+              축선 편집
+              <span class="text-xs text-muted-foreground">{{ axisExpanded ? '접기' : '펼치기' }}</span>
+            </button>
+            <div v-if="axisExpanded" class="p-3 space-y-4">
+              <div>
+                <div class="mb-1.5">
+                  <span class="text-xs font-semibold text-red-500">X축 (수직선)</span>
+                </div>
+                <div class="space-y-1">
+                  <div v-for="(axis, i) in axisLocalX" :key="i" class="flex items-center gap-1.5">
+                    <Input :model-value="axis.label" @change="axis.label = ($event.target as HTMLInputElement).value.trim() || axis.label" class="h-7 w-14 text-xs px-1 text-center font-medium shrink-0" />
+                    <Input :model-value="axisGetGap(axisLocalX, i).toString()" @change="axisOnGapChange(axisLocalX, i, ($event.target as HTMLInputElement).value)" class="h-7 flex-1 text-xs text-center" type="number" />
+                    <Button variant="ghost" size="sm" class="h-6 w-6 p-0 shrink-0" @click="axisInsert('x', i)" title="아래에 삽입"><Plus class="h-3 w-3 text-muted-foreground" /></Button>
+                    <Button variant="ghost" size="sm" class="h-6 w-6 p-0 shrink-0" @click="axisRemove(axisLocalX, i)"><Minus class="h-3 w-3 text-muted-foreground" /></Button>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div class="mb-1.5">
+                  <span class="text-xs font-semibold text-blue-500">Y축 (수평선)</span>
+                </div>
+                <div class="space-y-1">
+                  <div v-for="(axis, i) in axisLocalY" :key="i" class="flex items-center gap-1.5">
+                    <Input :model-value="axis.label" @change="axis.label = ($event.target as HTMLInputElement).value.trim() || axis.label" class="h-7 w-14 text-xs px-1 text-center font-medium shrink-0" />
+                    <Input :model-value="axisGetGap(axisLocalY, i).toString()" @change="axisOnGapChange(axisLocalY, i, ($event.target as HTMLInputElement).value)" class="h-7 flex-1 text-xs text-center" type="number" />
+                    <Button variant="ghost" size="sm" class="h-6 w-6 p-0 shrink-0" @click="axisInsert('y', i)" title="아래에 삽입"><Plus class="h-3 w-3 text-muted-foreground" /></Button>
+                    <Button variant="ghost" size="sm" class="h-6 w-6 p-0 shrink-0" @click="axisRemove(axisLocalY, i)"><Minus class="h-3 w-3 text-muted-foreground" /></Button>
+                  </div>
+                </div>
+              </div>
+
+              <Button size="sm" class="w-full" :disabled="axisSaving" @click="axisSave">
+                {{ axisSaving ? '저장 중...' : '저장' }}
+              </Button>
+            </div>
+          </div>
         </div>
       </template>
     </SideTabBox>

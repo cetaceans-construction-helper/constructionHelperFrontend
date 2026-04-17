@@ -1,10 +1,13 @@
 import type { WorkResponse } from '@/shared/network-core/apis/work'
 import { dateToDayIndex } from './nodeConfig'
 
-export const LEFT_HEADER_WIDTH = 200
+export const LEFT_HEADER_WIDTH = 300
 
 export interface RefWorkType {
+  id: number
   name: string
+  divisionId: number
+  divisionName: string
   subWorkTypes: { id: number; name: string }[]
 }
 
@@ -16,7 +19,10 @@ export interface SubWorkTypeSection {
 }
 
 export interface WorkTypeSection {
+  workTypeId: number
   workType: string
+  divisionId: number
+  divisionName: string
   subSections: SubWorkTypeSection[]
   totalRows: number
   startRowIndex: number
@@ -209,7 +215,10 @@ export function computeRowLayout(works: WorkResponse[], refTree?: RefWorkType[])
       }
 
       sections.push({
+        workTypeId: wt.id,
         workType: wt.name,
+        divisionId: wt.divisionId,
+        divisionName: wt.divisionName,
         subSections,
         totalRows: currentRow - sectionStartRow,
         startRowIndex: sectionStartRow,
@@ -225,7 +234,10 @@ export function computeRowLayout(works: WorkResponse[], refTree?: RefWorkType[])
       const sectionStartRow = currentRow
       const subRowCount = binPackSubWorks(unplaced, currentRow, workRowMap)
       sections.push({
+        workTypeId: 0,
         workType: '미분류',
+        divisionId: 0,
+        divisionName: '미분류',
         subSections: [{
           subWorkTypeId: 0,
           subWorkType: '미분류',
@@ -285,7 +297,10 @@ export function computeRowLayout(works: WorkResponse[], refTree?: RefWorkType[])
     }
 
     sections.push({
+      workTypeId: 0,
       workType,
+      divisionId: 0,
+      divisionName: '',
       subSections,
       totalRows: currentRow - sectionStartRow,
       startRowIndex: sectionStartRow,
