@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref, watchEffect } from 'vue'
+import { onMounted, reactive, ref, watch, watchEffect } from 'vue'
+import { storeToRefs } from 'pinia'
 import { Button } from '@/shared/ui/button'
 import { Checkbox } from '@/shared/ui/checkbox'
 import { Input } from '@/shared/ui/input'
@@ -7,7 +8,11 @@ import { Label } from '@/shared/ui/label'
 import { Separator } from '@/shared/ui/separator'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select'
 import { X } from 'lucide-vue-next'
+import { useProjectStore } from '@/app/context/stores/project'
 import { useDailyReportSetting } from '@/features/project-admin/daily-report-setting/view-model/useDailyReportSetting'
+
+const projectStore = useProjectStore()
+const { selectedProjectId } = storeToRefs(projectStore)
 
 const {
   isLoading,
@@ -188,7 +193,11 @@ function handleSummaryClick(event: Event, key: string, hasItems: boolean) {
 }
 
 onMounted(() => {
-  load()
+  if (selectedProjectId.value) load(selectedProjectId.value)
+})
+
+watch(selectedProjectId, (pid) => {
+  if (pid) load(pid)
 })
 
 const templateFileInput = ref<HTMLInputElement | null>(null)
@@ -196,7 +205,12 @@ function onTemplateFileChange(e: Event) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
   if (file) {
-    uploadTemplate(file)
+    if (!selectedProjectId.value) {
+      alert('프로젝트를 먼저 선택해주세요.')
+      input.value = ''
+      return
+    }
+    uploadTemplate(selectedProjectId.value, file)
     input.value = ''
   }
 }

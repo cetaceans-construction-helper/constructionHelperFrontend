@@ -4,6 +4,7 @@ import type { AxisLine, CcodeFilter, Drawing, Object2D, ToolMode, ViewTransform 
 import { drawingApi, type DrawingResponse } from '../infra/drawing-api'
 import { drawingAxisApi, type DrawingAxisResponse } from '../infra/drawing-axis-api'
 import { object2dApi, type Object2DResponse } from '../infra/object2d-api'
+import { fileApi } from '@/shared/network-core/apis/file'
 
 // --- DTO → 프론트 타입 변환 ---
 
@@ -123,6 +124,7 @@ export const useFloorPlanStore = defineStore('floorPlan', () => {
     if (savePlacementTimer) clearTimeout(savePlacementTimer)
     selectedBoxIds.value = new Set()
     currentDrawing.value = null
+    revokeCurrentImageBlob()
     currentImage.value = null
     currentObjects.value = []
     currentZoneId.value = zoneId
@@ -158,9 +160,10 @@ export const useFloorPlanStore = defineStore('floorPlan', () => {
     // 이미지 로딩
     let imgW = 50000
     let imgH = 30000
+    revokeCurrentImageBlob()
     if (res.imageUrl) {
       try {
-        const img = await loadImage(res.imageUrl)
+        const img = await loadImageFromKey(res.imageUrl)
         currentImage.value = img
         imgW = img.naturalWidth * res.scaleX
         imgH = img.naturalHeight * res.scaleY
@@ -184,14 +187,22 @@ export const useFloorPlanStore = defineStore('floorPlan', () => {
     centerOnAxes()
   }
 
-  function loadImage(src: string): Promise<HTMLImageElement> {
+  async function loadImageFromKey(key: string): Promise<HTMLImageElement> {
+    const blobUrl = await fileApi.objectUrlByKey(key)
     return new Promise((resolve, reject) => {
       const img = new Image()
-      img.crossOrigin = 'anonymous'
       img.onload = () => resolve(img)
-      img.onerror = reject
-      img.src = src
+      img.onerror = (e) => {
+        URL.revokeObjectURL(blobUrl)
+        reject(e)
+      }
+      img.src = blobUrl
     })
+  }
+
+  function revokeCurrentImageBlob() {
+    const src = currentImage.value?.src
+    if (src && src.startsWith('blob:')) URL.revokeObjectURL(src)
   }
 
   // --- 이미지 업로드 ---
@@ -218,7 +229,8 @@ export const useFloorPlanStore = defineStore('floorPlan', () => {
 
     try {
       const res = await drawingApi.updateDrawing(d.id, {}, file)
-      const img = await loadImage(res.imageUrl!)
+      revokeCurrentImageBlob()
+      const img = await loadImageFromKey(res.imageUrl!)
       currentImage.value = img
       currentDrawing.value = toDrawing(res, img.naturalWidth * res.scaleX, img.naturalHeight * res.scaleY)
     } catch (e: any) {

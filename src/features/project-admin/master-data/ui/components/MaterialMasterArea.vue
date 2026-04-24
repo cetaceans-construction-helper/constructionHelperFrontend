@@ -7,7 +7,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/shared/ui/alert-dialog'
 import SortableReferenceList from '@/shared/helper-ui/SortableReferenceList.vue'
-import { useMaterialMaster } from '@/features/system-admin/view-model/standard/useMaterialMaster'
+import { useMaterialMaster } from '@/features/project-admin/master-data/view-model/useMaterialMaster'
 
 const {
   materialTypes, materialSpecs, selectedMaterialTypeId,
@@ -23,7 +23,6 @@ onMounted(() => {
   loadMaterialTypes()
 })
 
-// 삭제 다이얼로그
 const showDeleteDialog = ref(false)
 const deleteTargetId = ref<number | null>(null)
 const deleteTargetName = ref('')

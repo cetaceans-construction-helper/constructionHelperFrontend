@@ -22,7 +22,6 @@ import MappingManagementArea from '@/features/system-admin/ui/components/Mapping
 import WorkClassificationArea from '@/features/system-admin/ui/components/standard/WorkClassificationArea.vue'
 import WorkStepArea from '@/features/system-admin/ui/components/standard/WorkStepArea.vue'
 import ComponentTypeArea from '@/features/system-admin/ui/components/standard/ComponentTypeArea.vue'
-import MaterialMasterArea from '@/features/system-admin/ui/components/standard/MaterialMasterArea.vue'
 import EquipmentMasterArea from '@/features/system-admin/ui/components/standard/EquipmentMasterArea.vue'
 import LaborTypeArea from '@/features/system-admin/ui/components/standard/LaborTypeArea.vue'
 
@@ -191,15 +190,6 @@ onUnmounted(() => {
               </CardHeader>
               <CardContent>
                 <WorkStepArea />
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>자재</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <MaterialMasterArea />
               </CardContent>
             </Card>
 

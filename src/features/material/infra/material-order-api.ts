@@ -47,37 +47,25 @@ export const materialOrderApi = {
   },
 
   async createMaterialDelivery(params: {
-    materialTypeId: number
-    workTypeId?: number
-    deliveryNotes: File[]
-    deliveryPhotos: File[]
-    zoneIds: number[]
-    floorIds: number[]
-    componentTypeIds: number[]
+    images: File[]
+    application?: string
+    workTypeName?: string
   }): Promise<CreateDeliveryResponse> {
     const formData = new FormData()
-    formData.append(
-      'data',
-      new Blob(
-        [JSON.stringify({
-          materialTypeId: params.materialTypeId,
-          workTypeId: params.workTypeId,
-          zoneIds: params.zoneIds,
-          floorIds: params.floorIds,
-          componentTypeIds: params.componentTypeIds,
-        })],
-        { type: 'application/json' },
-      ),
-    )
-    params.deliveryNotes.forEach((file) => formData.append('deliveryNotes', file))
-    params.deliveryPhotos.forEach((file) => formData.append('deliveryPhotos', file))
+    if (params.application != null && params.application.length > 0) {
+      formData.append('application', params.application)
+    }
+    if (params.workTypeName != null && params.workTypeName.length > 0) {
+      formData.append('workTypeName', params.workTypeName)
+    }
+    params.images.forEach((file) => formData.append('images', file))
 
     const { data } = await apiClient.post<CreateDeliveryResponse>(
       '/materialDelivery/createMaterialDelivery',
       formData,
       {
         headers: { 'Content-Type': 'multipart/form-data' },
-        timeout: 60000,
+        timeout: 120000,
       },
     )
     return data
@@ -108,24 +96,17 @@ export const materialOrderApi = {
     body: {
       supplier?: string
       deliveryDate?: string
+      application?: string
       workTypeId?: number
-      zoneIds?: number[]
-      floorIds?: number[]
-      componentTypeIds?: number[]
       addLines?: { manufacturer?: string; specId?: number; quantity?: string }[]
       updateLines?: { deliveryLineId: number; manufacturer?: string; specId?: number; quantity?: string }[]
       deleteLineIds?: number[]
-      noteDescriptions?: { noteId: number; description: string }[]
       photoDescriptions?: { photoId: number; description: string }[]
-      deleteNoteIds?: number[]
       deletePhotoIds?: number[]
-      replaceNotes?: { noteId: number; fileIndex: number }[]
       replacePhotos?: { photoId: number; fileIndex: number }[]
     },
     files?: {
-      deliveryNotes?: File[]
       deliveryPhotos?: File[]
-      replaceNoteFiles?: File[]
       replacePhotoFiles?: File[]
     },
   ): Promise<void> {
@@ -134,9 +115,7 @@ export const materialOrderApi = {
       'data',
       new Blob([JSON.stringify(body)], { type: 'application/json' }),
     )
-    files?.deliveryNotes?.forEach((file) => formData.append('deliveryNotes', file))
     files?.deliveryPhotos?.forEach((file) => formData.append('deliveryPhotos', file))
-    files?.replaceNoteFiles?.forEach((file) => formData.append('replaceNoteFiles', file))
     files?.replacePhotoFiles?.forEach((file) => formData.append('replacePhotoFiles', file))
     await apiClient.put(
       `/materialDelivery/updateMaterialDelivery/${deliveryId}`,

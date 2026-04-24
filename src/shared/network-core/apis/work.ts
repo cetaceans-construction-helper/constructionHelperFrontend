@@ -1,4 +1,5 @@
 import apiClient from '@/shared/network-core/apiClient'
+import { fileApi } from '@/shared/network-core/apis/file'
 import type { WorkDepResponse } from './workDep'
 
 // 구조/비구조별 부재타입 그룹
@@ -173,11 +174,7 @@ export const workApi = {
   },
 
   // 작업 사진 다운로드 (ObjectURL 반환)
-  async downloadWorkPhoto(url: string): Promise<string> {
-    const { data } = await apiClient.get<Blob>('/materialDelivery/downloadFile', {
-      params: { url },
-      responseType: 'blob',
-    })
-    return URL.createObjectURL(data)
+  async downloadWorkPhoto(key: string): Promise<string> {
+    return fileApi.objectUrlByKey(key)
   },
 }

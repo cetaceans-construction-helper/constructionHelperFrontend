@@ -1,23 +1,8 @@
 import { reactive, ref } from 'vue'
 import { projectDocumentCodeApi } from '@/features/document/public'
-import type {
-  SlotConfig,
-  MirDocumentNumberCode,
-  MirSlotValue,
-  ImageCategory,
-} from '@/features/document/public'
+import type { ImageCategory } from '@/features/document/public'
+import { docConfigApi } from '@/shared/network-core/apis/docConfig'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
-
-function createDefaultSlots(): SlotConfig[] {
-  return (['A', 'B', 'C', 'D', 'E'] as const).map((key) => ({
-    key,
-    type: null,
-    value: '',
-    format: 'YYYYMMDD',
-    padding: 3,
-    groupBy: [],
-  }))
-}
 
 // UI 편집용 내부 타입 (모든 필드를 non-optional로 관리)
 interface CellRefEditState {
@@ -72,96 +57,77 @@ function createDefaultCellRef(): CellRefEditState {
   }
 }
 
+const MIR_IMAGE_CATEGORIES: ImageCategory[] = [
+  { key: 'DELIVERY_NOTE', label: '납품서' },
+  { key: 'MILL_SHEET', label: '시험성적서' },
+  { key: 'TAG', label: '태그' },
+  { key: 'DELIVERY_PHOTO', label: '반입사진' },
+]
+
 export function useDocumentSetting() {
   const exists = ref(false)
   const isLoading = ref(false)
   const isSaving = ref(false)
 
-  const separator = ref('-')
-  const slots = ref<SlotConfig[]>(createDefaultSlots())
   const cellRef = reactive<CellRefEditState>(createDefaultCellRef())
   const mirTemplateUrl = ref<string | null>(null)
-  const dateFormats = ref<string[]>([])
-  const imageCategories = ref<ImageCategory[]>([])
+  const imageCategories = ref<ImageCategory[]>(MIR_IMAGE_CATEGORIES)
 
-  async function load() {
+  async function load(projectId: string) {
     isLoading.value = true
     try {
-      // options 로드 (실패해도 설정 로드 계속)
-      projectDocumentCodeApi
-        .getDocumentNumberOptions()
-        .then((opts) => {
-          dateFormats.value = opts.dateFormats
-          imageCategories.value = opts.imageCategories
-        })
-        .catch(() => {})
-
-      const res = await projectDocumentCodeApi.getProjectDocumentCode()
+      const res = await docConfigApi.getDocConfig(projectId)
       exists.value = true
       mirTemplateUrl.value = res.mirTemplateUrl
 
-      const numCode: MirDocumentNumberCode = JSON.parse(res.mirDocumentNumberCode)
-      separator.value = numCode.separator || '-'
-
-      for (const slot of slots.value) {
-        const slotVal = numCode[slot.key] as MirSlotValue | null
-        if (slotVal) {
-          slot.type = slotVal.type
-          if (slotVal.value != null) slot.value = slotVal.value
-          if (slotVal.format != null) slot.format = slotVal.format
-          if (slotVal.padding != null) slot.padding = slotVal.padding
-          if (Array.isArray(slotVal.groupBy)) slot.groupBy = slotVal.groupBy
-        } else {
-          slot.type = null
+      if (res.mirExcelCellRef) {
+        const cellData = JSON.parse(res.mirExcelCellRef) as Record<string, unknown>
+        // delivery
+        if (cellData.delivery) {
+          const d = cellData.delivery as Record<string, string>
+          cellRef.delivery.supplier = d.supplier ?? ''
+          cellRef.delivery.deliveryDate = d.deliveryDate ?? ''
+          cellRef.delivery.location = d.location ?? ''
+          cellRef.delivery.documentNumber = d.documentNumber ?? ''
+          cellRef.delivery.materialTypeName = d.materialTypeName ?? ''
+          cellRef.delivery.divisionName = d.divisionName ?? ''
         }
-      }
-
-      const cellData = JSON.parse(res.mirCellReference) as Record<string, unknown>
-      // delivery
-      if (cellData.delivery) {
-        const d = cellData.delivery as Record<string, string>
-        cellRef.delivery.supplier = d.supplier ?? ''
-        cellRef.delivery.deliveryDate = d.deliveryDate ?? ''
-        cellRef.delivery.location = d.location ?? ''
-        cellRef.delivery.documentNumber = d.documentNumber ?? ''
-        cellRef.delivery.materialTypeName = d.materialTypeName ?? ''
-        cellRef.delivery.divisionName = d.divisionName ?? ''
-      }
-      // lines
-      if (cellData.lines) {
-        const l = cellData.lines as Record<string, unknown>
-        cellRef.lines.startCell = (l.startCell as string) ?? ''
-        cellRef.lines.maxRows = l.maxRows != null ? String(l.maxRows) : ''
-        if (l.columns) {
-          const c = l.columns as Record<string, number | undefined>
-          cellRef.lines.columns.no = c.no != null ? String(c.no) : ''
-          cellRef.lines.columns.specName = c.specName != null ? String(c.specName) : ''
-          cellRef.lines.columns.manufacturer = c.manufacturer != null ? String(c.manufacturer) : ''
-          cellRef.lines.columns.quantity = c.quantity != null ? String(c.quantity) : ''
-          cellRef.lines.columns.unit = c.unit != null ? String(c.unit) : ''
+        // lines
+        if (cellData.lines) {
+          const l = cellData.lines as Record<string, unknown>
+          cellRef.lines.startCell = (l.startCell as string) ?? ''
+          cellRef.lines.maxRows = l.maxRows != null ? String(l.maxRows) : ''
+          if (l.columns) {
+            const c = l.columns as Record<string, number | undefined>
+            cellRef.lines.columns.no = c.no != null ? String(c.no) : ''
+            cellRef.lines.columns.specName = c.specName != null ? String(c.specName) : ''
+            cellRef.lines.columns.manufacturer = c.manufacturer != null ? String(c.manufacturer) : ''
+            cellRef.lines.columns.quantity = c.quantity != null ? String(c.quantity) : ''
+            cellRef.lines.columns.unit = c.unit != null ? String(c.unit) : ''
+          }
+          if (Array.isArray(l.overflow)) {
+            cellRef.lines.overflow = (l.overflow as { startCell: string; maxRows: number }[]).map((o) => ({
+              startCell: o.startCell ?? '',
+              maxRows: o.maxRows != null ? String(o.maxRows) : '',
+            }))
+          }
         }
-        if (Array.isArray(l.overflow)) {
-          cellRef.lines.overflow = (l.overflow as { startCell: string; maxRows: number }[]).map((o) => ({
-            startCell: o.startCell ?? '',
-            maxRows: o.maxRows != null ? String(o.maxRows) : '',
+        // lineConcat
+        cellRef.lineConcat = (cellData.lineConcat as CellRefEditState['lineConcat']) ?? []
+        // photos (named map → 배열)
+        if (cellData.photos) {
+          const photosMap = cellData.photos as Record<string, Record<string, unknown>>
+          const descrOffset = (v: Record<string, unknown>) => {
+            const d = v.descriptionOffset as Record<string, number> | undefined
+            return { row: d?.row != null ? String(d.row) : '', col: d?.col != null ? String(d.col) : '' }
+          }
+          cellRef.photos = Object.entries(photosMap).map(([key, val]) => ({
+            key,
+            cells: Array.isArray(val.cells) ? (val.cells as string[]).join(', ') : '',
+            descriptionOffsetRow: descrOffset(val).row,
+            descriptionOffsetCol: descrOffset(val).col,
           }))
         }
-      }
-      // lineConcat
-      cellRef.lineConcat = (cellData.lineConcat as CellRefEditState['lineConcat']) ?? []
-      // photos (named map → 배열)
-      if (cellData.photos) {
-        const photosMap = cellData.photos as Record<string, Record<string, unknown>>
-        const descrOffset = (v: Record<string, unknown>) => {
-          const d = v.descriptionOffset as Record<string, number> | undefined
-          return { row: d?.row != null ? String(d.row) : '', col: d?.col != null ? String(d.col) : '' }
-        }
-        cellRef.photos = Object.entries(photosMap).map(([key, val]) => ({
-          key,
-          cells: Array.isArray(val.cells) ? (val.cells as string[]).join(', ') : '',
-          descriptionOffsetRow: descrOffset(val).row,
-          descriptionOffsetCol: descrOffset(val).col,
-        }))
       }
     } catch (error: unknown) {
       const err = error as { response?: { status?: number } }
@@ -178,28 +144,6 @@ export function useDocumentSetting() {
   }
 
   function buildPayload() {
-    const numCode: Record<string, unknown> = { separator: separator.value }
-    for (const slot of slots.value) {
-      if (!slot.type) {
-        numCode[slot.key] = null
-        continue
-      }
-      const slotObj: Record<string, unknown> = { type: slot.type }
-      switch (slot.type) {
-        case 'TEXT':
-          slotObj.value = slot.value
-          break
-        case 'DATE':
-          slotObj.format = slot.format
-          break
-        case 'SEQ':
-          slotObj.padding = slot.padding
-          slotObj.groupBy = slot.groupBy
-          break
-      }
-      numCode[slot.key] = slotObj
-    }
-
     // cellReference: 비어있는 섹션/필드 제외
     const cellResult: Record<string, unknown> = {}
 
@@ -264,7 +208,6 @@ export function useDocumentSetting() {
     }
 
     return {
-      mirDocumentNumberCode: JSON.stringify(numCode),
       mirCellReference: JSON.stringify(cellResult),
     }
   }
@@ -291,9 +234,16 @@ export function useDocumentSetting() {
     }
   }
 
-  async function uploadTemplate(file: File) {
+  async function ensureDocConfig(projectId: string) {
+    if (exists.value) return
+    await docConfigApi.createDocConfig(projectId)
+    exists.value = true
+  }
+
+  async function uploadTemplate(projectId: string, file: File) {
     try {
-      const res = await projectDocumentCodeApi.uploadMirTemplate(file)
+      await ensureDocConfig(projectId)
+      const res = await docConfigApi.uploadTemplate(projectId, 'MIR', file)
       mirTemplateUrl.value = res.mirTemplateUrl
       alert('템플릿이 업로드되었습니다.')
     } catch (error: unknown) {
@@ -307,11 +257,8 @@ export function useDocumentSetting() {
     exists,
     isLoading,
     isSaving,
-    separator,
-    slots,
     cellRef,
     mirTemplateUrl,
-    dateFormats,
     imageCategories,
     load,
     save,

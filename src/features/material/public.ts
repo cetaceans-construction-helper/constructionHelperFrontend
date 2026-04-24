@@ -15,17 +15,15 @@ export {
 export type { MaterialOrderRepository } from '@/features/material/use-cases/material-order-repository'
 export type {
   CreateDeliveryResponse,
-  DeliveryFileInfo,
   DeliveryLineResponse,
+  DeliveryPhotoFile,
   DeliveryQuantityByDate,
   MaterialDeliveryDetail,
-  MaterialDeliveryDetailComponentType,
-  MaterialDeliveryDetailFloor,
-  MaterialDeliveryDetailZone,
   MaterialDeliverySummary,
   MaterialOrderLineResponse,
   MaterialOrderResponse,
   MaterialOrderStatus,
+  PhotoType,
   SpecSummary,
 } from '@/features/material/model/material-order-types'
 

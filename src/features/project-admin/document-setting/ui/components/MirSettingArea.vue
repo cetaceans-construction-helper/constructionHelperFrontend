@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
-import { Checkbox } from '@/shared/ui/checkbox'
 import { Separator } from '@/shared/ui/separator'
 import {
   Select,
@@ -13,17 +13,17 @@ import {
   SelectValue,
 } from '@/shared/ui/select'
 import { X } from 'lucide-vue-next'
+import { useProjectStore } from '@/app/context/stores/project'
 import { useDocumentSetting } from '@/features/project-admin/document-setting/view-model/useDocumentSetting'
-import type { DocumentSlot } from '@/features/document/public'
+
+const projectStore = useProjectStore()
+const { selectedProjectId } = storeToRefs(projectStore)
 
 const {
   isLoading,
   isSaving,
-  separator,
-  slots,
   cellRef,
   mirTemplateUrl,
-  dateFormats,
   imageCategories,
   load,
   save,
@@ -31,7 +31,11 @@ const {
 } = useDocumentSetting()
 
 onMounted(() => {
-  load()
+  if (selectedProjectId.value) load(selectedProjectId.value)
+})
+
+watch(selectedProjectId, (pid) => {
+  if (pid) load(pid)
 })
 
 // 템플릿 업로드
@@ -40,69 +44,14 @@ function onTemplateFileChange(e: Event) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
   if (file) {
-    uploadTemplate(file)
+    if (!selectedProjectId.value) {
+      alert('프로젝트를 먼저 선택해주세요.')
+      input.value = ''
+      return
+    }
+    uploadTemplate(selectedProjectId.value, file)
     input.value = ''
   }
-}
-
-// 슬롯 타입 옵션
-const slotTypeOptions: { value: string; label: string }[] = [
-  { value: 'none', label: '없음' },
-  { value: 'TEXT', label: 'TEXT (직접 입력)' },
-  { value: 'DATE', label: 'DATE (날짜)' },
-  { value: 'DIVISION', label: 'DIVISION (공종)' },
-  { value: 'WORK_TYPE', label: 'WORK_TYPE (작업유형)' },
-  { value: 'MATERIAL_TYPE', label: 'MATERIAL_TYPE (자재유형)' },
-  { value: 'SEQ', label: 'SEQ (순번)' },
-]
-
-
-function updateSlotType(index: number, val: string | number | boolean | Record<string, unknown>) {
-  const slot = slots.value[index]
-  if (!slot) return
-  slot.type = val === 'none' ? null : (String(val) as DocumentSlot)
-}
-
-// 미리보기
-const preview = computed(() => {
-  const parts: string[] = []
-  for (const slot of slots.value) {
-    if (!slot.type) continue
-    switch (slot.type) {
-      case 'TEXT':
-        parts.push(slot.value || 'TEXT')
-        break
-      case 'DATE':
-        parts.push(slot.format || 'YYYYMMDD')
-        break
-      case 'DIVISION':
-        parts.push('DIV')
-        break
-      case 'WORK_TYPE':
-        parts.push('WT')
-        break
-      case 'MATERIAL_TYPE':
-        parts.push('MT')
-        break
-      case 'SEQ':
-        parts.push(String(1).padStart(slot.padding || 3, '0'))
-        break
-    }
-  }
-  return parts.join(separator.value === 'none' ? '' : separator.value)
-})
-
-// groupBy 대상: 현재 슬롯을 제외한 활성 슬롯
-function getGroupByTargets(currentKey: string) {
-  return slots.value.filter((s) => s.key !== currentKey && s.type !== null)
-}
-
-function toggleGroupBy(slotIndex: number, targetKey: string) {
-  const slot = slots.value[slotIndex]
-  if (!slot) return
-  slot.groupBy = slot.groupBy.includes(targetKey)
-    ? slot.groupBy.filter((k) => k !== targetKey)
-    : [...slot.groupBy, targetKey]
 }
 
 // 오버플로우 관리
@@ -170,122 +119,7 @@ function removePhoto(index: number) {
 
     <Separator />
 
-    <!-- 섹션 2: 문서번호 규칙 -->
-    <div>
-      <h3 class="text-sm font-semibold mb-3">문서번호 규칙</h3>
-
-      <!-- 구분자 -->
-      <div class="flex items-center gap-3 mb-4">
-        <Label class="text-xs text-muted-foreground w-16 shrink-0">구분자</Label>
-        <Select :model-value="separator" @update:model-value="separator = String($event)">
-          <SelectTrigger class="w-32 h-8 text-sm">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="-">- (하이픈)</SelectItem>
-            <SelectItem value="none">없음</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <!-- 슬롯 A~E -->
-      <div class="space-y-3">
-        <div
-          v-for="(slot, index) in slots"
-          :key="slot.key"
-          class="flex items-start gap-3 p-3 border border-border rounded-md"
-        >
-          <span class="text-xs font-medium text-muted-foreground w-6 pt-1.5">{{ slot.key }}</span>
-
-          <Select
-            :model-value="slot.type ?? 'none'"
-            @update:model-value="updateSlotType(index, $event as string)"
-          >
-            <SelectTrigger class="w-48 h-8 text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem
-                v-for="opt in slotTypeOptions"
-                :key="opt.value"
-                :value="opt.value"
-              >
-                {{ opt.label }}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-
-          <!-- TEXT: value input -->
-          <Input
-            v-if="slot.type === 'TEXT'"
-            v-model="slot.value"
-            placeholder="고정 텍스트"
-            class="h-8 text-sm w-40"
-          />
-
-          <!-- DATE: format select -->
-          <Select
-            v-if="slot.type === 'DATE'"
-            :model-value="slot.format"
-            @update:model-value="slot.format = String($event)"
-          >
-            <SelectTrigger class="w-40 h-8 text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem
-                v-for="fmt in dateFormats"
-                :key="fmt"
-                :value="fmt"
-              >
-                {{ fmt }}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-
-          <!-- SEQ: padding + groupBy -->
-          <template v-if="slot.type === 'SEQ'">
-            <div class="flex items-center gap-2">
-              <Label class="text-xs text-muted-foreground shrink-0">자릿수</Label>
-              <Input
-                :model-value="String(slot.padding)"
-                @update:model-value="slot.padding = Number($event) || 1"
-                type="number"
-                min="1"
-                max="10"
-                class="h-8 text-sm w-16"
-              />
-            </div>
-            <div v-if="getGroupByTargets(slot.key).length > 0" class="flex items-center gap-2">
-              <Label class="text-xs text-muted-foreground shrink-0">그룹</Label>
-              <div class="flex items-center gap-2">
-                <label
-                  v-for="target in getGroupByTargets(slot.key)"
-                  :key="target.key"
-                  class="flex items-center gap-1 text-xs"
-                >
-                  <Checkbox
-                    :model-value="slot.groupBy.includes(target.key)"
-                    @update:model-value="toggleGroupBy(index, target.key)"
-                  />
-                  <span>{{ target.key }}</span>
-                </label>
-              </div>
-            </div>
-          </template>
-        </div>
-      </div>
-
-      <!-- 미리보기 -->
-      <div class="mt-4 p-3 bg-muted/30 rounded-md">
-        <Label class="text-xs text-muted-foreground">미리보기</Label>
-        <p class="text-sm font-mono mt-1">{{ preview || '(슬롯을 설정하세요)' }}</p>
-      </div>
-    </div>
-
-    <Separator />
-
-    <!-- 섹션 3: 셀 매핑 -->
+    <!-- 섹션 2: 셀 매핑 -->
     <div>
       <h3 class="text-sm font-semibold mb-3">셀 매핑</h3>
 

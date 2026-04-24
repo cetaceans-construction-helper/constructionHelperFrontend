@@ -7,12 +7,11 @@ export {
 export { materialInspectionRequestRepository } from '@/features/document/infra/material-inspection-request-repository'
 export { dailyReportRepository } from '@/features/document/infra/daily-report-repository'
 export {
-  createMaterialInspectionRequest,
-  deleteMaterialInspectionRequest,
-  downloadMaterialInspectionRequest,
+  createMir,
+  deleteDocument,
+  downloadDocument,
   getMaterialInspectionRequests,
   updateMirDocumentNumber,
-  validateMaterialInspectionRequest,
 } from '@/features/document/use-cases/material-inspection-request'
 export {
   createDailyReport,
@@ -26,22 +25,16 @@ export type { MaterialInspectionRequestRepository } from '@/features/document/us
 export type { DailyReportRepository } from '@/features/document/use-cases/daily-report'
 export type {
   DailyReportResponse,
-  DocumentNumberOptionsResponse,
-  DocumentSlot,
+  DocumentJobDocType,
   ImageCategory,
   MaterialInspectionRequestResponse,
   MirCellReference,
-  MirDocumentNumberCode,
-  MirSlotValue,
   ProjectDocumentCodeResponse,
-  SlotConfig,
   ValidateDailyReportPhotos,
   ValidateDailyReportResponse,
   ValidateDailyReportSection,
   ValidateDailyReportSectionItem,
   ValidateDailyReportPhotoItem,
-  ValidateMirItem,
-  ValidateMirResponse,
 } from '@/features/document/model/document-types'
 
 export { default as ManagerPageView } from '@/features/document/ui/ManagerPage.vue'

@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, watch, onUnmounted } from 'vue'
+import { ref, watch, onUnmounted } from 'vue'
 import { Button } from '@/shared/ui/button'
 import { Label } from '@/shared/ui/label'
-import { Checkbox } from '@/shared/ui/checkbox'
+import { Input } from '@/shared/ui/input'
 import {
   Dialog,
   DialogContent,
@@ -10,22 +10,13 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/shared/ui/dialog'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/shared/ui/select'
-import ReferenceEditTrigger from '@/shared/helper-ui/ReferenceEditTrigger.vue'
-import { referenceApi, type MaterialTypeResponse, type IdNameResponse, type ComponentTypeResponse } from '@/shared/network-core/apis/reference'
 import { materialOrderApi } from '@/features/material/infra/material-order-api'
-import { validateDirectMaterialDeliveryInput } from '@/features/material/model/material-order-rules'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
+
+const MAX_IMAGES = 10
 
 const props = defineProps<{
   open: boolean
-  defaultMaterialTypeId?: string
 }>()
 
 const emit = defineEmits<{
@@ -34,152 +25,74 @@ const emit = defineEmits<{
 }>()
 
 const isSaving = ref(false)
-const selectedMaterialTypeId = ref('')
-const deliveryNotes = ref<File[]>([])
-const deliveryPhotos = ref<File[]>([])
-const materialTypes = ref<MaterialTypeResponse[]>([])
-const zones = ref<IdNameResponse[]>([])
-const floors = ref<IdNameResponse[]>([])
-const selectedZoneIds = ref<number[]>([])
-const selectedFloorIds = ref<number[]>([])
-const componentTypes = ref<ComponentTypeResponse[]>([])
-const selectedIsStructure = ref<boolean | null>(null)
-const selectedComponentTypeIds = ref<number[]>([])
-const isLoadingComponentTypes = ref(false)
-
-function toggleId(list: number[], id: number): number[] {
-  return list.includes(id) ? list.filter((v) => v !== id) : [...list, id]
-}
-
-async function handleIsStructureChange(value: boolean | null) {
-  selectedIsStructure.value = value
-  selectedComponentTypeIds.value = []
-  componentTypes.value = []
-  if (value == null) return
-  isLoadingComponentTypes.value = true
-  try {
-    componentTypes.value = await referenceApi.getComponentTypeList(value)
-  } catch {
-    componentTypes.value = []
-  } finally {
-    isLoadingComponentTypes.value = false
-  }
-}
-
-async function reloadMaterialTypes() {
-  try {
-    materialTypes.value = await referenceApi.getMaterialTypeList()
-  } catch (error: unknown) {
-    console.error('자재유형 새로고침 실패:', error)
-  }
-}
-
-async function reloadZones() {
-  try {
-    zones.value = await referenceApi.getZoneList()
-  } catch (error: unknown) {
-    console.error('존 새로고침 실패:', error)
-  }
-}
-
-async function reloadFloors() {
-  try {
-    floors.value = await referenceApi.getFloorList()
-  } catch (error: unknown) {
-    console.error('층 새로고침 실패:', error)
-  }
-}
-
-watch(() => props.open, async (opened) => {
-  if (opened) {
-    deliveryNotes.value = []
-    deliveryPhotos.value = []
-    selectedMaterialTypeId.value = props.defaultMaterialTypeId ?? ''
-    selectedZoneIds.value = []
-    selectedFloorIds.value = []
-    selectedIsStructure.value = null
-    selectedComponentTypeIds.value = []
-    componentTypes.value = []
-
-    try {
-      const [mtList, zoneList, floorList] = await Promise.all([
-        referenceApi.getMaterialTypeList(),
-        referenceApi.getZoneList(),
-        referenceApi.getFloorList(),
-      ])
-      materialTypes.value = mtList
-      zones.value = zoneList
-      floors.value = floorList
-    } catch (error: unknown) {
-      console.error('기초 데이터 로드 실패:', error)
-      const err = error as { response?: { data?: { message?: string } }; message?: string }
-      alert(err.response?.data?.message || err.message)
-    }
-  }
-})
-
-const notePreviewUrls = ref<string[]>([])
-const photoPreviewUrls = ref<string[]>([])
-
-function buildPreviewUrls(files: File[]): string[] {
-  return files.filter((f) => f.type.startsWith('image/')).map((f) => URL.createObjectURL(f))
-}
+const application = ref('')
+const workType = ref('')
+const images = ref<File[]>([])
+const previewUrls = ref<string[]>([])
 
 function revokeUrls(urls: string[]) {
   urls.forEach((u) => URL.revokeObjectURL(u))
 }
 
-watch(deliveryNotes, (files, _, onCleanup) => {
+function buildPreviewUrls(files: File[]): string[] {
+  return files.map((f) => URL.createObjectURL(f))
+}
+
+watch(images, (files, _, onCleanup) => {
   const urls = buildPreviewUrls(files)
-  notePreviewUrls.value = urls
+  previewUrls.value = urls
   onCleanup(() => revokeUrls(urls))
 })
 
-watch(deliveryPhotos, (files, _, onCleanup) => {
-  const urls = buildPreviewUrls(files)
-  photoPreviewUrls.value = urls
-  onCleanup(() => revokeUrls(urls))
+watch(() => props.open, (opened) => {
+  if (opened) {
+    application.value = ''
+    workType.value = ''
+    images.value = []
+  }
 })
 
 onUnmounted(() => {
-  revokeUrls(notePreviewUrls.value)
-  revokeUrls(photoPreviewUrls.value)
+  revokeUrls(previewUrls.value)
 })
 
-function onNotesChange(event: Event) {
+function onImagesChange(event: Event) {
   const input = event.target as HTMLInputElement
-  deliveryNotes.value = input.files ? Array.from(input.files) : []
+  const files = input.files ? Array.from(input.files) : []
+  const imageFiles = files.filter((f) => f.type.startsWith('image/'))
+  if (imageFiles.length < files.length) {
+    alert('이미지 파일만 업로드 가능합니다.')
+  }
+  images.value = imageFiles.slice(0, MAX_IMAGES)
+  input.value = ''
 }
 
-function onPhotosChange(event: Event) {
-  const input = event.target as HTMLInputElement
-  deliveryPhotos.value = input.files ? Array.from(input.files) : []
+function removeImage(index: number) {
+  images.value = images.value.filter((_, i) => i !== index)
 }
 
 async function handleSave() {
-  const validationError = validateDirectMaterialDeliveryInput({
-    materialTypeId: selectedMaterialTypeId.value,
-  })
-  if (validationError) {
-    alert(validationError)
+  if (images.value.length === 0) {
+    alert('사진을 1장 이상 선택해주세요.')
+    return
+  }
+  if (images.value.length > MAX_IMAGES) {
+    alert(`사진은 최대 ${MAX_IMAGES}장까지 업로드 가능합니다.`)
     return
   }
 
   isSaving.value = true
   try {
     const result = await materialOrderApi.createMaterialDelivery({
-      materialTypeId: Number(selectedMaterialTypeId.value),
-      deliveryNotes: deliveryNotes.value,
-      deliveryPhotos: deliveryPhotos.value,
-      zoneIds: selectedZoneIds.value,
-      floorIds: selectedFloorIds.value,
-      componentTypeIds: selectedComponentTypeIds.value,
+      images: images.value,
+      application: application.value.trim() || undefined,
+      workTypeName: workType.value.trim() || undefined,
     })
     analyticsClient.trackAction('material_delivery', 'create_delivery', 'success')
     emit('update:open', false)
     emit('submitted', result.deliveryId)
   } catch (error: unknown) {
-    console.error('송장입력 실패:', error)
+    console.error('반입자재 생성 실패:', error)
     analyticsClient.trackAction('material_delivery', 'create_delivery', 'fail')
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     alert(err.response?.data?.message || err.message)
@@ -193,152 +106,91 @@ async function handleSave() {
   <Dialog :open="open" @update:open="emit('update:open', $event)">
     <DialogContent class="sm:max-w-[520px]">
       <DialogHeader>
-        <DialogTitle>발주서없이 반입자재 생성</DialogTitle>
+        <DialogTitle>반입자재 생성</DialogTitle>
       </DialogHeader>
 
       <div class="space-y-5 py-2">
-        <!-- 자재유형 -->
-        <div class="space-y-2">
-          <Label>자재유형</Label>
-          <div class="flex items-center gap-1">
-            <Select v-model="selectedMaterialTypeId" class="flex-1">
-              <SelectTrigger>
-                <SelectValue placeholder="자재유형 선택" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem
-                  v-for="mt in materialTypes"
-                  :key="mt.id"
-                  :value="String(mt.id)"
-                >
-                  {{ mt.name }}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-            <ReferenceEditTrigger type="material" @refresh="reloadMaterialTypes" />
-          </div>
-        </div>
-
-        <!-- 송장파일 -->
+        <!-- 사진 업로드 -->
         <div class="space-y-2">
           <div class="flex items-center gap-2">
-            <Label>송장파일</Label>
-            <span class="text-xs text-muted-foreground">미입력 가능, 다시 눌러서 사진 재선택</span>
-          </div>
-          <input
-            type="file"
-            multiple
-            accept=".pdf,.png,.jpg,.jpeg"
-            class="block w-full text-sm text-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded file:border file:border-input file:bg-muted file:text-sm file:font-medium hover:file:bg-muted/80 cursor-pointer"
-            @change="onNotesChange"
-          />
-          <div v-if="notePreviewUrls.length > 0" class="flex flex-wrap gap-2 mt-1">
-            <div v-for="(url, i) in notePreviewUrls" :key="i" class="w-[120px] h-[120px] rounded border border-border overflow-hidden">
-              <img :src="url" class="w-full h-full object-cover" />
-            </div>
-          </div>
-        </div>
-
-        <!-- 반입사진 -->
-        <div class="space-y-2">
-          <div class="flex items-center gap-2">
-            <Label>반입사진</Label>
-            <span class="text-xs text-muted-foreground">미입력 가능, 다시 눌러서 사진 재선택</span>
+            <Label>사진</Label>
+            <span class="text-xs text-muted-foreground">
+              1~{{ MAX_IMAGES }}장, 다시 선택 시 교체됩니다
+            </span>
           </div>
           <input
             type="file"
             multiple
             accept="image/*"
             class="block w-full text-sm text-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded file:border file:border-input file:bg-muted file:text-sm file:font-medium hover:file:bg-muted/80 cursor-pointer"
-            @change="onPhotosChange"
+            @change="onImagesChange"
           />
-          <div v-if="photoPreviewUrls.length > 0" class="flex flex-wrap gap-2 mt-1">
-            <div v-for="(url, i) in photoPreviewUrls" :key="i" class="w-[120px] h-[120px] rounded border border-border overflow-hidden">
-              <img :src="url" class="w-full h-full object-cover" />
+          <div v-if="images.length > 0" class="flex flex-wrap gap-2 mt-1">
+            <div
+              v-for="(_, i) in images"
+              :key="i"
+              class="relative w-[120px] h-[120px] rounded border border-border overflow-hidden group"
+            >
+              <img
+                :src="previewUrls[i]"
+                class="w-full h-full object-cover"
+              />
+              <button
+                type="button"
+                class="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white text-xs leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                @click="removeImage(i)"
+              >
+                ✕
+              </button>
             </div>
           </div>
+          <p class="text-xs text-muted-foreground">
+            선택 {{ images.length }} / {{ MAX_IMAGES }}장
+          </p>
         </div>
 
-        <!-- 위치정보 -->
-        <div v-if="zones.length > 0" class="space-y-2">
-          <div class="flex items-center gap-1">
-            <Label>존</Label>
-            <ReferenceEditTrigger type="zone" @refresh="reloadZones" />
-          </div>
-          <div class="flex flex-wrap gap-1.5">
-            <button
-              v-for="zone in zones" :key="zone.id"
-              class="px-3 py-1 text-sm rounded-md border transition-colors"
-              :class="selectedZoneIds.includes(zone.id) ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-background border-border text-foreground hover:bg-muted'"
-              @click="selectedZoneIds = toggleId(selectedZoneIds, zone.id)"
-            >
-              {{ zone.name }}
-            </button>
-          </div>
-        </div>
-
-        <div v-if="floors.length > 0" class="space-y-2">
-          <div class="flex items-center gap-1">
-            <Label>층</Label>
-            <ReferenceEditTrigger type="floor" @refresh="reloadFloors" />
-          </div>
-          <div class="flex flex-wrap gap-1.5">
-            <button
-              v-for="floor in floors" :key="floor.id"
-              class="px-3 py-1 text-sm rounded-md border transition-colors"
-              :class="selectedFloorIds.includes(floor.id) ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-background border-border text-foreground hover:bg-muted'"
-              @click="selectedFloorIds = toggleId(selectedFloorIds, floor.id)"
-            >
-              {{ floor.name }}
-            </button>
-          </div>
-        </div>
-
-        <!-- 부재 -->
+        <!-- 사용부위 -->
         <div class="space-y-2">
-          <div class="flex items-center gap-1">
-            <Label>부재</Label>
-            <ReferenceEditTrigger type="component" @refresh="() => handleIsStructureChange(selectedIsStructure)" />
+          <div class="flex items-center gap-2">
+            <Label>사용부위</Label>
+            <span class="text-xs text-muted-foreground">선택 입력 (예: 지하1층 기둥)</span>
           </div>
-          <div class="flex gap-1.5">
-            <button
-              class="px-3 py-1 text-sm rounded-md border transition-colors"
-              :class="selectedIsStructure === true ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-background border-border text-foreground hover:bg-muted'"
-              @click="handleIsStructureChange(selectedIsStructure === true ? null : true)"
-            >
-              구조
-            </button>
-            <button
-              class="px-3 py-1 text-sm rounded-md border transition-colors"
-              :class="selectedIsStructure === false ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-background border-border text-foreground hover:bg-muted'"
-              @click="handleIsStructureChange(selectedIsStructure === false ? null : false)"
-            >
-              비구조
-            </button>
+          <Input
+            v-model="application"
+            placeholder="사용부위를 입력하세요"
+            :disabled="isSaving"
+          />
+        </div>
+
+        <!-- 공종 -->
+        <div class="space-y-2">
+          <div class="flex items-center gap-2">
+            <Label>공종</Label>
+            <span class="text-xs text-muted-foreground">선택 입력</span>
           </div>
-          <div v-if="componentTypes.length > 0" class="flex flex-wrap gap-1.5">
-            <button
-              v-for="ct in componentTypes" :key="ct.id"
-              class="px-3 py-1 text-sm rounded-md border transition-colors"
-              :class="selectedComponentTypeIds.includes(ct.id) ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-background border-border text-foreground hover:bg-muted'"
-              @click="selectedComponentTypeIds = toggleId(selectedComponentTypeIds, ct.id)"
-            >
-              {{ ct.name }}
-            </button>
-          </div>
-          <p v-else-if="isLoadingComponentTypes" class="text-xs text-muted-foreground">로딩 중...</p>
+          <Input
+            v-model="workType"
+            placeholder="철콘, 금속, 방수"
+            :disabled="isSaving"
+          />
         </div>
       </div>
 
       <DialogFooter class="flex-col items-end gap-2">
         <div class="flex gap-2">
-          <Button variant="outline" @click="emit('update:open', false)">취소</Button>
-          <Button :disabled="isSaving" @click="handleSave">
-            {{ isSaving ? '저장 중...' : '저장' }}
+          <Button
+            variant="outline"
+            :disabled="isSaving"
+            @click="emit('update:open', false)"
+          >
+            취소
+          </Button>
+          <Button :disabled="isSaving || images.length === 0" @click="handleSave">
+            {{ isSaving ? '생성 중...' : '생성' }}
           </Button>
         </div>
         <p v-if="isSaving" class="text-sm text-muted-foreground">
-          시간이 좀 걸립니다. 기다려주세요.
+          사진 분석에 시간이 걸릴 수 있습니다. 기다려주세요.
         </p>
       </DialogFooter>
     </DialogContent>

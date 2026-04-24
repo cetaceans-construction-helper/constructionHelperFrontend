@@ -53,7 +53,7 @@ const {
         <TableHeader>
           <TableRow>
             <TableHead>문서번호</TableHead>
-            <TableHead>납품일</TableHead>
+            <TableHead>상태</TableHead>
             <TableHead>생성일</TableHead>
             <TableHead class="w-20 text-center">문서번호수정</TableHead>
             <TableHead class="w-20 text-center">다운로드</TableHead>
@@ -62,8 +62,8 @@ const {
         </TableHeader>
         <TableBody>
           <TableRow v-for="mir in mirList" :key="mir.id">
-            <TableCell class="font-medium">{{ mir.documentNumber }}</TableCell>
-            <TableCell>{{ mir.deliveryDate }}</TableCell>
+            <TableCell class="font-medium">{{ mir.docNo ?? '-' }}</TableCell>
+            <TableCell>{{ mir.status }}</TableCell>
             <TableCell>{{ formatDate(mir.createdAt) }}</TableCell>
             <TableCell class="text-center">
               <Button
@@ -77,7 +77,7 @@ const {
             </TableCell>
             <TableCell class="text-center">
               <Button
-                v-if="mir.mirUrl"
+                v-if="mir.status === 'SUCCEEDED'"
                 variant="ghost"
                 size="sm"
                 class="h-8 w-8 p-0"

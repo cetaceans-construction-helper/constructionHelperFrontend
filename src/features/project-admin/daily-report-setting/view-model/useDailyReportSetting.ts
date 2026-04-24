@@ -1,5 +1,6 @@
 import { reactive, ref } from 'vue'
 import { projectDocumentCodeApi } from '@/features/document/public'
+import { docConfigApi } from '@/shared/network-core/apis/docConfig'
 import { analyticsClient } from '@/shared/analytics/analyticsClient'
 import {
   referenceApi,
@@ -160,16 +161,16 @@ export function useDailyReportSetting() {
     }
   }
 
-  async function load() {
+  async function load(projectId: string) {
     isLoading.value = true
     try {
       await loadReferenceData()
-      const res = await projectDocumentCodeApi.getProjectDocumentCode()
+      const res = await docConfigApi.getDocConfig(projectId)
       exists.value = true
-      dailyReportTemplateUrl.value = res.dailyReportTemplateUrl
+      dailyReportTemplateUrl.value = res.drTemplateUrl
 
-      if (res.dailyReportCellReference) {
-        const cellData = JSON.parse(res.dailyReportCellReference) as Record<string, unknown>
+      if (res.drExcelCellRef) {
+        const cellData = JSON.parse(res.drExcelCellRef) as Record<string, unknown>
 
         // tomorrowWorkMode
         if (cellData.tomorrowWorkMode != null) {
@@ -368,10 +369,17 @@ export function useDailyReportSetting() {
     }
   }
 
-  async function uploadTemplate(file: File) {
+  async function ensureDocConfig(projectId: string) {
+    if (exists.value) return
+    await docConfigApi.createDocConfig(projectId)
+    exists.value = true
+  }
+
+  async function uploadTemplate(projectId: string, file: File) {
     try {
-      const res = await projectDocumentCodeApi.uploadDailyReportTemplate(file)
-      dailyReportTemplateUrl.value = res.dailyReportTemplateUrl
+      await ensureDocConfig(projectId)
+      const res = await docConfigApi.uploadTemplate(projectId, 'DR', file)
+      dailyReportTemplateUrl.value = res.drTemplateUrl
       alert('템플릿이 업로드되었습니다.')
     } catch (error: unknown) {
       console.error('템플릿 업로드 실패:', error)

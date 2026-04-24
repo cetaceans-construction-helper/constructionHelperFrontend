@@ -4,6 +4,7 @@ import AreaCard from '@/shared/helper-ui/AreaCard.vue'
 import { Separator } from '@/shared/ui/separator'
 import LocationMasterArea from '@/features/project-admin/master-data/ui/components/LocationMasterArea.vue'
 import ComponentCodeArea from '@/features/project-admin/master-data/ui/components/ComponentCodeArea.vue'
+import MaterialMasterArea from '@/features/project-admin/master-data/ui/components/MaterialMasterArea.vue'
 </script>
 
 <template>
@@ -13,6 +14,8 @@ import ComponentCodeArea from '@/features/project-admin/master-data/ui/component
         <LocationMasterArea />
         <Separator />
         <ComponentCodeArea />
+        <Separator />
+        <MaterialMasterArea />
       </div>
     </AreaCard>
   </PageContainer>

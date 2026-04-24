@@ -1,43 +1,34 @@
 import type {
   MaterialInspectionRequestResponse,
-  ValidateMirResponse,
 } from '@/features/document/model/document-types'
+import type { DownloadedDocument } from '@/shared/network-core/apis/document'
 
 export interface MaterialInspectionRequestRepository {
-  validateMaterialInspectionRequest(deliveryId: number): Promise<ValidateMirResponse>
-  createMaterialInspectionRequest(deliveryId: number, body?: { excludedIndices: number[] }): Promise<void>
-  getMaterialInspectionRequestList(): Promise<MaterialInspectionRequestResponse[]>
-  deleteMaterialInspectionRequest(mirId: number): Promise<void>
+  createMir(materialDeliveryId: number): Promise<MaterialInspectionRequestResponse>
+  getMirList(): Promise<MaterialInspectionRequestResponse[]>
+  deleteDocument(jobId: number): Promise<void>
   updateMirDocumentNumber(mirId: number, documentNumber: string): Promise<void>
-  downloadMaterialInspectionRequestFile(url: string): Promise<string>
+  downloadDocument(jobId: number): Promise<DownloadedDocument>
 }
 
-export const validateMaterialInspectionRequest = async (
+export const createMir = async (
   repository: MaterialInspectionRequestRepository,
-  deliveryId: number,
-): Promise<ValidateMirResponse> => {
-  return repository.validateMaterialInspectionRequest(deliveryId)
-}
-
-export const createMaterialInspectionRequest = async (
-  repository: MaterialInspectionRequestRepository,
-  deliveryId: number,
-  body?: { excludedIndices: number[] },
-): Promise<void> => {
-  await repository.createMaterialInspectionRequest(deliveryId, body)
+  materialDeliveryId: number,
+): Promise<MaterialInspectionRequestResponse> => {
+  return repository.createMir(materialDeliveryId)
 }
 
 export const getMaterialInspectionRequests = async (
   repository: MaterialInspectionRequestRepository,
 ): Promise<MaterialInspectionRequestResponse[]> => {
-  return repository.getMaterialInspectionRequestList()
+  return repository.getMirList()
 }
 
-export const deleteMaterialInspectionRequest = async (
+export const deleteDocument = async (
   repository: MaterialInspectionRequestRepository,
-  mirId: number,
+  jobId: number,
 ): Promise<void> => {
-  await repository.deleteMaterialInspectionRequest(mirId)
+  await repository.deleteDocument(jobId)
 }
 
 export const updateMirDocumentNumber = async (
@@ -48,17 +39,14 @@ export const updateMirDocumentNumber = async (
   await repository.updateMirDocumentNumber(mirId, documentNumber)
 }
 
-export const downloadMaterialInspectionRequest = async (
+export const downloadDocument = async (
   repository: MaterialInspectionRequestRepository,
-  request: Pick<MaterialInspectionRequestResponse, 'documentNumber' | 'mirUrl'>,
+  request: Pick<MaterialInspectionRequestResponse, 'id' | 'docNo'>,
 ): Promise<{ blobUrl: string; fileName: string }> => {
-  if (!request.mirUrl) {
-    throw new Error('다운로드 가능한 문서가 없습니다.')
-  }
-
-  const blobUrl = await repository.downloadMaterialInspectionRequestFile(request.mirUrl)
+  const { blob, format } = await repository.downloadDocument(request.id)
+  const baseName = request.docNo ?? `MIR_${request.id}`
   return {
-    blobUrl,
-    fileName: `${request.documentNumber}.xlsx`,
+    blobUrl: URL.createObjectURL(blob),
+    fileName: `${baseName}.${format}`,
   }
 }

@@ -16,7 +16,6 @@ import {
   ClipboardCheck,
   Wrench,
   Database,
-  FileCheck,
   CalendarOff,
   Upload,
   Globe,
@@ -99,7 +98,7 @@ const menusBySection: Record<string, MenuItem[]> = {
   document: [],
   admin: [
     { id: 'master-data', label: '기준정보 관리', path: '/helper/admin', icon: Database },
-    { id: 'document-setting', label: '자재검수요청서', path: '/helper/admin/document', icon: FileCheck },
+    { id: 'document-number', label: '문서 설정', path: '/helper/admin/document-number', icon: FileText },
     { id: 'daily-report-setting', label: '작업일보', path: '/helper/admin/daily-report', icon: FileText },
     { id: 'holiday', label: '휴일관리', path: '/helper/admin/holiday', icon: CalendarOff },
     { id: 'bulk-deployment', label: '대량 출역 입력', path: '/helper/admin/bulk-deployment', icon: Upload },
@@ -265,21 +264,6 @@ const handleLogout = async () => {
   router.push('/')
 }
 
-// Tab 키로 다음 메뉴 전환
-const handleTabKey = (e: KeyboardEvent) => {
-  if (e.key !== 'Tab') return
-  const menus = currentMenus.value
-  if (menus.length <= 1) return
-
-  e.preventDefault()
-  const currentIndex = menus.findIndex((m) => route.path === m.path)
-  const nextIndex = e.shiftKey
-    ? (currentIndex - 1 + menus.length) % menus.length
-    : (currentIndex + 1) % menus.length
-  const nextMenu = menus[nextIndex]
-  if (nextMenu) router.push(nextMenu.path)
-}
-
 // ~ 키로 다음 섹션 이동 (Shift+~ 이전 섹션)
 const handleTildeKey = (e: KeyboardEvent) => {
   if (e.key !== '`' && e.key !== '~' && e.key !== '₩') return
@@ -303,13 +287,11 @@ const onPortraitChange = (e: MediaQueryListEvent | MediaQueryList) => {
 onMounted(() => {
   onPortraitChange(portraitMql)
   portraitMql.addEventListener('change', onPortraitChange)
-  window.addEventListener('keydown', handleTabKey)
   window.addEventListener('keydown', handleTildeKey)
 })
 
 onUnmounted(() => {
   portraitMql.removeEventListener('change', onPortraitChange)
-  window.removeEventListener('keydown', handleTabKey)
   window.removeEventListener('keydown', handleTildeKey)
 })
 </script>

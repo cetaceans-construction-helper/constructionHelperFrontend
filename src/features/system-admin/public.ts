@@ -5,7 +5,6 @@ export { useRoleManagement } from '@/features/system-admin/view-model/useRoleMan
 
 // 표준 데이터 (글로벌 RE 관리) — SUPER 전용
 export { useWorkClassification } from '@/features/system-admin/view-model/standard/useWorkClassification'
-export { useMaterialMaster } from '@/features/system-admin/view-model/standard/useMaterialMaster'
 export { useEquipmentMaster } from '@/features/system-admin/view-model/standard/useEquipmentMaster'
 export { useLaborType } from '@/features/system-admin/view-model/standard/useLaborType'
 

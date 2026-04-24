@@ -19,7 +19,6 @@ export function useMaterialMaster() {
   const isCreating = ref(false)
   const isDeleting = ref(false)
 
-  // 목록 로드
   const loadMaterialTypes = async () => {
     try {
       materialTypes.value = await referenceApi.getMaterialTypeList()
@@ -36,12 +35,10 @@ export function useMaterialMaster() {
     }
   }
 
-  // 선택
   const selectMaterialType = (id: number) => {
     selectedMaterialTypeId.value = id
   }
 
-  // 추가
   const addMaterialType = async () => {
     if (isCreating.value) return
     const name = newMaterialTypeName.value.trim()
@@ -87,7 +84,6 @@ export function useMaterialMaster() {
     }
   }
 
-  // 삭제
   const deleteMaterialType = async (id: number) => {
     if (isDeleting.value) return
     isDeleting.value = true
@@ -126,7 +122,6 @@ export function useMaterialMaster() {
     }
   }
 
-  // 수정 (이름 + 단위 변경)
   const updateMaterialType = async (id: number, name: string, unit?: string) => {
     try {
       await referenceApi.updateMaterialType({ id, name, unit })
@@ -160,7 +155,6 @@ export function useMaterialMaster() {
     }
   }
 
-  // 정렬 변경
   const reorderMaterialTypes = async (ids: number[]) => {
     try {
       await referenceApi.updateMaterialType({ ids })
@@ -186,7 +180,6 @@ export function useMaterialMaster() {
     }
   }
 
-  // 캐스케이딩 로드
   watch(selectedMaterialTypeId, (id) => {
     materialSpecs.value = []
     if (id) {

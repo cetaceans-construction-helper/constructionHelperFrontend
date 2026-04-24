@@ -1,4 +1,5 @@
 import apiClient from '@/shared/network-core/apiClient'
+import { fileApi } from '@/shared/network-core/apis/file'
 import type {
   DailyReportResponse,
   ValidateDailyReportResponse,
@@ -33,11 +34,7 @@ export const dailyReportApi = {
     await apiClient.delete(`/dailyReport/deleteDailyReport/${id}`)
   },
 
-  async downloadDailyReportFile(url: string): Promise<string> {
-    const { data } = await apiClient.get<Blob>('/materialDelivery/downloadFile', {
-      params: { url },
-      responseType: 'blob',
-    })
-    return URL.createObjectURL(data)
+  async downloadDailyReportFile(key: string): Promise<string> {
+    return fileApi.objectUrlByKey(key)
   },
 }

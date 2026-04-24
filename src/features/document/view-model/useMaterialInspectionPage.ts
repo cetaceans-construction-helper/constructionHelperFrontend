@@ -2,8 +2,8 @@ import { onMounted, ref } from 'vue'
 import { materialInspectionRequestRepository } from '@/features/document/infra/material-inspection-request-repository'
 import type { MaterialInspectionRequestResponse } from '@/features/document/model/document-types'
 import {
-  deleteMaterialInspectionRequest,
-  downloadMaterialInspectionRequest,
+  deleteDocument,
+  downloadDocument,
   getMaterialInspectionRequests,
   updateMirDocumentNumber,
 } from '@/features/document/use-cases/material-inspection-request'
@@ -43,7 +43,7 @@ export const useMaterialInspectionPage = () => {
 
   const openDeleteDialog = (request: MaterialInspectionRequestResponse) => {
     deleteTargetId.value = request.id
-    deleteTargetName.value = request.documentNumber
+    deleteTargetName.value = request.docNo ?? ''
     showDeleteDialog.value = true
   }
 
@@ -51,7 +51,7 @@ export const useMaterialInspectionPage = () => {
     if (deleteTargetId.value == null) return
     isDeleting.value = true
     try {
-      await deleteMaterialInspectionRequest(materialInspectionRequestRepository, deleteTargetId.value)
+      await deleteDocument(materialInspectionRequestRepository, deleteTargetId.value)
       showDeleteDialog.value = false
       analyticsClient.trackAction('material_delivery', 'delete_mir', 'success')
       await loadList()
@@ -67,7 +67,7 @@ export const useMaterialInspectionPage = () => {
   const downloadMir = async (request: MaterialInspectionRequestResponse) => {
     isDownloading.value[request.id] = true
     try {
-      const { blobUrl, fileName } = await downloadMaterialInspectionRequest(
+      const { blobUrl, fileName } = await downloadDocument(
         materialInspectionRequestRepository,
         request,
       )
@@ -87,8 +87,8 @@ export const useMaterialInspectionPage = () => {
   }
 
   const handleUpdateDocumentNumber = async (mir: MaterialInspectionRequestResponse) => {
-    const newDocNumber = prompt('새 문서번호를 입력하세요', mir.documentNumber)
-    if (newDocNumber == null || newDocNumber.trim() === '' || newDocNumber === mir.documentNumber) return
+    const newDocNumber = prompt('새 문서번호를 입력하세요', mir.docNo ?? '')
+    if (newDocNumber == null || newDocNumber.trim() === '' || newDocNumber === mir.docNo) return
     try {
       await updateMirDocumentNumber(materialInspectionRequestRepository, mir.id, newDocNumber.trim())
       analyticsClient.trackAction('material_delivery', 'update_mir_document_number', 'success')

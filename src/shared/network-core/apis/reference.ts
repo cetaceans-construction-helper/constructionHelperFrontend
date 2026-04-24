@@ -198,7 +198,7 @@ export const referenceApi = {
   },
 
   async createMaterialType(name: string, unit?: string): Promise<MaterialTypeResponse> {
-    const { data } = await apiClient.post<MaterialTypeResponse>('/super/reference/createMaterialType', {
+    const { data } = await apiClient.post<MaterialTypeResponse>('/reference/createMaterialType', {
       name,
       unit,
     })
@@ -213,7 +213,7 @@ export const referenceApi = {
   },
 
   async createMaterialSpec(materialTypeId: number, name: string): Promise<MaterialSpecResponse> {
-    const { data } = await apiClient.post<MaterialSpecResponse>('/super/reference/createMaterialSpec', {
+    const { data } = await apiClient.post<MaterialSpecResponse>('/reference/createMaterialSpec', {
       materialTypeId,
       name,
     })
@@ -372,7 +372,7 @@ export const referenceApi = {
   },
 
   async updateMaterialType(params: UpdateReferenceRequest): Promise<void> {
-    await apiClient.post('/super/reference/updateMaterialType', params)
+    await apiClient.post('/reference/updateMaterialType', params)
   },
 
   async updateEquipmentType(params: UpdateReferenceRequest): Promise<void> {
@@ -412,7 +412,7 @@ export const referenceApi = {
   },
 
   async updateMaterialSpec(params: UpdateChildReferenceRequest): Promise<void> {
-    await apiClient.post('/super/reference/updateMaterialSpec', params)
+    await apiClient.post('/reference/updateMaterialSpec', params)
   },
 
   async updateEquipmentSpec(params: UpdateChildReferenceRequest): Promise<void> {
@@ -445,11 +445,11 @@ export const referenceApi = {
   },
 
   async deleteMaterialType(id: number): Promise<void> {
-    await apiClient.delete(`/super/reference/deleteMaterialType/${id}`)
+    await apiClient.delete(`/reference/deleteMaterialType/${id}`)
   },
 
   async deleteMaterialSpec(id: number): Promise<void> {
-    await apiClient.delete(`/super/reference/deleteMaterialSpec/${id}`)
+    await apiClient.delete(`/reference/deleteMaterialSpec/${id}`)
   },
 
   async deleteEquipmentType(id: number): Promise<void> {

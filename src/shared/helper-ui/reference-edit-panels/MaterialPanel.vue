@@ -13,7 +13,7 @@ import {
   AlertDialogTitle,
 } from '@/shared/ui/alert-dialog'
 import SortableReferenceList from '@/shared/helper-ui/SortableReferenceList.vue'
-import { useMaterialMaster } from '@/features/system-admin/public'
+import { useMaterialMaster } from '@/features/project-admin/master-data/public'
 
 const {
   materialTypes,

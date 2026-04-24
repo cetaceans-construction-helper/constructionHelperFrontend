@@ -37,10 +37,12 @@ export interface MaterialOrderResponse {
   orderLines: MaterialOrderLineResponse[]
 }
 
-export interface DeliveryFileInfo {
-  noteId?: number
-  photoId?: number
+export type PhotoType = 'DELIVERY_NOTE' | 'MILL_SHEET' | 'TAG' | 'DELIVERY_PHOTO'
+
+export interface DeliveryPhotoFile {
+  photoId: number
   url: string
+  type: PhotoType
   description: string
 }
 
@@ -52,35 +54,18 @@ export interface MaterialDeliverySummary {
   unit: string
   mirDocumentNumber: string | null
   totalQuantity: number
-}
-
-export interface MaterialDeliveryDetailZone {
-  id: number
-  name: string
-}
-
-export interface MaterialDeliveryDetailFloor {
-  id: number
-  name: string
-}
-
-export interface MaterialDeliveryDetailComponentType {
-  componentTypeId: number
-  componentTypeName: string
-  isStructure: boolean
+  docId: number | null
 }
 
 export interface MaterialDeliveryDetail {
   materialDeliveryId: number
   supplier: string
+  application: string | null
   workTypeId: number | null
   workTypeName: string | null
-  zones: MaterialDeliveryDetailZone[]
-  floors: MaterialDeliveryDetailFloor[]
-  componentTypes: MaterialDeliveryDetailComponentType[]
-  noteFiles: DeliveryFileInfo[]
-  photoFiles: DeliveryFileInfo[]
+  photoFiles: DeliveryPhotoFile[]
   deliveryLines: DeliveryLineResponse[]
+  docId: number | null
 }
 
 export interface CreateDeliveryResponse {

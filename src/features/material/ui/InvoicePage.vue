@@ -179,13 +179,7 @@ async function saveDelivery() {
   isSaving.value = true
   try {
     await materialOrderApi.createMaterialDelivery({
-      materialTypeId: selectedOrder.value.materialTypeId,
-      workTypeId: selectedOrder.value.workTypeId,
-      deliveryNotes: deliveryNotes.value,
-      deliveryPhotos: deliveryPhotos.value,
-      zoneIds: selectedZoneIds.value,
-      floorIds: selectedFloorIds.value,
-      componentTypeIds: [],
+      images: [...deliveryNotes.value, ...deliveryPhotos.value],
     })
     deliveryDialogOpen.value = false
     analyticsClient.trackAction('material_delivery', 'create_delivery', 'success')

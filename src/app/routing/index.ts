@@ -6,6 +6,7 @@ import { documentRouteComponents } from '@/features/document/public'
 import { materialRouteComponents } from '@/features/material/public'
 import { projectAdminDailyReportSettingRouteComponents } from '@/features/project-admin/daily-report-setting/public'
 import { projectAdminDocumentSettingRouteComponents } from '@/features/project-admin/document-setting/public'
+import { projectAdminDocumentNumberRouteComponents } from '@/features/project-admin/document-number/public'
 import { projectAdminHolidayRouteComponents } from '@/features/project-admin/holiday/public'
 import { projectAdminMasterDataRouteComponents } from '@/features/project-admin/master-data/public'
 import { projectAdminBulkDeploymentRouteComponents } from '@/features/project-admin/bulk-deployment/public'
@@ -134,6 +135,11 @@ const router = createRouter({
           path: 'admin/document',
           name: 'admin-document',
           component: projectAdminDocumentSettingRouteComponents.DocumentSettingPage,
+        },
+        {
+          path: 'admin/document-number',
+          name: 'admin-document-number',
+          component: projectAdminDocumentNumberRouteComponents.DocumentNumberPage,
         },
         {
           path: 'admin/daily-report',
